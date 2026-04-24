@@ -1,0 +1,2678 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPL 儀表板 · 日翊文化行銷</title>
+<!-- SheetJS：前端 Excel 解析（資料匯入頁使用） -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+/* ═══════════════════════════════════════════════════════
+   base.css · 品牌 Token + 字型 + 重置
+   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   base.css · 品牌 Token + 字型 + 重置
+   日翊文化行銷 Re-Yi Distribution
+   ─────────────────────────────────────────────────────
+   這個檔案放：顏色變數、字型、全站 reset
+   其他檔案可以直接用 var(--ry-blue) 這些變數
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* 主色系 */
+  --ry-blue:       #1e5ca8;
+  --ry-blue-dark:  #123d74;
+  --ry-blue-mid:   #2d72cc;
+  --ry-blue-pale:  #e8f0fb;
+
+  /* 輔助色 */
+  --ry-gold:       #f5c400;
+  --ry-red:        #d9401b;
+  --ry-red-pale:   #fdf0ec;
+  --ry-orange:     #e07855;
+  --ry-orange-pale:#fff4e8;
+  --ry-green:      #1b7c33;
+  --ry-green-pale: #eef9f0;
+
+  /* 中性色 */
+  --ry-ink:        #1a1d24;
+  --ry-muted:      #5a6478;
+  --ry-line:       #dde2ec;
+  --ry-bg:         #f4f6fb;
+  --ry-white:      #ffffff;
+  --ry-paper:      #fafbfd;
+
+  /* 字型 */
+  --f-head: system-ui, 'Microsoft JhengHei', '微軟正黑體', sans-serif;
+  --f-mono: 'Courier New', 'Consolas', monospace;
+  /* 字體大小 */
+  --fs-xs:    10px;
+  --fs-sm:    12px;
+  --fs-md:    12px;
+  --fs-lg:    14px;
+  --fs-title: 16px;
+  --row-height: 30px;
+
+  /* 倉別代表色（系統通用） */
+  --wh-daxi:     #0E7BAD;
+  --wh-dadu:     #2DA870;
+  --wh-gangshan: #E07855;
+  --wh-all:      var(--ry-blue-dark);
+
+  /* 表格標頭色（僅表格使用，可獨立調整） */
+  --tbl-header:   #123d74;
+  --tbl-daxi:     var(--tbl-header);
+  --tbl-dadu:     var(--tbl-header);
+  --tbl-gangshan: var(--tbl-header);
+  --tbl-all:      var(--tbl-header);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--f-head);
+  background: var(--ry-bg);
+  color: var(--ry-ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* 動畫 */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   layout.css · Nav + 左側選單 + 主內容版面
+   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   layout.css · 整體版面配置
+   ─────────────────────────────────────────────────────
+   三段式：
+   ┌────────── Nav（頂部）────────────┐
+   │                                   │
+   ├─ Sidebar ─┬─ Main Content ───────┤
+   │  (左側)    │  (右側內容)           │
+   └───────────┴──────────────────────┘
+   ═══════════════════════════════════════════════════════ */
+
+/* ══ Nav（頂部導覽） ══ */
+.nav {
+  position: sticky; top: 0; z-index: 200;
+  height: 58px;
+  background: var(--ry-blue-dark);
+  border-bottom: 3px solid var(--ry-gold);
+  display: flex; align-items: center;
+  padding: 0 24px;
+}
+.nav-logo { display: flex; align-items: center; gap: 10px; margin-right: 24px; }
+.nav-logo-badge {
+  width: 32px; height: 32px; background: var(--ry-red);
+  border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: var(--fs-xs); font-weight: 900; color: white;
+}
+.nav-logo-en { font-size: var(--fs-sm); font-weight: 700; color: white; letter-spacing: 0.04em; }
+.nav-logo-zh { font-size: var(--fs-xs); color: rgba(255,255,255,.45); }
+.nav-sep { width: 1px; height: 22px; background: rgba(255,255,255,.12); margin: 0 16px; }
+.nav-module { font-size: var(--fs-sm); font-weight: 600; color: white; letter-spacing: 0.02em; }
+.nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+
+/* ══ Shell（左右兩欄容器） ══ */
+.shell {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  min-height: calc(100vh - 58px);
+}
+
+/* ══ Sidebar（左側選單） ══ */
+.sidebar {
+  background: var(--ry-white);
+  border-right: 1px solid var(--ry-line);
+  padding: 16px 0;
+  height: calc(100vh - 58px);
+  position: sticky; top: 58px;
+  overflow-y: auto;
+}
+.sidebar::-webkit-scrollbar { width: 3px; }
+.sidebar::-webkit-scrollbar-thumb { background: var(--ry-line); }
+
+.sb-group {
+  margin-bottom: 18px;
+}
+.sb-group-label {
+  font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ry-muted);
+  padding: 0 18px 6px;
+}
+
+.sb-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 9px 18px;
+  font-size: var(--fs-sm); color: var(--ry-ink);
+  cursor: pointer;
+  border-left: 3px solid transparent;
+  transition: all .15s;
+  position: relative;
+  text-decoration: none;
+}
+.sb-item:hover {
+  background: var(--ry-bg);
+  color: var(--ry-blue);
+}
+.sb-item.active {
+  background: var(--ry-blue-pale);
+  color: var(--ry-blue);
+  border-left-color: var(--ry-blue);
+  font-weight: 700;
+}
+.sb-item.active .sb-item-icon { opacity: 1; }
+.sb-item.active::after {
+  content: '●';
+  position: absolute;
+  right: 14px;
+  color: var(--ry-blue);
+  font-size: 8px;
+}
+
+.sb-item-icon {
+  font-size: 14px;
+  opacity: 0.65;
+  flex-shrink: 0;
+}
+.sb-item-label {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.sb-item-badge {
+  font-size: 9px;
+  padding: 1px 6px;
+  border-radius: 99px;
+  font-family: var(--f-mono);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
+.sb-item-badge.wip {
+  background: var(--ry-orange-pale);
+  color: var(--ry-orange);
+}
+.sb-item-badge.soon {
+  background: var(--ry-line);
+  color: var(--ry-muted);
+}
+
+/* ══ Main Content（右側內容） ══ */
+.main {
+  padding: 28px 32px 60px;
+  overflow-y: auto;
+}
+
+.page-head { margin-bottom: 20px; }
+.page-eyebrow {
+  font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+  color: var(--ry-blue); margin-bottom: 4px;
+}
+.page-h {
+  font-size: 24px; font-weight: 900;
+  color: var(--ry-ink); letter-spacing: -0.02em; line-height: 1.2;
+}
+.page-p {
+  	font-size: var(--fs-sm); color: var(--ry-muted);
+  margin-top: 4px; font-family: var(--f-mono);
+}
+
+/* ══ 建構中 Placeholder ══ */
+.wip-page {
+  background: white;
+  border: 1.5px dashed var(--ry-line);
+  border-radius: 4px;
+  padding: 64px 32px;
+  text-align: center;
+  animation: fadeIn .3s ease both;
+}
+.wip-icon {
+  font-size: 48px;
+  margin-bottom: 14px;
+  filter: grayscale(0.3);
+}
+.wip-title {
+  font-size: 20px; font-weight: 900;
+  color: var(--ry-ink); margin-bottom: 6px;
+  letter-spacing: -0.02em;
+}
+.wip-desc {
+  font-size: var(--fs-sm); color: var(--ry-muted);
+  margin-bottom: 20px; max-width: 420px; margin-left: auto; margin-right: auto;
+  line-height: 1.7;
+}
+.wip-note {
+  font-size: var(--fs-xs); color: var(--ry-muted);
+  font-family: var(--f-mono);
+  padding: 10px 16px;
+  background: var(--ry-bg);
+  border-left: 3px solid var(--ry-gold);
+  border-radius: 2px;
+  display: inline-block;
+  text-align: left;
+  line-height: 1.7;
+}
+
+/* ══ RWD ══ */
+@media (max-width: 1024px) {
+  .shell { grid-template-columns: 200px 1fr; }
+}
+@media (max-width: 768px) {
+  .shell {
+    grid-template-columns: 1fr;
+  }
+  .sidebar {
+    position: fixed;
+    top: 58px;
+    left: -220px;
+    width: 220px;
+    height: calc(100vh - 58px);
+    z-index: 150;
+    transition: left .25s;
+    box-shadow: 2px 0 12px rgba(0,0,0,.08);
+  }
+  .sidebar.open { left: 0; }
+  .main { padding: 20px; }
+  .nav { padding: 0 14px; }
+  .nav-logo-zh { display: none; }
+  .nav-sep { margin: 0 10px; }
+}
+
+
+/* ═══════════════════════════════════════════════════════
+   widget.css · 卡片、表格、進度條、Modal
+   ═══════════════════════════════════════════════════════ */
+/* ═══════════════════════════════════════════════════════
+   widget.css · 卡片、表格、進度條等元件樣式
+   ═══════════════════════════════════════════════════════ */
+
+/* ══ 篩選列 ══ */
+.filter-bar {
+  background: white;
+  border: 1px solid var(--ry-line);
+  border-left: 4px solid var(--ry-blue);
+  border-radius: 4px;
+  padding: 14px 18px;
+  margin-bottom: 18px;
+  display: flex; align-items: center; gap: 14px;
+  flex-wrap: wrap;
+}
+.filter-label {
+  font-size: var(--fs-xs); font-weight: 700; letter-spacing: 0.08em;
+  text-transform: uppercase; color: var(--ry-muted);
+}
+.filter-input {
+  padding: 7px 12px;
+  border: 1.5px solid var(--ry-line);
+  border-radius: 3px;
+  font-family: var(--f-mono); 	font-size: var(--fs-sm);
+  background: white; color: var(--ry-ink);
+  transition: border-color .15s;
+}
+.filter-input:focus { outline: none; border-color: var(--ry-blue); }
+.filter-divider { width: 1px; height: 22px; background: var(--ry-line); }
+.filter-meta {
+  margin-left: auto;
+  font-size: var(--fs-xs); color: var(--ry-muted);
+  font-family: var(--f-mono);
+}
+
+/* ══ 按鈕 ══ */
+.btn {
+  padding: 8px 16px;
+  border-radius: 3px;
+  cursor: pointer;
+  font-family: var(--f-head);
+  	font-size: var(--fs-sm);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  border: none;
+  transition: all .15s;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.btn-primary { background: var(--ry-blue); color: white; }
+.btn-primary:hover { background: var(--ry-blue-dark); }
+
+.btn-gold { background: var(--ry-gold); color: var(--ry-blue-dark); }
+.btn-gold:hover { background: #e0b000; }
+
+.btn-outline {
+  background: transparent;
+  border: 1.5px solid rgba(255,255,255,.3);
+  color: white;
+}
+.btn-outline:hover {
+  background: var(--ry-gold);
+  color: var(--ry-blue-dark);
+  border-color: var(--ry-gold);
+}
+
+.btn-ghost {
+  background: transparent;
+  color: var(--ry-muted);
+  border: 1.5px solid var(--ry-line);
+}
+.btn-ghost:hover {
+  border-color: var(--ry-muted);
+  color: var(--ry-ink);
+}
+
+/* ══ Grid ══ */
+.grid {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 16px;
+}
+
+/* ══ Widget（卡片） ══ */
+.w {
+  background: white;
+  border: 1px solid var(--ry-line);
+  border-radius: 4px;
+  padding: 16px 18px;
+  position: relative;
+  animation: fadeUp .4s ease both;
+}
+.w.s3  { grid-column: span 3; }
+.w.s4  { grid-column: span 4; }
+.w.s6  { grid-column: span 6; }
+.w.s8  { grid-column: span 8; }
+.w.s12 { grid-column: span 12; }
+
+.wh {
+  display: flex; justify-content: space-between;
+  align-items: center; margin-bottom: 12px;
+}
+.wl {
+  display: flex; align-items: center; gap: 10px;
+  font-size: var(--fs-title); font-weight: 800; color: var(--ry-ink);
+  letter-spacing: -0.01em;
+}
+.wdot {
+  width: 10px; height: 10px;
+  background: var(--ry-blue);
+  border-radius: 3px;
+  flex-shrink: 0;
+}
+.wmeta {
+  font-size: var(--fs-xs); color: var(--ry-muted);
+  font-family: var(--f-mono); letter-spacing: 0.04em;
+}
+
+/* ══ 金色標題帶 ══ */
+.gold-band {
+  background: var(--ry-gold);
+  color: var(--ry-blue-dark);
+  padding: 6px 14px;
+  font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.04em;
+  margin: -16px -18px 12px;
+  border-radius: 4px 4px 0 0;
+}
+
+/* ══ KV、KD（數字 + 描述） ══ */
+.kv {
+  font-family: var(--f-mono);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+.kd {
+  font-size: var(--fs-xs);
+  color: var(--ry-muted);
+  margin-top: 4px;
+  line-height: 1.5;
+}
+
+/* ══ 進度條 ══ */
+.pr { margin-bottom: 8px; }
+.pr-row {
+  display: flex; justify-content: space-between;
+  margin-bottom: 3px; font-size: var(--fs-xs);
+}
+.pr-n { color: var(--ry-ink); font-weight: 600; }
+.pr-p { font-family: var(--f-mono); font-weight: 700; }
+.track {
+  height: 6px;
+  background: var(--ry-bg);
+  border-radius: 99px;
+  overflow: hidden;
+}
+.bar {
+  height: 100%;
+  border-radius: 99px;
+  transition: width .4s;
+}
+
+/* ══ 表格 ══ */
+.tbl {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--fs-sm);
+}
+.tbl thead tr {
+  background: var(--ry-bg);
+  border-top: 1px solid var(--ry-line);
+  border-bottom: 2px solid var(--ry-blue-dark);
+}
+.tbl th {
+  padding: 10px 16px;
+  text-align: left;
+  font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.08em; color: var(--ry-muted);
+  text-transform: uppercase;
+}
+.tbl td {
+  padding: 12px 16px;
+  border-bottom: 1px solid var(--ry-line);
+  height: var(--row-height);
+  vertical-align: middle;
+}
+td.mono {
+  font-family: var(--f-mono);
+}
+
+/* ══ Badge / Tag ══ */
+.tag {
+  display: inline-block;
+  padding: 3px 10px;
+  border: 1px solid;
+  border-radius: 3px;
+  font-size: var(--fs-xs); font-weight: 700;
+  font-family: var(--f-mono);
+  letter-spacing: 0.06em;
+}
+
+/* ══ Modal（資料設定） ══ */
+.modal-overlay {
+  display: none;
+  position: fixed; inset: 0;
+  background: rgba(18,61,116,.5);
+  z-index: 300;
+  align-items: center; justify-content: center;
+  animation: fadeIn .2s ease;
+}
+.modal-overlay.on { display: flex; }
+.modal {
+  background: white;
+  border-radius: 4px;
+  width: 540px; max-width: 90vw;
+  max-height: 86vh; overflow-y: auto;
+  border-top: 4px solid var(--ry-blue);
+}
+.modal-head {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--ry-line);
+  display: flex; justify-content: space-between; align-items: center;
+}
+.modal-title {
+  font-size: 15px; font-weight: 800;
+  color: var(--ry-blue-dark);
+}
+.modal-sub {
+  font-size: var(--fs-xs); color: var(--ry-muted);
+  margin-top: 2px;
+}
+.modal-close {
+  background: none; border: none;
+  font-size: 20px; color: var(--ry-muted);
+  cursor: pointer; line-height: 1;
+}
+.modal-body { padding: 20px 22px; }
+.modal-foot {
+  padding: 14px 22px;
+  border-top: 1px solid var(--ry-line);
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.field-group { margin-bottom: 18px; }
+.field-group-label {
+  font-size: var(--fs-xs); font-weight: 700;
+  letter-spacing: 0.1em; text-transform: uppercase;
+  color: var(--ry-blue);
+  margin-bottom: 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--ry-line);
+}
+.field {
+  margin-bottom: 10px;
+  display: grid;
+  grid-template-columns: 140px 1fr;
+  gap: 10px;
+  align-items: center;
+}
+.field label {
+  	font-size: var(--fs-sm);
+  color: var(--ry-ink);
+  font-weight: 600;
+}
+.field input {
+  padding: 7px 10px;
+  border: 1.5px solid var(--ry-line);
+  border-radius: 3px;
+  font-family: var(--f-mono);
+  	font-size: var(--fs-sm);
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--ry-blue);
+}
+.field-note {
+  font-size: var(--fs-xs);
+  color: var(--ry-muted);
+  margin-top: 3px;
+  grid-column: 2;
+  font-family: var(--f-mono);
+}
+
+/* ══ Toast 通知 ══ */
+.toast {
+  position: fixed;
+  bottom: 28px; right: 28px;
+  background: var(--ry-blue-dark);
+  border-left: 3px solid var(--ry-gold);
+  color: white;
+  padding: 12px 18px;
+  border-radius: 3px;
+  	font-size: var(--fs-sm);
+  z-index: 400;
+  opacity: 0; transform: translateY(10px);
+  transition: all .2s;
+}
+.toast.on { opacity: 1; transform: translateY(0); }
+
+/* ══ RWD 卡片收縮 ══ */
+@media (max-width: 1100px) {
+  .w.s3, .w.s4 { grid-column: span 6; }
+  .w.s6 { grid-column: span 12; }
+}
+@media (max-width: 680px) {
+  .w.s3, .w.s4, .w.s6, .w.s8 { grid-column: span 12; }
+  .filter-bar { flex-direction: column; align-items: stretch; }
+  .filter-meta { margin-left: 0; text-align: right; }
+}
+
+</style>
+</head>
+<body>
+
+<!-- ═══ 頂部 Nav ═══ -->
+<nav class="nav">
+  <button class="btn btn-outline" onclick="toggleSidebar()" style="display:none;margin-right:12px" id="menu-toggle">☰</button>
+  <div class="nav-logo">
+    <div class="nav-logo-badge">RY</div>
+    <div>
+      <div class="nav-logo-en">Re-Yi Distribution</div>
+      <div class="nav-logo-zh">日翊文化行銷股份有限公司</div>
+    </div>
+  </div>
+  <div class="nav-sep"></div>
+  <span class="nav-module">KPL 績效儀表板</span>
+  <div class="nav-right">
+    <span style="font-size:var(--fs-xs);color:rgba(255,255,255,.5);font-family:var(--f-mono)" id="nav-time"></span>
+  </div>
+</nav>
+
+<!-- ═══ 主容器（左側選單 + 右側內容） ═══ -->
+<div class="shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main" id="main"></main>
+</div>
+
+<!-- Toast 通知 -->
+<div class="toast" id="toast"></div>
+
+<script>
+// ═══════════════════════════════════════════════════════
+// data.js · 資料物件（未來改 API 只動這裡）
+// ═══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════
+   data.js · 資料來源（單一真相）
+   ─────────────────────────────────────────────────────
+   🔑 給資訊部的接手指引：
+
+   這個檔案是「所有假資料的集中地」。
+   未來要接 API 時，把 DATA 物件改成 async 函式即可：
+
+   // 現在
+   const DATA = { budget: 1500000, ... };
+
+   // 未來
+   let DATA = {};
+   async function loadData(filters) {
+     const res = await fetch('/api/kpl?' + new URLSearchParams(filters));
+     DATA = await res.json();
+   }
+
+   這樣所有頁面的渲染邏輯都不用改。
+   ═══════════════════════════════════════════════════════ */
+
+const DATA = {
+  // 📆 日期相關
+  dateFrom:   '2026-03-01',
+  dateTo:     '2026-03-17',
+  dayOfMonth: 17,
+  totalDays:  31,
+
+  // ──────────────────────────────────────
+  // 💰 預算 & 累計費用（M012 使用）
+  // 來源：預算 Excel + 人力費用表
+  // ──────────────────────────────────────
+  budget:     1500000,   // 月預算
+  actual:     1284320,   // 累計人力費用（排除 SUP）
+
+  // ──────────────────────────────────────
+  // 📋 M015 Business Units（各課別費用分布）
+  // 門檻邏輯：
+  //   > thresholdPeak     → PEAK（高負載）
+  //   >= thresholdStable  → STABLE（穩定）
+  //   <  thresholdStable  → IDLE（閒置）
+  //   type='sup'          → SUP（後勤，不計佔比）
+  // ──────────────────────────────────────
+  units: [
+    { name:'EC理貨課',   fee: 382400, hr: 168, type:'normal' },
+    { name:'夜配裝箱課', fee: 284920, hr: 124, type:'normal' },
+    { name:'夜配理貨課', fee: 198560, hr:  87, type:'normal' },
+    { name:'理貨外圍課', fee: 126840, hr:  54, type:'normal' },
+    { name:'異常作業課', fee:  72600, hr:  31, type:'normal' },
+    { name:'後勤支援課', fee: 219000, hr:  95, type:'sup'    },
+  ],
+  thresholdPeak:   30,   // > 30% = PEAK
+  thresholdStable: 10,   // 10-30% = STABLE，< 10% = IDLE
+
+  // ──────────────────────────────────────
+  // 🚚 運費資料（F001-F009 使用）
+  // 來源：貨運費用明細總表 Excel
+  // ──────────────────────────────────────
+  freight: {
+    // F001 月總運費
+    totalCost:       14026595,   // 本月實際總運費
+    lastMonthCost:   13335290,   // 上月總運費（算環比）
+    totalOrders:     3324,       // 配送筆數
+
+    // F002 預計 vs 實際
+    estimatedCost:   14076470,   // 合約預計總額
+    actualCost:      14025270,   // 到點實際計價總額
+    // 差異率 = (actual - estimated) / estimated
+
+    // F003 超支/節省筆數（差異 > $100 的才計入）
+    overCount:       200,        // 超支筆數
+    saveCount:       734,        // 節省筆數
+    diffThreshold:   100,        // 判定門檻
+
+    // F005 配送商紅綠榜（正負值代表超支/節省）
+    // 資料源：從貨運費用明細 group by 配送商
+    //   contract = SUM(預計計價結果)
+    //   actual   = SUM(到點計價結果)
+    //   amount   = actual - contract
+    vendors: [
+      { name:'峻富',    contract:4660955, actual:4778115, amount:+117160 },
+      { name:'新瑞',    contract:183750,  actual:202890,  amount:+19140  },
+      { name:'信鴻',    contract:204720,  actual:211550,  amount:+6830   },
+      { name:'銓程',    contract:687720,  actual:684210,  amount:-3510   },
+      { name:'御馬大溪', contract:410850,  actual:407300,  amount:-3550   },
+      { name:'御聖岡山', contract:540060,  actual:531585,  amount:-8475   },
+      { name:'華碩',    contract:1776810, actual:1757760, amount:-19050  },
+      { name:'全宏',    contract:364680,  actual:334560,  amount:-30120  },
+      { name:'創新',    contract:4901555, actual:4774660, amount:-126895 },
+    ],
+
+    // F009 日費用趨勢（本月每日總費用）
+    // 格式：[日期, 實際費用]，範例為 3 月份資料
+    dailyTrend: [
+      ['03/01', 412350], ['03/02', 458230], ['03/03', 487610], ['03/04', 523480],
+      ['03/05', 498720], ['03/06', 445880], ['03/07', 389540], ['03/08', 421060],
+      ['03/09', 463290], ['03/10', 512780], ['03/11', 534210], ['03/12', 478650],
+      ['03/13', 452340], ['03/14', 395620], ['03/15', 438790], ['03/16', 481230],
+      ['03/17', 502450], ['03/18', 525680], ['03/19', 548910], ['03/20', 492380],
+      ['03/21', 447160], ['03/22', 405920], ['03/23', 458750], ['03/24', 491280],
+      ['03/25', 513640], ['03/26', 537890], ['03/27', 502310], ['03/28', 468570],
+      ['03/29', 412480], ['03/30', 438920], ['03/31', 465180],
+    ],
+
+    // ──────────────────────────────────────
+    // 🏭 三倉月運費預算（F010 三倉每日運費動支 使用）
+    // 月預算 ÷ 當月天數 = 單日預算（動支率基準）
+    // 來源：預算 Excel（依倉別分列）
+    // ──────────────────────────────────────
+    warehouseBudget: {
+      '大溪倉': 5800000,   // 月預算
+      '岡山倉': 6200000,
+      '大肚倉': 2400000,
+    },
+    // F010 每倉每日實際運費（當月 31 天）
+    // 資料源：貨運費用明細 group by 日期, 倉別
+    // 範例值依三倉比例產生，實際接 API 時替換
+    dailyByWarehouse: [
+      // [日期,        大溪,   岡山,   大肚]
+      ['03/01',       0, 249315,      0],
+      ['03/02',       0, 248655,      0],
+      ['03/03',       0, 249075,      0],
+      ['03/04',       0, 288540,      0],
+      ['03/05',       0, 288660,      0],
+      ['03/06',       0, 288780,      0],
+      ['03/07',       0, 288780,      0],
+      ['03/08',       0, 288780,      0],
+      ['03/09',       0, 249015,      0],
+      ['03/10',       0, 248955,      0],
+      ['03/11',       0, 288960,      0],
+      ['03/12',       0, 288540,      0],
+      ['03/13',       0, 289080,      0],
+      ['03/14',       0, 288780,      0],
+      ['03/15',       0, 288720,      0],
+      ['03/16',       0, 248955,      0],
+      ['03/17',       0, 248655,      0],
+      ['03/18',       0, 288480,      0],
+      ['03/19',       0, 288660,      0],
+      ['03/20',       0, 288720,      0],
+      ['03/21',       0, 288660,  24970],
+      ['03/22',       0, 288300,  24970],
+      ['03/23',       0, 249315,  24970],
+      ['03/24',       0, 249195,  24970],
+      ['03/25',       0, 289500,  24970],
+      ['03/26',  651060, 288960, 280825],
+      ['03/27',  650860, 288600, 280825],
+      ['03/28',  650200, 288360, 280825],
+      ['03/29',  651580, 288420, 246500],
+      ['03/30',  601415, 248955, 246500],
+      ['03/31',  601210, 249075, 246500],
+    ],
+  },
+
+  // ──────────────────────────────────────
+  // 💼 dispatch：總費用動支率（T001 / T002 / T003 使用）
+  //
+  // 資料盤點：
+  //   ✅ 日人力實際費用（各倉 × 日）
+  //   ⚠️ 日運務實際費用（來源待確定，目前用 freight.dailyByWarehouse）
+  //   ✅ 月預算表（人力 + 運務 × 倉）
+  //
+  // 倉別順序：大溪 / 大肚 / 岡山（三倉）
+  // 全區 = 三倉合計（動態計算，不存資料）
+  // ──────────────────────────────────────
+  dispatch: {
+    // 月預算表（來源：預算 Excel）
+    // 結構：{ 倉別: { labor: 人力月預算, freight: 運務月預算 } }
+    budget: {
+      '大溪倉': { labor: 5500000, freight: 5800000 },
+      '大肚倉': { labor: 2200000, freight: 2400000 },
+      '岡山倉': { labor: 6000000, freight: 6200000 },
+    },
+
+    // 每日實際費用（人力 + 運務 × 三倉）
+    // 結構：[[日期, 大溪人力, 大溪運務, 大肚人力, 大肚運務, 岡山人力, 岡山運務], ...]
+    // ✅ 運務費用：來自「進貨日與計價費用」樞紐分析（2026-04-20 更新）
+    // ⚠️  人力費用：範例值，待真實資料上傳後更新
+    daily: [
+      //  日期      大溪人力  大溪運務  大肚人力  大肚運務  岡山人力  岡山運務
+      ['03/01', 175200,       0, 72500, 249315, 192000,      0],
+      ['03/02', 180300,       0, 75100, 248655, 198400,      0],
+      ['03/03', 185900,       0, 77800, 249075, 205100,      0],
+      ['03/04', 192400,       0, 80900, 288540, 212800,      0],
+      ['03/05', 186200,       0, 78300, 288660, 206400,      0],
+      ['03/06', 178400,       0, 74200, 288780, 196200,      0],
+      ['03/07', 168500,       0, 68900, 288780, 183700,      0],
+      ['03/08', 172100,       0, 71600, 288780, 188900,      0],
+      ['03/09', 179800,       0, 75200, 249015, 199200,      0],
+      ['03/10', 188600,       0, 79400, 248955, 210300,      0],
+      ['03/11', 194500,       0, 82000, 288960, 217100,      0],
+      ['03/12', 184200,       0, 76900, 288540, 204600,      0],
+      ['03/13', 181500,       0, 75300, 289080, 201200,      0],
+      ['03/14', 170200,       0, 69800, 288780, 186100,      0],
+      ['03/15', 176800,       0, 73400, 288720, 194700,      0],
+      ['03/16', 183600,       0, 76700, 248955, 203500,      0],
+      ['03/17', 187300,       0, 78700, 248655, 208400,      0],
+      ['03/18', 192100,       0, 81200, 288480, 214500,      0],
+      ['03/19', 196800,       0, 83200, 288660, 220200,      0],
+      ['03/20', 185400,       0, 77500, 288720, 205800,      0],
+      ['03/21', 179500,       0, 74700, 288660, 197600,  24970],
+      ['03/22', 171800,       0, 70400, 288300, 187800,  24970],
+      ['03/23', 182200,       0, 76000, 249315, 202100,  24970],
+      ['03/24', 188900,       0, 79100, 249195, 211500,  24970],
+      ['03/25', 193600,       0, 81900, 289500, 215800,  24970],
+      ['03/26', 198200,  651060, 84500, 288960, 221800, 280825],
+      ['03/27', 189100,  650860, 79400, 288600, 210300, 280825],
+      ['03/28', 183300,  650200, 76200, 288360, 203400, 280825],
+      ['03/29', 172500,  651580, 70100, 288420, 188200, 246500],
+      ['03/30', 179400,  601415, 73800, 248955, 196800, 246500],
+      ['03/31', 184600,  601210, 76900, 249075, 205200, 246500],
+    ],
+  },
+};
+
+
+// ═══════════════════════════════════════════════════════
+// utils.js · 共用工具函式
+// ═══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════
+   utils.js · 共用工具函式
+   ─────────────────────────────────────────────────────
+   所有頁面共用的小工具：
+   - colorFor / labelFor：三色門檻邏輯
+   - toast：右下角通知
+   - fmt：金額格式化
+   ═══════════════════════════════════════════════════════ */
+
+// ── 三色門檻（< 75% 🟢 · 75-90% 🟡 · > 90% 🔴） ──
+function colorFor(v) {
+  if (v >= 90) return '#d9401b';   // 紅 危險
+  if (v >= 75) return '#e07855';   // 橘 注意
+  return '#1b7c33';                 // 綠 安全
+}
+
+function labelFor(v) {
+  if (v >= 90) return '🔴 危險';
+  if (v >= 75) return '🟡 注意';
+  return '🟢 安全';
+}
+
+function bgFor(v) {
+  if (v >= 90) return '#fdf0ec';
+  if (v >= 75) return '#fff4e8';
+  return '#eef9f0';
+}
+
+// ── 金額格式化（含千分位、美元符號） ──
+function fmtMoney(n) {
+  return '$' + Number(n).toLocaleString();
+}
+
+// ── 右下角 Toast 通知 ──
+function toast(msg) {
+  let t = document.getElementById('toast');
+  if (!t) {
+    // 如果頁面還沒有 toast 元素，動態建立
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.className = 'toast';
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.classList.add('on');
+  clearTimeout(toast._timer);
+  toast._timer = setTimeout(() => t.classList.remove('on'), 2200);
+}
+
+// ── 計算從資料產生的常用數值 ──
+function getActualPct() {
+  return DATA.actual / DATA.budget * 100;
+}
+
+function getMonthProgress() {
+  return DATA.dayOfMonth / DATA.totalDays;
+}
+
+function getProjectedPct() {
+  return getActualPct() / getMonthProgress();
+}
+
+
+// ═══════════════════════════════════════════════════════
+// widgets.js · Widget 渲染函式（M012 / M015）
+// ═══════════════════════════════════════════════════════
+/* ═══════════════════════════════════════════════════════
+   widgets.js · 儀表板 Widget 渲染函式
+   ─────────────────────────────────────────────────────
+   每個 widget 一個 render 函式，回傳 HTML 字串。
+   資料全部從 DATA 物件讀取，不依賴 DOM。
+
+   命名規則：
+   - renderM012()  → M012 預算達成率
+   - renderM015()  → M015 Business Units 表格
+
+   未來新增 widget 就加一個 renderXxx 函式即可。
+   ═══════════════════════════════════════════════════════ */
+
+// ══════════════════════════════════════════════
+// M012 預算達成率（今日動支率 + 月底預估）
+// ══════════════════════════════════════════════
+function renderM012() {
+  const pct       = getActualPct();
+  const progress  = getMonthProgress();
+  const projected = getProjectedPct();
+  const curColor  = colorFor(pct);
+  const projColor = colorFor(projected);
+
+  return `
+  <div class="w s12" style="border-top:3px solid ${projColor}">
+    <div class="gold-band" style="background:${projColor};color:white">
+      M012 預算達成率 · 基準 = 月預算 ${fmtMoney(DATA.budget)}（來源：預算 Excel）
+    </div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:${projColor}"></div>動支率監控</div>
+      <div class="wmeta">${DATA.dayOfMonth}/${DATA.totalDays} 天 · 月進度 ${(progress*100).toFixed(1)}%</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px">
+      <!-- 左：今日動支率 -->
+      <div style="border-right:1px solid var(--ry-line);padding-right:20px">
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;color:var(--ry-muted);margin-bottom:6px">今日動支率</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <div style="font-size:40px;font-weight:900;font-family:var(--f-mono);color:${curColor};line-height:1">${pct.toFixed(1)}</div>
+          <div style="font-size:18px;color:${curColor};font-weight:700">%</div>
+          <div style="margin-left:auto;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">${labelFor(pct)}</div>
+        </div>
+        <div style="height:10px;background:var(--ry-bg);border-radius:99px;overflow:hidden;margin:10px 0 6px;position:relative">
+          <div style="width:${Math.min(pct,100)}%;height:100%;background:${curColor};transition:width .4s"></div>
+          <div style="position:absolute;left:90%;top:-2px;bottom:-2px;width:2px;background:var(--ry-ink);opacity:.6"></div>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">
+          ${fmtMoney(DATA.actual)} / ${fmtMoney(DATA.budget)}
+        </div>
+      </div>
+
+      <!-- 右：預估月底 -->
+      <div>
+        <div style="font-size:var(--fs-xs);font-weight:700;letter-spacing:.06em;color:var(--ry-muted);margin-bottom:6px">預估月底動支率</div>
+        <div style="display:flex;align-items:baseline;gap:6px">
+          <div style="font-size:40px;font-weight:900;font-family:var(--f-mono);color:${projColor};line-height:1">${projected.toFixed(1)}</div>
+          <div style="font-size:18px;color:${projColor};font-weight:700">%</div>
+          <div style="margin-left:auto;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">${labelFor(projected)}</div>
+        </div>
+        <div style="height:10px;background:var(--ry-bg);border-radius:99px;overflow:hidden;margin:10px 0 6px;position:relative">
+          <div style="width:${Math.min(projected,120)*0.8}%;height:100%;background:${projColor};transition:width .4s"></div>
+          <div style="position:absolute;left:72%;top:-2px;bottom:-2px;width:2px;background:var(--ry-ink);opacity:.6"></div>
+        </div>
+        <div style="font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">
+          依目前速度線性外推
+        </div>
+      </div>
+    </div>
+
+    <!-- 行動建議 -->
+    <div style="margin-top:14px;padding:10px 14px;background:${bgFor(projected)};border-left:3px solid ${projColor};border-radius:2px;font-size:var(--fs-sm);line-height:1.7">
+      ${projected>=90 ? `<b style="color:#d9401b">⚠️ 月底預估將超過 90% 目標上限</b>，建議立即盤點未執行項目、延後可遞延支出。`
+        : projected>=75 ? `<b style="color:#e07855">🟡 月底預估接近警戒線</b>，請留意未來兩週的費用節奏。`
+                       : `<b style="color:#1b7c33">🟢 月底預估控管良好</b>，可維持目前節奏。`}
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// M015 Business Units 表格（各課別費用 + 狀態分類）
+// ══════════════════════════════════════════════
+function renderM015() {
+  const normalUnits = DATA.units.filter(u => u.type !== 'sup');
+  const totalFee = normalUnits.reduce((s, u) => s + u.fee, 0);
+
+  // 狀態分類
+  function statusTag(u) {
+    if (u.type === 'sup') {
+      return { label:'SUP',    bg:'#eff6ff', fg:'#1e5ca8', border:'#bfdbfe' };
+    }
+    const pct = u.fee / totalFee * 100;
+    if (pct > DATA.thresholdPeak) {
+      return { label:'PEAK',   bg:'#fff3e0', fg:'#e65100', border:'#ffcc80' };
+    }
+    if (pct >= DATA.thresholdStable) {
+      return { label:'STABLE', bg:'#e8f5e9', fg:'#1b7c33', border:'#a5d6a7' };
+    }
+    return   { label:'IDLE',   bg:'#f3f4f6', fg:'#6b7280', border:'#d1d5db' };
+  }
+
+  // 依費用由高到低排序（後勤永遠放最後）
+  const sorted = [...DATA.units].sort((a, b) => {
+    if (a.type === 'sup') return 1;
+    if (b.type === 'sup') return -1;
+    return b.fee - a.fee;
+  });
+
+  const rows = sorted.map(u => {
+    const pct = u.type === 'sup' ? null : (u.fee / totalFee * 100);
+    const tag = statusTag(u);
+    return `
+    <tr>
+      <td>${u.name}</td>
+      <td class="mono">${fmtMoney(u.fee)}</td>
+      <td class="mono">${u.hr}h</td>
+      <td class="mono">${pct === null ? '—' : pct.toFixed(1) + '%'}</td>
+      <td>
+        <span class="tag" style="background:${tag.bg};color:${tag.fg};border-color:${tag.border}">${tag.label}</span>
+      </td>
+    </tr>`;
+  }).join('');
+
+  return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#E07855"></div>M015 Business Units 表格</div>
+      <span class="wmeta">⚠️ 門檻值待確認</span>
+    </div>
+    <div style="padding:0;margin:0 -18px -16px">
+      <table class="tbl">
+        <thead>
+          <tr>
+            <th>作業課別</th>
+            <th>費用</th>
+            <th>工時</th>
+            <th>佔比</th>
+            <th>狀態</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div style="padding:10px 18px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
+        📌 門檻：&gt; ${DATA.thresholdPeak}% = <b style="color:#e65100">PEAK</b>（高負載） ｜
+        ${DATA.thresholdStable}–${DATA.thresholdPeak}% = <b style="color:#1b7c33">STABLE</b>（穩定） ｜
+        &lt; ${DATA.thresholdStable}% = <b style="color:#6b7280">IDLE</b>（閒置）<br>
+        📌 佔比計算排除 SUP 後勤支援課（該課別不列入業務單位分類）
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F001 月總運費（大數字卡片）
+// ══════════════════════════════════════════════
+function renderF001() {
+  const f = DATA.freight;
+  const trend = (f.totalCost - f.lastMonthCost) / f.lastMonthCost * 100;
+  const up = trend >= 0;
+  const arrow = up ? '↑' : '↓';
+  const trendColor = up ? '#d9401b' : '#1b7c33';  // 運費漲 = 紅（偏負面）
+  return `
+  <div class="w s4" style="border-top:3px solid var(--ry-blue)">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>F001 月總運費</div>
+      <span class="wmeta">本期結算</span>
+    </div>
+    <div class="kv" style="font-size:28px;color:var(--ry-blue)">${fmtMoney(f.totalCost)}</div>
+    <div class="kd">
+      <span style="color:${trendColor};font-weight:700">${arrow} ${Math.abs(trend).toFixed(1)}%</span>
+      較上月（${fmtMoney(f.lastMonthCost)}）· ${f.totalOrders.toLocaleString()} 筆配送
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F002 預計 vs 實際差異率
+// ══════════════════════════════════════════════
+function renderF002() {
+  const f = DATA.freight;
+  const diff = f.actualCost - f.estimatedCost;
+  const diffPct = (diff / f.estimatedCost * 100);
+  // 實際 > 預計 = 超支（紅）；反之 = 節省（綠）
+  const color = diff > 0 ? '#d9401b' : '#1b7c33';
+  const label = diff > 0 ? '🔴 超支' : '🟢 節省';
+  return `
+  <div class="w s4" style="border-top:3px solid ${color}">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:${color}"></div>F002 預計 vs 實際差異率</div>
+      <span class="wmeta">${label}</span>
+    </div>
+    <div class="kv" style="font-size:28px;color:${color}">${diffPct > 0 ? '+' : ''}${diffPct.toFixed(2)}%</div>
+    <div class="kd">
+      實際 ${fmtMoney(f.actualCost)}<br>
+      預計 ${fmtMoney(f.estimatedCost)}（差異 ${diff > 0 ? '+' : ''}${fmtMoney(diff).replace('$','$')}）
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F003 超支/節省筆數
+// ══════════════════════════════════════════════
+function renderF003() {
+  const f = DATA.freight;
+  const total = f.overCount + f.saveCount;
+  const overPct = (f.overCount / total * 100).toFixed(1);
+  return `
+  <div class="w s4" style="border-top:3px solid var(--ry-red)">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-red)"></div>F003 超支／節省筆數</div>
+      <span class="wmeta">差異 &gt; ${fmtMoney(f.diffThreshold)}</span>
+    </div>
+    <div style="display:flex;align-items:baseline;gap:16px;margin:4px 0">
+      <div>
+        <div style="font-size:9px;color:var(--ry-red);font-weight:700;letter-spacing:.08em">🔴 超支</div>
+        <div style="font-family:var(--f-mono);font-size:26px;font-weight:800;color:var(--ry-red)">${f.overCount}</div>
+      </div>
+      <div style="font-size:14px;color:var(--ry-muted)">／</div>
+      <div>
+        <div style="font-size:9px;color:#1b7c33;font-weight:700;letter-spacing:.08em">🟢 節省</div>
+        <div style="font-family:var(--f-mono);font-size:26px;font-weight:800;color:#1b7c33">${f.saveCount}</div>
+      </div>
+    </div>
+    <div class="kd">共 ${total.toLocaleString()} 筆有顯著差異 · 超支佔 ${overPct}%</div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F009 日費用趨勢（折線圖 · 純 SVG）
+// ══════════════════════════════════════════════
+function renderF009() {
+  const data = DATA.freight.dailyTrend;
+  const maxCost = Math.max(...data.map(d => d[1]));
+  const minCost = Math.min(...data.map(d => d[1]));
+  const avgCost = data.reduce((s, d) => s + d[1], 0) / data.length;
+
+  // SVG 座標計算
+  const W = 1000, H = 240, padL = 56, padR = 20, padT = 20, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xStep = plotW / (data.length - 1);
+
+  // 把費用值轉成 Y 座標（高的在上）
+  const range = maxCost - minCost;
+  const yFor = v => padT + plotH - ((v - minCost) / range * plotH);
+
+  // 折線 path
+  const pathD = data.map((d, i) => {
+    const x = padL + i * xStep;
+    const y = yFor(d[1]);
+    return `${i === 0 ? 'M' : 'L'}${x.toFixed(1)},${y.toFixed(1)}`;
+  }).join(' ');
+
+  // 填色區域
+  const areaD = pathD + ` L${padL + plotW},${padT + plotH} L${padL},${padT + plotH} Z`;
+
+  // X 軸標籤（每 4 天一個）
+  const xLabels = data.map((d, i) => i % 4 === 0 || i === data.length - 1
+    ? `<text x="${padL + i * xStep}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#5a6478" font-family="Courier New, monospace">${d[0]}</text>`
+    : '').join('');
+
+  // 資料點
+  const dots = data.map((d, i) =>
+    `<circle cx="${padL + i * xStep}" cy="${yFor(d[1])}" r="3" fill="#1e5ca8" stroke="white" stroke-width="1.5"><title>${d[0]}：${fmtMoney(d[1])}</title></circle>`
+  ).join('');
+
+  // 平均線
+  const avgY = yFor(avgCost);
+
+  // Y 軸刻度（3 段）
+  const yTicks = [minCost, (minCost + maxCost) / 2, maxCost].map(v =>
+    `<line x1="${padL}" y1="${yFor(v)}" x2="${padL + plotW}" y2="${yFor(v)}" stroke="#dde2ec" stroke-width="0.5" stroke-dasharray="3,3"/>
+     <text x="${padL - 8}" y="${yFor(v) + 3}" text-anchor="end" font-size="9" fill="#5a6478" font-family="Courier New, monospace">${(v/1000).toFixed(0)}K</text>`
+  ).join('');
+
+  return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>F009 日費用趨勢</div>
+      <span class="wmeta">${DATA.freight.dailyTrend.length} 天 · 平均 ${fmtMoney(Math.round(avgCost))}</span>
+    </div>
+    <svg viewBox="0 0 ${W} ${H}" style="width:100%;height:auto;display:block">
+      <!-- Y 軸網格線 + 刻度 -->
+      ${yTicks}
+      <!-- 平均線（虛線） -->
+      <line x1="${padL}" y1="${avgY}" x2="${padL + plotW}" y2="${avgY}" stroke="#e07855" stroke-width="1" stroke-dasharray="5,4"/>
+      <text x="${padL + plotW - 4}" y="${avgY - 4}" text-anchor="end" font-size="10" fill="#e07855" font-family="Courier New, monospace">平均 ${fmtMoney(Math.round(avgCost))}</text>
+      <!-- 填色區 -->
+      <path d="${areaD}" fill="#1e5ca8" fill-opacity="0.08"/>
+      <!-- 折線 -->
+      <path d="${pathD}" fill="none" stroke="#1e5ca8" stroke-width="2" stroke-linejoin="round"/>
+      <!-- 資料點 -->
+      ${dots}
+      <!-- X 軸 -->
+      ${xLabels}
+    </svg>
+    <div style="padding:8px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);border-top:1px solid var(--ry-line);background:var(--ry-bg);margin:12px -18px -16px">
+      📌 最高 ${fmtMoney(maxCost)} · 最低 ${fmtMoney(minCost)} · 橘色虛線為日均 · 滑鼠移到點上可看詳細數字
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F005 配送商損益紅綠榜
+// ══════════════════════════════════════════════
+function renderF005() {
+  const vendors = [...DATA.freight.vendors].sort((a, b) => b.amount - a.amount);
+  const maxAbs = Math.max(...vendors.map(v => Math.abs(v.amount)));
+  const scale = maxAbs * 1.1;
+
+  const html = vendors.map(r => {
+    const pct = (Math.abs(r.amount) / scale * 100).toFixed(1);
+    const isOver = r.amount > 0;
+    const tip = `合約預計：${fmtMoney(r.contract)}\n到點計價：${fmtMoney(r.actual)}\n差　　異：${r.amount > 0 ? '+' : ''}${r.amount.toLocaleString()}`;
+    const bar = isOver
+      ? `<div style="width:${pct}%;height:14px;background:var(--ry-red);margin-left:auto;border-radius:0 2px 2px 0" title="${tip}"></div>`
+      : `<div style="width:${pct}%;height:14px;background:#1b7c33;margin-right:auto;border-radius:2px 0 0 2px" title="${tip}"></div>`;
+    return `
+    <div style="display:grid;grid-template-columns:64px 1fr 1fr 82px;gap:4px;padding:7px 14px;align-items:center;border-bottom:1px solid var(--ry-line)" title="${tip}">
+      <span style="font-size:var(--fs-xs);font-weight:700">${r.name}</span>
+      <div style="display:flex;height:14px">${isOver ? '' : bar}</div>
+      <div style="display:flex;height:14px">${isOver ? bar : ''}</div>
+      <span style="font-family:var(--f-mono);font-weight:700;font-size:var(--fs-xs);text-align:right;color:${isOver ? 'var(--ry-red)' : '#1b7c33'}">
+        ${isOver ? '+' : ''}${r.amount.toLocaleString()}
+      </span>
+    </div>`;
+  }).join('');
+
+  return `
+  <div class="w s6">
+    <div class="gold-band" style="font-size:var(--fs-xs);line-height:1.6">
+      F005 配送商損益紅綠榜 · 基準線（0）= 合約預計金額
+    </div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#E07855"></div>到點計價 vs 合約預計差異</div>
+      <span class="wmeta">滑鼠移到長條可看明細</span>
+    </div>
+    <div style="margin:0 -18px -16px">
+      <div style="display:grid;grid-template-columns:64px 1fr 1fr 82px;gap:4px;padding:8px 14px;font-family:var(--f-mono);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ry-muted);border-bottom:1.5px solid var(--ry-blue-dark);background:var(--ry-bg)">
+        <span>廠商</span>
+        <span style="text-align:right;padding-right:6px;color:var(--ry-red)">🔴 超支</span>
+        <span style="padding-left:6px;color:#1b7c33">🟢 節省</span>
+        <span style="text-align:right">差異金額</span>
+      </div>
+      ${html}
+      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);line-height:1.7">
+        📌 中心軸 0 = 合約預計金額 · 🔴 = 到點 &gt; 合約 · 🟢 = 到點 &lt; 合約
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F004 配送商費用排行
+// ══════════════════════════════════════════════
+function renderF004() {
+  // 依「到點實際費用」由高到低排序
+  const vendors = [...DATA.freight.vendors].sort((a, b) => b.actual - a.actual);
+  const maxActual = vendors[0].actual;
+
+  const rows = vendors.map((v, i) => {
+    const pct = (v.actual / maxActual * 100).toFixed(1);
+    // 排名色：前三名醒目
+    const rankColor = i === 0 ? '#f5c400' : i === 1 ? '#9ca3af' : i === 2 ? '#cd7f32' : '#dde2ec';
+    return `
+    <div style="padding:8px 14px;border-bottom:1px solid var(--ry-line)">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
+        <span style="display:inline-block;width:20px;height:20px;background:${rankColor};color:white;border-radius:50%;font-size:var(--fs-xs);font-weight:900;font-family:var(--f-mono);text-align:center;line-height:20px">${i + 1}</span>
+        <span style="font-size:var(--fs-sm);font-weight:700;flex:1">${v.name}</span>
+        <span style="font-family:var(--f-mono);font-size:var(--fs-sm);font-weight:700;color:var(--ry-blue)">${fmtMoney(v.actual)}</span>
+      </div>
+      <div style="height:6px;background:var(--ry-bg);border-radius:99px;overflow:hidden">
+        <div style="width:${pct}%;height:100%;background:var(--ry-blue);border-radius:99px;transition:width .4s"></div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const total = vendors.reduce((s, v) => s + v.actual, 0);
+
+  return `
+  <div class="w s6">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>F004 配送商費用排行</div>
+      <span class="wmeta">依到點實際費用</span>
+    </div>
+    <div style="margin:0 -18px -16px">
+      ${rows}
+      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
+        📌 共 ${vendors.length} 家 · 總運費 ${fmtMoney(total)} · TOP3：${vendors.slice(0,3).map(v=>v.name).join('、')}
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════
+// F010 三倉每日運費動支
+// 一覽本月每日各倉的「預算 / 實際 / 動支率」
+//
+// - 每天一列 · 每倉三子欄位：預算 / 實際 / 動支率
+// - 三色門檻：<75% 🟢 / 75-90% 🟡 / >90% 🔴
+// - 月累計彙總列（sticky 於表格底部）
+// - 表頭 sticky · 縱向可捲
+// ══════════════════════════════════════════════
+function renderF010() {
+  const budget = DATA.freight.warehouseBudget;
+  const daily  = DATA.freight.dailyByWarehouse;
+  const totalDays = daily.length;
+
+  // 計算單日預算（月預算 ÷ 天數）
+  const dailyBudget = {
+    '大溪倉': budget['大溪倉'] / totalDays,
+    '岡山倉': budget['岡山倉'] / totalDays,
+    '大肚倉': budget['大肚倉'] / totalDays,
+  };
+
+  // 計算月累計實際費用（彙總列用）
+  const accumActual = { '大溪倉':0, '岡山倉':0, '大肚倉':0 };
+  daily.forEach(row => {
+    accumActual['大溪倉'] += row[1];
+    accumActual['岡山倉'] += row[2];
+    accumActual['大肚倉'] += row[3];
+  });
+
+  // 產生每倉一組儲存格的輔助函式
+  function cellsFor(warehouseName, actual, budgetVal) {
+    const pct = actual / budgetVal * 100;
+    const color = colorFor(pct);
+    const bg = bgFor(pct);
+    return `
+      <td class="mono" style="text-align:right">${fmtMoney(Math.round(budgetVal))}</td>
+      <td class="mono" style="text-align:right;color:${color};font-weight:700">${fmtMoney(actual)}</td>
+      <td class="mono" style="text-align:right">
+        <span style="display:inline-block;padding:2px 8px;background:${bg};color:${color};border-radius:99px;font-weight:700;font-size:var(--fs-xs)">${pct.toFixed(1)}%</span>
+      </td>`;
+  }
+
+  // 每日列
+  const rows = daily.map(row => {
+    const [date, d1, d2, d3] = row;
+    return `<tr>
+      <td style="font-weight:700;color:var(--ry-ink)">${date}</td>
+      ${cellsFor('大溪倉', d1, dailyBudget['大溪倉'])}
+      ${cellsFor('岡山倉', d2, dailyBudget['岡山倉'])}
+      ${cellsFor('大肚倉', d3, dailyBudget['大肚倉'])}
+    </tr>`;
+  }).join('');
+
+  // 月累計彙總列
+  function summaryCell(warehouseName, actual, budgetVal) {
+    const pct = actual / budgetVal * 100;
+    const color = colorFor(pct);
+    const bg = bgFor(pct);
+    return `
+      <td class="mono" style="text-align:right">${fmtMoney(budgetVal)}</td>
+      <td class="mono" style="text-align:right;color:${color};font-weight:800">${fmtMoney(actual)}</td>
+      <td class="mono" style="text-align:right">
+        <span style="display:inline-block;padding:3px 10px;background:${color};color:white;border-radius:99px;font-weight:800;font-size:var(--fs-xs)">${pct.toFixed(1)}%</span>
+      </td>`;
+  }
+  const summary = `<tr style="background:var(--ry-blue-pale);border-top:2px solid var(--ry-blue-dark);position:sticky;bottom:0;font-weight:800">
+    <td style="font-weight:900;color:var(--ry-blue-dark)">月累計</td>
+    ${summaryCell('大溪倉', accumActual['大溪倉'], budget['大溪倉'])}
+    ${summaryCell('岡山倉', accumActual['岡山倉'], budget['岡山倉'])}
+    ${summaryCell('大肚倉', accumActual['大肚倉'], budget['大肚倉'])}
+  </tr>`;
+
+  return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#E07855"></div>F010 三倉每日運費動支</div>
+      <span class="wmeta">${totalDays} 天 · 縱向捲動 · 含月累計彙總</span>
+    </div>
+    <div style="margin:0 -18px -16px">
+      <!-- 可捲動容器 -->
+      <div style="max-height:420px;overflow-y:auto;overflow-x:auto">
+        <table class="tbl" style="min-width:880px">
+          <thead style="position:sticky;top:0;z-index:10">
+            <!-- 第一層：倉別表頭（跨 3 欄） -->
+            <tr style="background:var(--ry-blue-dark)">
+              <th rowspan="2" style="color:white;border-right:2px solid var(--ry-blue);vertical-align:middle">日期</th>
+              <th colspan="3" style="color:white;text-align:center;border-right:2px solid var(--ry-blue);background:#0E7BAD">🏭 大溪倉</th>
+              <th colspan="3" style="color:white;text-align:center;border-right:2px solid var(--ry-blue);background:#E07855">🏭 岡山倉</th>
+              <th colspan="3" style="color:white;text-align:center;background:#2DA870">🏭 大肚倉</th>
+            </tr>
+            <!-- 第二層：預算 / 實際 / 動支率 -->
+            <tr style="background:var(--ry-bg);border-bottom:2px solid var(--ry-blue-dark)">
+              <th style="text-align:right">預算</th>
+              <th style="text-align:right">實際</th>
+              <th style="text-align:right">動支率</th>
+              <th style="text-align:right">預算</th>
+              <th style="text-align:right">實際</th>
+              <th style="text-align:right">動支率</th>
+              <th style="text-align:right">預算</th>
+              <th style="text-align:right">實際</th>
+              <th style="text-align:right">動支率</th>
+            </tr>
+          </thead>
+          <tbody>${rows}${summary}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
+        📌 單日預算 = 月預算 ÷ ${totalDays} 天 · 動支率 = 實際 / 單日預算<br>
+        📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// 總費用動支共用工具
+// ══════════════════════════════════════════════════════════
+
+// 依篩選日期取得範圍內的 daily 資料
+// DATA.dateFrom / DATA.dateTo 格式：'2026-03-17' → 取 '03/17'
+function getDispatchDailyFiltered() {
+  const from = DATA.dateFrom.slice(5).replace('-', '/');  // '03/01'
+  const to   = DATA.dateTo.slice(5).replace('-', '/');     // '03/17'
+  return DATA.dispatch.daily.filter(row => row[0] >= from && row[0] <= to);
+}
+
+// 計算某倉的期間彙總 { labor, freight, total, laborBudget, freightBudget, budget, pct, laborPct, freightPct }
+function sumWarehouse(rows, warehouseIdx) {
+  // warehouseIdx: 0=大溪, 1=大肚, 2=岡山
+  const names = ['大溪倉', '大肚倉', '岡山倉'];
+  const laborCol = 1 + warehouseIdx * 2;
+  const freightCol = 2 + warehouseIdx * 2;
+  let labor = 0, freight = 0;
+  rows.forEach(r => { labor += r[laborCol]; freight += r[freightCol]; });
+  const total = labor + freight;
+  const b = DATA.dispatch.budget[names[warehouseIdx]];
+  // 依期間佔當月比例推算預算（例如抓 17/31 天 = 54.8% 預算）
+  const totalDays = DATA.dispatch.daily.length;
+  const periodRatio = rows.length / totalDays;
+  const laborBudget   = b.labor   * periodRatio;
+  const freightBudget = b.freight * periodRatio;
+  const periodBudget  = laborBudget + freightBudget;
+  return {
+    name: names[warehouseIdx],
+    labor, freight, total,
+    laborBudget, freightBudget, budget: periodBudget,
+    laborPct:   labor   / laborBudget   * 100,
+    freightPct: freight / freightBudget * 100,
+    pct:        total   / periodBudget  * 100,
+  };
+}
+
+// 全區合計（三倉加總）
+function sumAll(rows) {
+  const w1 = sumWarehouse(rows, 0);
+  const w2 = sumWarehouse(rows, 1);
+  const w3 = sumWarehouse(rows, 2);
+  const labor   = w1.labor   + w2.labor   + w3.labor;
+  const freight = w1.freight + w2.freight + w3.freight;
+  const laborBudget   = w1.laborBudget   + w2.laborBudget   + w3.laborBudget;
+  const freightBudget = w1.freightBudget + w2.freightBudget + w3.freightBudget;
+  const total = labor + freight;
+  const budget = laborBudget + freightBudget;
+  return {
+    name: '全區',
+    labor, freight, total,
+    laborBudget, freightBudget, budget,
+    laborPct:   labor   / laborBudget   * 100,
+    freightPct: freight / freightBudget * 100,
+    pct:        total   / budget        * 100,
+  };
+}
+
+// ══════════════════════════════════════════════════════════
+// T001 總動支關鍵數據卡片（全區 / 大溪 / 大肚 / 岡山）
+// 四張並排卡片，顯示：
+//   - 主數字：人+運合計動支率
+//   - 副資訊：本期人力費用 / 本期運務費用
+// ══════════════════════════════════════════════════════════
+function renderT001() {
+  const rows = getDispatchDailyFiltered();
+  const all    = sumAll(rows);
+  const daxi   = sumWarehouse(rows, 0);  // 大溪
+  const dadu   = sumWarehouse(rows, 1);  // 大肚
+  const gangshan = sumWarehouse(rows, 2); // 岡山
+
+  // 倉別色碼（跟系統一致）
+  const colors = {
+    '全區':   'var(--ry-blue-dark)',
+    '大溪倉': '#0E7BAD',
+    '大肚倉': '#2DA870',
+    '岡山倉': '#E07855',
+  };
+
+  function card(stats, isAll) {
+    const color = colors[stats.name];
+    const rateColor = colorFor(stats.pct);
+    return `
+    <div class="w s3" style="border-top:3px solid ${isAll ? 'var(--ry-gold)' : color}">
+      <div class="wh">
+        <div class="wl">
+          <div class="wdot" style="background:${color}"></div>
+          ${isAll ? '🌐 全區' : stats.name}
+        </div>
+        <span class="wmeta">${labelFor(stats.pct)}</span>
+      </div>
+      <!-- 主數字：動支率 -->
+      <div style="display:flex;align-items:baseline;gap:4px;margin-bottom:10px">
+        <div class="kv" style="font-size:32px;color:${rateColor};line-height:1">${stats.pct.toFixed(1)}</div>
+        <div style="font-size:16px;color:${rateColor};font-weight:700">%</div>
+      </div>
+      <!-- 三色進度條 + 90% 警戒線 -->
+      <div style="height:6px;background:var(--ry-bg);border-radius:99px;overflow:hidden;margin-bottom:10px;position:relative">
+        <div style="width:${Math.min(stats.pct, 100)}%;height:100%;background:${rateColor};transition:width .4s"></div>
+        <div style="position:absolute;left:90%;top:-2px;bottom:-2px;width:2px;background:var(--ry-ink);opacity:.5"></div>
+      </div>
+      <!-- 副資訊：人力 + 運務 本期費用 -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;padding-top:8px;border-top:1px solid var(--ry-line)">
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--ry-muted);letter-spacing:.06em">人力費用</div>
+          <div class="mono" style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);margin-top:2px">${fmtMoney(stats.labor)}</div>
+        </div>
+        <div>
+          <div style="font-size:9px;font-weight:700;color:var(--ry-muted);letter-spacing:.06em">運務費用</div>
+          <div class="mono" style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);margin-top:2px">${fmtMoney(stats.freight)}</div>
+        </div>
+      </div>
+      <div style="margin-top:6px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">
+        本期總計 ${fmtMoney(stats.total)} / 預算 ${fmtMoney(Math.round(stats.budget))}
+      </div>
+    </div>`;
+  }
+
+  return [card(all, true), card(daxi), card(dadu), card(gangshan)].join('');
+}
+
+// ══════════════════════════════════════════════════════════
+// T002 期間動支彙總表（單一表格 · 兩層 row header）
+// 結構：
+//   欄：領域 / 項目 / 大溪倉 / 大肚倉 / 岡山倉 / 🌐 全區
+//   列：三個領域區塊（人力/運務/合計）× 每塊 3 個項目（預算$/實際$/動支%）
+//   → 領域欄用 rowspan=3 垂直合併
+// ══════════════════════════════════════════════════════════
+function renderT002() {
+  const rows = getDispatchDailyFiltered();
+  const daxi     = sumWarehouse(rows, 0);
+  const dadu     = sumWarehouse(rows, 1);
+  const gangshan = sumWarehouse(rows, 2);
+  const all      = sumAll(rows);
+  const warehouses = [daxi, dadu, gangshan, all];
+
+  // 倉別顏色
+  const whColor = {
+    '大溪倉': 'var(--tbl-daxi)',
+    '大肚倉': 'var(--tbl-dadu)',
+    '岡山倉': 'var(--tbl-gangshan)',
+    '全區':   'var(--tbl-all)',
+  };
+
+  // 表頭：倉別
+  const warehouseHeader = warehouses.map(w => {
+    const isAll = w.name === '全區';
+    const bg = `background:${whColor[w.name]};`;
+    return `<th style="text-align:right;color:white;padding:12px 16px;font-size:14px;font-weight:900;letter-spacing:.04em;${bg}">${isAll ? '🌐 ' : ''}${w.name}</th>`;
+  }).join('');
+
+  // 每個領域（domain）產生三列（預算/實際/動支）
+  // keyMap: { b: 預算 key, a: 實際 key, p: 動支率 key }
+  // domain 顏色用於左側領域欄背景
+  function domainRows(domainLabel, domainIcon, domainBg, keyMap) {
+    // 預算列
+    const budgetCells = warehouses.map(w => {
+      const isAll = w.name === '全區';
+      const cellBg = isAll ? 'background:var(--ry-blue-pale);' : '';
+      return `<td class="mono" style="text-align:right;padding:10px 14px;${cellBg}">${fmtMoney(Math.round(w[keyMap.b]))}</td>`;
+    }).join('');
+
+    // 實際列（依動支率著色）
+    const actualCells = warehouses.map(w => {
+      const isAll = w.name === '全區';
+      const color = colorFor(w[keyMap.p]);
+      const cellBg = isAll ? 'background:var(--ry-blue-pale);' : '';
+      return `<td class="mono" style="text-align:right;padding:10px 14px;font-weight:700;color:${color};${cellBg}">${fmtMoney(w[keyMap.a])}</td>`;
+    }).join('');
+
+    // 動支率列（彩色膠囊）
+    const pctCells = warehouses.map(w => {
+      const isAll = w.name === '全區';
+      const color = colorFor(w[keyMap.p]);
+      const cellBg = isAll ? 'background:var(--ry-blue-pale);' : '';
+      return `<td style="text-align:right;padding:10px 14px;${cellBg}">
+        <span style="display:inline-block;padding:3px 12px;background:${color};color:white;border-radius:99px;font-weight:800;font-size:var(--fs-xs);font-family:var(--f-mono)">${w[keyMap.p].toFixed(1)}%</span>
+      </td>`;
+    }).join('');
+
+    // 領域欄（rowspan=3 合併）
+    const domainCell = `<td rowspan="3" style="vertical-align:middle;text-align:center;background:${domainBg};color:white;font-weight:800;font-size:var(--fs-sm);padding:14px 10px;border-right:2px solid var(--ry-white);letter-spacing:.04em;line-height:1.5">
+      <div style="font-size:20px;margin-bottom:4px">${domainIcon}</div>
+      ${domainLabel}
+    </td>`;
+
+    return `
+      <tr style="border-top:2px solid var(--ry-line)">
+        ${domainCell}
+        <td style="padding:11px 16px;font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);background:var(--ry-paper);text-align:center;border-right:2px solid var(--ry-line)">預算</td>
+        ${budgetCells}
+      </tr>
+      <tr>
+        <td style="padding:11px 16px;font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);background:var(--ry-paper);text-align:center;border-right:2px solid var(--ry-line)">實際</td>
+        ${actualCells}
+      </tr>
+      <tr>
+        <td style="padding:11px 16px;font-size:var(--fs-sm);font-weight:800;text-align:center;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line)">動支</td>
+        ${pctCells}
+      </tr>`;
+  }
+
+  // 領域 key 對應
+  const keyLabor   = { b:'laborBudget',   a:'labor',   p:'laborPct'   };
+  const keyFreight = { b:'freightBudget', a:'freight', p:'freightPct' };
+  const keyTotal   = { b:'budget',        a:'total',   p:'pct'        };
+
+  return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>T002 期間動支彙總</div>
+      <span class="wmeta">${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${rows.length} 天</span>
+    </div>
+    <div style="margin:0 -18px -16px">
+      <div style="overflow-x:auto">
+        <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);min-width:780px">
+          <thead>
+            <tr style="background:var(--ry-blue-dark);border-bottom:3px solid var(--ry-gold)">
+              <th style="width:90px;color:white;text-align:center;padding:12px 14px;font-size:var(--fs-lg);font-weight:900;letter-spacing:.06em">領域</th>
+              <th style="width:80px;color:white;text-align:center;padding:12px 14px;font-size:var(--fs-lg);font-weight:900;letter-spacing:.06em">項目</th>
+              ${warehouseHeader}
+            </tr>
+          </thead>
+          <tbody>
+            ${domainRows('人力',  '💰', '#0E7BAD',             keyLabor)}
+            ${domainRows('運務',  '🚚', '#E07855',             keyFreight)}
+            ${domainRows('合計',  '📊', 'var(--ry-blue-dark)', keyTotal)}
+          </tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
+        📌 動支% = 實際 ÷ 期間預算 · 期間預算 = 月預算 × (篩選天數 ÷ 當月天數)<br>
+        📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
+      </div>
+    </div>
+  </div>`;
+}
+
+// ══════════════════════════════════════════════════════════
+// T003 每日動支明細表
+// 列：日期 × (人力 / 運務)
+// 欄：大溪 / 大肚 / 岡山 / 全區 / 當日動支率
+// 縱向可捲，表頭 sticky
+// ══════════════════════════════════════════════════════════
+function renderT003() {
+  const rows = getDispatchDailyFiltered();
+  const totalDays = DATA.dispatch.daily.length;
+
+  // 各倉單日預算 = 月預算 ÷ 當月天數
+  const dailyBudget = {
+    daxi:     (DATA.dispatch.budget['大溪倉'].labor + DATA.dispatch.budget['大溪倉'].freight) / totalDays,
+    dadu:     (DATA.dispatch.budget['大肚倉'].labor + DATA.dispatch.budget['大肚倉'].freight) / totalDays,
+    gangshan: (DATA.dispatch.budget['岡山倉'].labor + DATA.dispatch.budget['岡山倉'].freight) / totalDays,
+  };
+  const dailyBudgetAll = dailyBudget.daxi + dailyBudget.dadu + dailyBudget.gangshan;
+
+  // 產生單日的兩列（人力 + 運務）
+  function dayRows(row) {
+    const [date, dxL, dxF, ddL, ddF, gsL, gsF] = row;
+    const dxTotal = dxL + dxF;
+    const ddTotal = ddL + ddF;
+    const gsTotal = gsL + gsF;
+    const allTotal = dxTotal + ddTotal + gsTotal;
+
+    // 當日動支率（全區）= 當日合計 / 當日預算
+    const dayPct = allTotal / dailyBudgetAll * 100;
+    const dayColor = colorFor(dayPct);
+
+    // 人力列（人力金額 + 日期欄 rowspan=2）
+    const laborRow = `<tr>
+      <td rowspan="2" style="vertical-align:middle;font-weight:700;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line)">${date}</td>
+      <td style="font-size:var(--fs-xs);color:var(--ry-muted)">💰 人力</td>
+      <td class="mono" style="text-align:right">${fmtMoney(dxL)}</td>
+      <td class="mono" style="text-align:right">${fmtMoney(ddL)}</td>
+      <td class="mono" style="text-align:right">${fmtMoney(gsL)}</td>
+      <td class="mono" style="text-align:right;background:var(--ry-blue-pale);font-weight:700">${fmtMoney(dxL + ddL + gsL)}</td>
+      <td rowspan="2" style="vertical-align:middle;text-align:center;background:${bgFor(dayPct)};border-left:2px solid var(--ry-line)">
+        <span style="display:inline-block;padding:4px 12px;background:${dayColor};color:white;border-radius:99px;font-weight:800;font-size:var(--fs-xs);font-family:var(--f-mono)">${dayPct.toFixed(1)}%</span>
+      </td>
+    </tr>`;
+    // 運務列
+    const freightRow = `<tr style="border-bottom:2px solid var(--ry-line)">
+      <td style="font-size:var(--fs-xs);color:var(--ry-muted)">🚚 運務</td>
+      <td class="mono" style="text-align:right">${fmtMoney(dxF)}</td>
+      <td class="mono" style="text-align:right">${fmtMoney(ddF)}</td>
+      <td class="mono" style="text-align:right">${fmtMoney(gsF)}</td>
+      <td class="mono" style="text-align:right;background:var(--ry-blue-pale);font-weight:700">${fmtMoney(dxF + ddF + gsF)}</td>
+    </tr>`;
+    return laborRow + freightRow;
+  }
+
+  const tbody = rows.map(dayRows).join('');
+
+  return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-gold);"></div>T003 每日動支明細</div>
+      <span class="wmeta">${rows.length} 天 · 縱向捲動</span>
+    </div>
+    <div style="margin:0 -18px -16px">
+      <div style="max-height:520px;overflow-y:auto;overflow-x:auto">
+        <table class="tbl" style="min-width:860px">
+          <thead style="position:sticky;top:0;z-index:10">
+            <tr style="background:var(--ry-blue-dark);border-bottom:3px solid var(--ry-gold)">
+              <th style="width:90px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">日期</th>
+              <th style="width:110px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">費用類別</th>
+              <th style="width:150px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-daxi)">大溪倉</th>
+              <th style="width:150px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-dadu)">大肚倉</th>
+              <th style="width:150px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-gangshan)">岡山倉</th>
+              <th style="width:150px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-all)">🌐 全區</th>
+              <th style="width:120px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:center">當日動支率</th>
+            </tr>
+          </thead>
+          <tbody>${tbody}</tbody>
+        </table>
+      </div>
+      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
+        📌 當日動支率 = (當日三倉人力+運務合計) ÷ (單日預算 × 3) · 單日預算 = 各倉月預算 ÷ ${totalDays} 天<br>
+        📌 每日兩列：💰 人力 + 🚚 運務；全區欄位為三倉加總；右邊膠囊=當日整體動支率
+      </div>
+    </div>
+  </div>`;
+}
+
+
+// ═══════════════════════════════════════════════════════
+// 子頁面 HTML 模板（單檔版：每頁作為字串模板）
+// ═══════════════════════════════════════════════════════
+const PAGE_TEMPLATES = {
+  daily: `<div class="page-head">
+  <div class="page-eyebrow">DAILY BUDGET MONITOR</div>
+  <h1 class="page-h">每日動支監控</h1>
+  <div class="page-p" id="page-meta">載入中…</div>
+</div>
+
+
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="filter-from">
+  <span style="color:var(--ry-muted)">→</span>
+  <input type="date" class="filter-input" id="filter-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyFilter()">套用</button>
+  <button class="btn btn-gold" onclick="openDailyModal()">📁 資料設定</button>
+  <span class="filter-meta" id="filter-meta"></span>
+</div>
+
+
+<div class="grid" id="daily-grid"></div>
+
+
+<div class="modal-overlay" id="daily-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">📁 資料設定</div>
+        <div class="modal-sub">未來由資訊部改接 API；目前可手動輸入測試數字</div>
+      </div>
+      <button class="modal-close" onclick="closeDailyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+
+      <div class="field-group">
+        <div class="field-group-label">💰 預算 & 累計費用（M012）</div>
+        <div class="field">
+          <label>月預算（$）</label>
+          <input type="number" id="in-budget" placeholder="1500000">
+        </div>
+        <div class="field-note">來源：預算 Excel，依篩選條件加總</div>
+        <div class="field">
+          <label>累計人力費用（$）</label>
+          <input type="number" id="in-actual" placeholder="1284320">
+        </div>
+        <div class="field-note">來源：人力費用表，排除 SUP 後勤</div>
+        <div class="field">
+          <label>今天第幾天</label>
+          <input type="number" id="in-day" placeholder="17">
+        </div>
+        <div class="field">
+          <label>當月總天數</label>
+          <input type="number" id="in-total-days" placeholder="31">
+        </div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-group-label">📋 業務單位費用（M015）</div>
+        <div class="field"><label>EC理貨課 $</label><input type="number" id="in-u0-fee"></div>
+        <div class="field"><label>EC理貨課 工時</label><input type="number" id="in-u0-hr"></div>
+        <div class="field"><label>夜配裝箱課 $</label><input type="number" id="in-u1-fee"></div>
+        <div class="field"><label>夜配裝箱課 工時</label><input type="number" id="in-u1-hr"></div>
+        <div class="field"><label>夜配理貨課 $</label><input type="number" id="in-u2-fee"></div>
+        <div class="field"><label>夜配理貨課 工時</label><input type="number" id="in-u2-hr"></div>
+        <div class="field"><label>理貨外圍課 $</label><input type="number" id="in-u3-fee"></div>
+        <div class="field"><label>理貨外圍課 工時</label><input type="number" id="in-u3-hr"></div>
+        <div class="field"><label>異常作業課 $</label><input type="number" id="in-u4-fee"></div>
+        <div class="field"><label>異常作業課 工時</label><input type="number" id="in-u4-hr"></div>
+        <div class="field"><label>後勤支援課 $</label><input type="number" id="in-u5-fee"></div>
+        <div class="field"><label>後勤支援課 工時</label><input type="number" id="in-u5-hr"></div>
+      </div>
+
+      <div class="field-group">
+        <div class="field-group-label">🎚️ 門檻設定（M015）</div>
+        <div class="field">
+          <label>PEAK 門檻 %</label>
+          <input type="number" step="0.1" id="in-peak">
+        </div>
+        <div class="field-note">佔比 &gt; 此值 = PEAK（高負載）</div>
+        <div class="field">
+          <label>STABLE 門檻 %</label>
+          <input type="number" step="0.1" id="in-stable">
+        </div>
+        <div class="field-note">佔比 &lt; 此值 = IDLE；兩者之間 = STABLE</div>
+      </div>
+
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeDailyModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveDailyData()">儲存並更新</button>
+    </div>
+  </div>
+</div>`,
+  dispatch: `<div class="page-head">
+  <div class="page-eyebrow">TOTAL DISPATCH RATE · 總費用動支</div>
+  <h1 class="page-h">總費用動支率</h1>
+  <div class="page-p" id="dispatch-meta">載入中…</div>
+</div>
+
+
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="dispatch-from">
+  <span style="color:var(--ry-muted)">→</span>
+  <input type="date" class="filter-input" id="dispatch-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDispatchFilter()">套用</button>
+  <span class="filter-meta">🔗 與其他頁共用日期設定</span>
+</div>
+
+
+<div class="grid" id="dispatch-grid"></div>`,
+  freight: `<div class="page-head">
+  <div class="page-eyebrow">FREIGHT P&amp;L · 運費損益</div>
+  <h1 class="page-h">運費損益分析</h1>
+  <div class="page-p" id="freight-meta">載入中…</div>
+</div>
+
+
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="freight-from">
+  <span style="color:var(--ry-muted)">→</span>
+  <input type="date" class="filter-input" id="freight-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
+  <span class="filter-meta">🔗 與「每日動支監控」共用日期設定</span>
+</div>
+
+
+<div class="grid" id="freight-grid"></div>`,
+  productivity: `<div class="page-head">
+  <div class="page-eyebrow">PRODUCTIVITY MONITOR · 人效監控</div>
+  <h1 class="page-h">人效監控</h1>
+  <div class="page-p">追蹤揀次 PPH、加班佔比、工時區域人效</div>
+</div>
+
+<div class="wip-page">
+  <div class="wip-icon">🚧</div>
+  <div class="wip-title">建構中</div>
+  <div class="wip-desc">
+    這個子頁面尚未完成，預計整合以下元件：<br>
+    M019 每小時揀次 PPH · M020 單次揀貨成本 · M021 加班佔比 · M023 三倉 PPH 比較 · M025 工時區域人效矩陣
+  </div>
+  <div class="wip-note">
+    📋 下一步：確認揀次資料與人力費用的合併邏輯後開發
+  </div>
+</div>`,
+  monthly: `<div class="page-head">
+  <div class="page-eyebrow">MONTHLY SETTLEMENT · 月度結算</div>
+  <h1 class="page-h">月度結算</h1>
+  <div class="page-p">月底結算時使用的本月口袋總結頁面</div>
+</div>
+
+<div class="wip-page">
+  <div class="wip-icon">🚧</div>
+  <div class="wip-title">建構中</div>
+  <div class="wip-desc">
+    這個子頁面尚未完成，預計整合以下元件：<br>
+    M001 總人力成本 · M002 總工時 · M011 本部費用彙總 · M013-14 服務 EC/營收 EC · F001 月總運費
+  </div>
+  <div class="wip-note">
+    📋 下一步：確認月底結算流程後開發（每月 1 號使用）
+  </div>
+</div>`,
+  import: `<div class="page-head">
+  <div class="page-eyebrow">DATA IMPORT · 資料匯入</div>
+  <h1 class="page-h">Excel 資料匯入</h1>
+  <div class="page-p">上傳 Excel 後自動解析，即時更新儀表板數字</div>
+</div>
+
+<div style="background:#fff9e0;border-left:3px solid var(--ry-gold);padding:12px 16px;border-radius:3px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.8">
+  💡 <b>使用說明：</b>在 Excel 完成樞紐分析後上傳 → 系統自動解析 → 可預覽確認 → 套用到儀表板 → 選擇下載彙總確認檔
+</div>
+
+<div class="grid">
+
+  
+  <div class="w s6">
+    <div class="gold-band" style="background:#E07855;color:white">🚚 運務費用（F010 / T002 / T003）</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#E07855"></div>每日各倉運務費用</div>
+      <span class="wmeta" id="freight-status">尚未上傳</span>
+    </div>
+
+    
+    <div id="freight-drop"
+      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      onclick="document.getElementById('freight-file').click()"
+      ondragover="onDragOver(event,'freight-drop')"
+      ondragleave="onDragLeave('freight-drop')"
+      ondrop="onDrop(event,'freight')">
+      <div style="font-size:32px;margin-bottom:8px">📊</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜分頁名：進貨日與計價費用</div>
+    </div>
+    <input type="file" id="freight-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight')">
+
+    
+    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
+      欄位：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計<br>
+      最後一列「總計」自動跳過
+    </div>
+
+    
+    <div id="freight-preview" style="display:none;margin-top:12px"></div>
+
+    
+    <div id="freight-btns" style="display:none;margin-top:10px;display:none;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="applyFreight()">✅ 套用到儀表板</button>
+      <button class="btn btn-gold" onclick="downloadFreight()">⬇️ 下載彙總確認檔</button>
+      <button class="btn btn-ghost" onclick="resetFreight()">↺ 重選</button>
+    </div>
+  </div>
+
+  
+  <div class="w s6">
+    <div class="gold-band" style="background:var(--ry-muted);color:white">📋 其他資料來源（待資訊部實作）</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>資料盤點清單</div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>資料</th><th>說明</th><th>狀態</th></tr></thead>
+      <tbody>
+        <tr><td>💰 人力費用</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 × 課</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-orange-pale);color:#e07855;border-radius:3px">待確認格式</span></td></tr>
+        <tr><td>💼 月預算表</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">各倉人力/運務月預算</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-orange-pale);color:#e07855;border-radius:3px">待確認格式</span></td></tr>
+        <tr><td>📦 EC 貨量</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 EC 件數</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-line);color:var(--ry-muted);border-radius:3px">待開發</span></td></tr>
+        <tr><td>⚡ 揀次</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 × 作業區</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-line);color:var(--ry-muted);border-radius:3px">待開發</span></td></tr>
+      </tbody>
+    </table>
+    <div style="margin-top:12px;padding:8px 12px;background:var(--ry-blue-pale);border-left:3px solid var(--ry-blue);font-size:var(--fs-xs);color:var(--ry-blue-dark);line-height:1.6">
+      🔧 資訊部接手後，以上每項都會有對應的上傳按鈕，格式規範同運務費用。
+    </div>
+  </div>
+
+  
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>目前儀表板資料狀態</div>
+      <span class="wmeta" id="status-time">—</span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr><th>資料類型</th><th>狀態</th><th>大溪倉</th><th>大肚倉</th><th>岡山倉</th><th style="text-align:right">合計</th></tr>
+      </thead>
+      <tbody id="status-tbody"></tbody>
+    </table>
+  </div>
+
+</div>`,
+  'manual-input': `<div class="page-head">
+  <div class="page-eyebrow">MANUAL INPUT · 手動輸入</div>
+  <h1 class="page-h">手動輸入資料</h1>
+  <div class="page-p">測試與 demo 時使用，直接修改儀表板數字</div>
+</div>
+
+<div style="background:#fff4e8;border-left:3px solid #e07855;padding:12px 16px;border-radius:3px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.7">
+  💡 <b>提示：</b>這個頁面用於<b>測試階段</b>手動輸入數字。未來資料由「資料匯入」頁面自動同步後，此頁將被<b>取代或隱藏</b>。
+</div>
+
+<div class="grid">
+
+  
+  <div class="w s6">
+    <div class="gold-band">💰 M012 預算 & 累計費用</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>預算動支率監控</div>
+      <span class="wmeta">對應儀表板 M012</span>
+    </div>
+    <div class="field">
+      <label>月預算（$）</label>
+      <input type="number" id="mi-budget">
+    </div>
+    <div class="field-note">來源：預算 Excel，依篩選條件加總</div>
+    <div class="field">
+      <label>累計費用（$）</label>
+      <input type="number" id="mi-actual">
+    </div>
+    <div class="field-note">排除 SUP 後勤課</div>
+    <div class="field">
+      <label>今天第幾天</label>
+      <input type="number" id="mi-day">
+    </div>
+    <div class="field">
+      <label>當月總天數</label>
+      <input type="number" id="mi-total-days">
+    </div>
+  </div>
+
+  
+  <div class="w s6">
+    <div class="gold-band" style="background:var(--ry-orange);color:white">🎚️ M015 門檻設定</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-orange)"></div>業務單位分類門檻</div>
+      <span class="wmeta">依佔比分類</span>
+    </div>
+    <div class="field">
+      <label>PEAK 門檻 %</label>
+      <input type="number" step="0.1" id="mi-peak">
+    </div>
+    <div class="field-note">佔比 &gt; 此值 = PEAK（高負載）</div>
+    <div class="field">
+      <label>STABLE 門檻 %</label>
+      <input type="number" step="0.1" id="mi-stable">
+    </div>
+    <div class="field-note">佔比 &lt; 此值 = IDLE；兩者之間 = STABLE</div>
+  </div>
+
+  
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-orange)"></div>📋 M015 各課別費用</div>
+      <span class="wmeta">6 個業務單位</span>
+    </div>
+    <table class="tbl">
+      <thead>
+        <tr>
+          <th>課別</th>
+          <th>費用（$）</th>
+          <th>工時（h）</th>
+        </tr>
+      </thead>
+      <tbody id="mi-units-tbody"></tbody>
+    </table>
+  </div>
+
+</div>
+
+
+<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+  <button class="btn btn-ghost" onclick="resetManualForm()">↺ 重新載入</button>
+  <button class="btn btn-primary" onclick="saveManualData()">💾 儲存並更新儀表板</button>
+</div>`
+};
+
+// ═══════════════════════════════════════════════════════
+// 頁面設定（PAGES）
+// ═══════════════════════════════════════════════════════
+const PAGES = [
+  {
+    group: '📊 儀表板',
+    items: [
+      { id:'daily',        icon:'📅', label:'每日動支監控', status:'ready' },
+      { id:'dispatch',     icon:'💼', label:'總費用動支率', status:'ready' },
+      { id:'freight',      icon:'🚚', label:'運費損益分析', status:'ready' },
+      { id:'productivity', icon:'⚡', label:'人效監控',     status:'wip'   },
+      { id:'monthly',      icon:'📆', label:'月度結算',     status:'wip'   },
+    ]
+  },
+  {
+    group: '📁 資料管理',
+    items: [
+      { id:'import',       icon:'📤', label:'資料匯入',     status:'placeholder' },
+      { id:'manual-input', icon:'✏️', label:'手動輸入',     status:'ready' },
+    ]
+  },
+];
+
+let currentPageId = 'daily';
+
+// ═══════════════════════════════════════════════════════
+// 渲染左側選單
+// ═══════════════════════════════════════════════════════
+function renderSidebar() {
+  const sb = document.getElementById('sidebar');
+  let html = '';
+  PAGES.forEach(group => {
+    html += `<div class="sb-group"><div class="sb-group-label">${group.group}</div>`;
+    group.items.forEach(item => {
+      const active = item.id === currentPageId ? 'active' : '';
+      let badge = '';
+      if (item.status === 'wip') {
+        badge = '<span class="sb-item-badge wip">WIP</span>';
+      } else if (item.status === 'placeholder') {
+        badge = '<span class="sb-item-badge soon">TBD</span>';
+      }
+      html += `
+      <a href="#${item.id}" class="sb-item ${active}" onclick="navigate(event, '${item.id}')">
+        <span class="sb-item-icon">${item.icon}</span>
+        <span class="sb-item-label">${item.label}</span>
+        ${badge}
+      </a>`;
+    });
+    html += `</div>`;
+  });
+  sb.innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════════════
+// 切換頁面
+// ═══════════════════════════════════════════════════════
+function navigate(event, pageId) {
+  if (event) event.preventDefault();
+  currentPageId = pageId;
+  renderSidebar();
+  document.getElementById('sidebar').classList.remove('open');
+  loadPage(pageId);
+}
+
+// ═══════════════════════════════════════════════════════
+// 載入頁面（從 PAGE_TEMPLATES 取模板，然後執行對應 init）
+// ═══════════════════════════════════════════════════════
+function loadPage(pageId) {
+  const main = document.getElementById('main');
+  const tpl = PAGE_TEMPLATES[pageId];
+  if (!tpl) {
+    main.innerHTML = '<div class="wip-page"><div class="wip-icon">⚠️</div><div class="wip-title">找不到頁面</div></div>';
+    return;
+  }
+  main.innerHTML = tpl;
+
+  // 依頁面呼叫對應初始化
+  if (pageId === 'daily')        initDailyPage();
+  else if (pageId === 'dispatch') initDispatchPage();
+  else if (pageId === 'freight') initFreightPage();
+  else if (pageId === 'import')  initImportPage();
+  else if (pageId === 'manual-input') initManualPage();
+  // WIP 頁面不用初始化
+}
+
+// ═══════════════════════════════════════════════════════
+// 各頁面初始化 + 事件（原本 <script> 裡的邏輯）
+// ═══════════════════════════════════════════════════════
+
+// ── 每日動支監控頁 ──
+function initDailyPage() {
+  renderDailyPage();
+  // Modal 背景點擊關閉（加防護）
+  const modal = document.getElementById('daily-modal');
+  if (modal) modal.addEventListener('click', e => {
+    if (e.target.id === 'daily-modal') closeDailyModal();
+  });
+}
+
+// ── 總費用動支率頁 ──
+function initDispatchPage() {
+  renderDispatchPage();
+}
+
+// ── 運費損益分析頁 ──
+function initFreightPage() {
+  renderFreightPage();
+}
+
+// ── 資料匯入頁 ──
+function initImportPage() {
+  if (typeof updateStatus === 'function') updateStatus();
+}
+
+// ── 手動輸入頁 ──
+function initManualPage() {
+  if (typeof renderManualForm === 'function') renderManualForm();
+}
+
+// ═══════════════════════════════════════════════════════
+// 手機側欄切換
+// ═══════════════════════════════════════════════════════
+function toggleSidebar() {
+  document.getElementById('sidebar').classList.toggle('open');
+}
+
+// ═══════════════════════════════════════════════════════
+// 頂部時間顯示
+// ═══════════════════════════════════════════════════════
+function updateTime() {
+  const el = document.getElementById('nav-time');
+  if (el) el.textContent = new Date().toLocaleString('zh-TW', { hour12:false });
+}
+
+// 手機漢堡按鈕顯示控制
+function checkMobile() {
+  const toggle = document.getElementById('menu-toggle');
+  if (!toggle) return;
+  toggle.style.display = window.innerWidth <= 768 ? 'inline-flex' : 'none';
+}
+
+// ═══════════════════════════════════════════════════════
+// 初始化
+// ═══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', () => {
+  renderSidebar();
+
+  // 讀 URL hash 決定初始頁
+  const hash = location.hash.slice(1);
+  if (hash) {
+    for (const group of PAGES) {
+      if (group.items.find(i => i.id === hash)) {
+        currentPageId = hash;
+        break;
+      }
+    }
+  }
+  loadPage(currentPageId);
+
+  updateTime();
+  setInterval(updateTime, 60000);
+  checkMobile();
+  window.addEventListener('resize', checkMobile);
+});
+</script>
+<!-- 各頁面邏輯（獨立 script blocks） -->
+<script>
+// daily page
+
+/* 本頁專屬邏輯（獨立命名，避免污染全域）
+   ───────────────────────────────────────────── */
+
+function renderDailyPage() {
+  const grid = document.getElementById('daily-grid');
+  grid.innerHTML = [
+    renderM012(),   // 第 1 列：動支率監控
+    renderM015(),   // 第 2 列：業務單位表格
+  ].join('');
+
+  const now = new Date();
+  document.getElementById('page-meta').textContent =
+    `更新時間：${now.toLocaleString('zh-TW')} · 資料區間：${DATA.dateFrom} ~ ${DATA.dateTo}`;
+  document.getElementById('filter-meta').textContent =
+    `資料截至：${DATA.dateTo}`;
+  document.getElementById('filter-from').value = DATA.dateFrom;
+  document.getElementById('filter-to').value   = DATA.dateTo;
+}
+
+function applyFilter() {
+  const from = document.getElementById('filter-from').value;
+  const to   = document.getElementById('filter-to').value;
+  if (from) DATA.dateFrom = from;
+  if (to)   DATA.dateTo = to;
+  renderDailyPage();
+  toast('🔄 已更新');
+}
+
+// ── Modal ──
+function openDailyModal() {
+  document.getElementById('in-budget').value     = DATA.budget;
+  document.getElementById('in-actual').value     = DATA.actual;
+  document.getElementById('in-day').value        = DATA.dayOfMonth;
+  document.getElementById('in-total-days').value = DATA.totalDays;
+  DATA.units.forEach((u, i) => {
+    document.getElementById(`in-u${i}-fee`).value = u.fee;
+    document.getElementById(`in-u${i}-hr`).value  = u.hr;
+  });
+  document.getElementById('in-peak').value   = DATA.thresholdPeak;
+  document.getElementById('in-stable').value = DATA.thresholdStable;
+  document.getElementById('daily-modal').classList.add('on');
+}
+
+function closeDailyModal() {
+  document.getElementById('daily-modal').classList.remove('on');
+}
+
+function saveDailyData() {
+  const g = id => {
+    const v = document.getElementById(id).value;
+    return v === '' ? null : Number(v);
+  };
+  DATA.budget      = g('in-budget')      ?? DATA.budget;
+  DATA.actual      = g('in-actual')      ?? DATA.actual;
+  DATA.dayOfMonth  = g('in-day')         ?? DATA.dayOfMonth;
+  DATA.totalDays   = g('in-total-days')  ?? DATA.totalDays;
+  DATA.units.forEach((u, i) => {
+    u.fee = g(`in-u${i}-fee`) ?? u.fee;
+    u.hr  = g(`in-u${i}-hr`)  ?? u.hr;
+  });
+  DATA.thresholdPeak   = g('in-peak')   ?? DATA.thresholdPeak;
+  DATA.thresholdStable = g('in-stable') ?? DATA.thresholdStable;
+  closeDailyModal();
+  renderDailyPage();
+  toast('✓ 資料已更新');
+}
+
+// (初始化改由 app.js 的 initXxxPage() 觸發)
+
+</script>
+<script>
+
+function renderDispatchPage() {
+  const grid = document.getElementById('dispatch-grid');
+  grid.innerHTML = [
+    // 第 1 排：T001 四張總動支卡片（每張 s3，共 s12）
+    renderT001(),
+    // 第 2 排：T002 期間動支彙總（全寬）
+    renderT002(),
+    // 第 3 排：T003 每日動支明細（全寬，縱向可捲）
+    renderT003(),
+  ].join('');
+
+  // 同步篩選器與 meta
+  document.getElementById('dispatch-from').value = DATA.dateFrom;
+  document.getElementById('dispatch-to').value   = DATA.dateTo;
+  const days = getDispatchDailyFiltered().length;
+  document.getElementById('dispatch-meta').textContent =
+    `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${days} 天 · 含人力+運務總覽`;
+}
+
+function applyDispatchFilter() {
+  const from = document.getElementById('dispatch-from').value;
+  const to   = document.getElementById('dispatch-to').value;
+  if (from) DATA.dateFrom = from;
+  if (to)   DATA.dateTo = to;
+  renderDispatchPage();
+  toast('🔄 已更新');
+}
+
+// (初始化改由 app.js 的 initXxxPage() 觸發)
+
+</script>
+<script>
+
+function renderFreightPage() {
+  const grid = document.getElementById('freight-grid');
+  grid.innerHTML = [
+    // 第 1 列：三個關鍵數字（4-4-4）
+    renderF001(),
+    renderF002(),
+    renderF003(),
+    // 第 2 列：日費用趨勢（全寬）
+    renderF009(),
+    // 第 3 列：F010 三倉每日運費動支（全寬，縱向可捲）
+    renderF010(),
+  ].join('');
+
+  // 篩選器同步
+  document.getElementById('freight-from').value = DATA.dateFrom;
+  document.getElementById('freight-to').value   = DATA.dateTo;
+  document.getElementById('freight-meta').textContent =
+    `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${DATA.freight.totalOrders.toLocaleString()} 筆配送`;
+}
+
+function applyFreightFilter() {
+  const from = document.getElementById('freight-from').value;
+  const to   = document.getElementById('freight-to').value;
+  if (from) DATA.dateFrom = from;
+  if (to)   DATA.dateTo = to;
+  renderFreightPage();
+  toast('🔄 已更新（未來會依日期重新載入運費資料）');
+}
+
+// (初始化改由 app.js 的 initXxxPage() 觸發)
+
+</script>
+<script>
+
+let parsedFreight = null;
+
+// ── 拖曳 ──
+function onDragOver(e, id) {
+  e.preventDefault();
+  const el = document.getElementById(id);
+  el.style.borderColor = 'var(--ry-blue)';
+  el.style.background = 'var(--ry-blue-pale)';
+}
+function onDragLeave(id) {
+  const el = document.getElementById(id);
+  el.style.borderColor = 'var(--ry-line)';
+  el.style.background = 'var(--ry-bg)';
+}
+function onDrop(e, type) {
+  e.preventDefault();
+  onDragLeave(type + '-drop');
+  if (e.dataTransfer.files[0]) parseExcel(e.dataTransfer.files[0], type);
+}
+function onFileSelect(e, type) {
+  if (e.target.files[0]) parseExcel(e.target.files[0], type);
+}
+
+// ── 解析 ──
+function parseExcel(file, type) {
+  document.getElementById(type + '-status').textContent = '解析中…';
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const wb = XLSX.read(e.target.result, { type:'array' });
+      if (type === 'freight') parseFreight(wb, file.name);
+    } catch(err) {
+      document.getElementById(type + '-status').textContent = '❌ 解析失敗';
+      toast('❌ ' + err.message);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+function parseFreight(wb, fileName) {
+  const SHEET = '進貨日與計價費用';
+  if (!wb.SheetNames.includes(SHEET)) {
+    toast('❌ 找不到「' + SHEET + '」分頁');
+    document.getElementById('freight-status').textContent = '❌ 分頁不存在';
+    return;
+  }
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[SHEET], { defval:0 });
+  const rows = [];
+  raw.forEach(r => {
+    const d = String(r['列標籤'] || '');
+    if (!d || d.includes('總計')) return;
+    const parts = d.split('/');
+    if (parts.length < 3) return;
+    const date = parts[1].padStart(2,'0') + '/' + parts[2].padStart(2,'0');
+    rows.push({
+      date,
+      daxi:     Number(r['大溪倉'] || 0),
+      dadu:     Number(r['大肚倉'] || 0),
+      gangshan: Number(r['岡山倉'] || 0),
+    });
+  });
+  if (!rows.length) { toast('❌ 找不到有效資料'); return; }
+
+  const totals = {
+    daxi:     rows.reduce((s,r)=>s+r.daxi,0),
+    dadu:     rows.reduce((s,r)=>s+r.dadu,0),
+    gangshan: rows.reduce((s,r)=>s+r.gangshan,0),
+  };
+  parsedFreight = { rows, fileName, totals, at: new Date() };
+
+  document.getElementById('freight-status').textContent = `✅ ${rows.length} 天`;
+  showFreightPreview(rows, totals);
+  const btns = document.getElementById('freight-btns');
+  btns.style.display = 'flex';
+  toast(`✅ 解析完成：${rows.length} 天資料`);
+}
+
+// ── 預覽 ──
+function showFreightPreview(rows, totals) {
+  const show = rows.length <= 8 ? rows :
+    [...rows.slice(0,4), {date:'…',daxi:'…',dadu:'…',gangshan:'…'}, ...rows.slice(-3)];
+
+  const trs = show.map(r => {
+    const fmt = v => v === '…' ? '…' : '$' + Number(v).toLocaleString();
+    return `<tr>
+      <td style="padding:6px 10px;font-weight:700">${r.date}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);color:#0E7BAD">${fmt(r.daxi)}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);color:#2DA870">${fmt(r.dadu)}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);color:#E07855">${fmt(r.gangshan)}</td>
+    </tr>`;
+  }).join('');
+
+  document.getElementById('freight-preview').innerHTML = `
+    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">📋 資料預覽（共 ${rows.length} 天）</div>
+    <div style="max-height:200px;overflow-y:auto;border:1px solid var(--ry-line);border-radius:3px;font-size:var(--fs-xs)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="position:sticky;top:0;background:var(--ry-blue-dark)">
+          <tr>
+            <th style="padding:6px 10px;color:white;text-align:left">日期</th>
+            <th style="padding:6px 10px;color:#7ec8e3;text-align:right">大溪倉</th>
+            <th style="padding:6px 10px;color:#7ed4a0;text-align:right">大肚倉</th>
+            <th style="padding:6px 10px;color:#f0b090;text-align:right">岡山倉</th>
+          </tr>
+        </thead>
+        <tbody>${trs}</tbody>
+        <tfoot style="background:var(--ry-blue-pale);border-top:2px solid var(--ry-blue-dark)">
+          <tr>
+            <td style="padding:6px 10px;font-weight:800;color:var(--ry-blue-dark)">合計</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:#0E7BAD">$${totals.daxi.toLocaleString()}</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:#2DA870">$${totals.dadu.toLocaleString()}</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:#E07855">$${totals.gangshan.toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+  document.getElementById('freight-preview').style.display = 'block';
+}
+
+// ── 套用到儀表板 ──
+function applyFreight() {
+  if (!parsedFreight) return;
+
+  // 更新 F010 資料
+  DATA.freight.dailyByWarehouse = parsedFreight.rows.map(r =>
+    [r.date, r.daxi, r.gangshan, r.dadu]
+  );
+
+  // 更新 dispatch.daily 的運務欄位
+  const map = {};
+  parsedFreight.rows.forEach(r => { map[r.date] = r; });
+  DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
+    const f = map[row[0]];
+    return f ? [row[0], row[1], f.daxi, row[3], f.dadu, row[5], f.gangshan] : row;
+  });
+
+  updateStatus();
+  toast('✅ 運務資料已套用！切換至「總費用動支率」頁查看');
+}
+
+// ── 下載彙總確認 Excel ──
+function downloadFreight() {
+  if (!parsedFreight) return;
+  const { rows, totals, fileName, at } = parsedFreight;
+
+  const headers = ['日期', '大溪倉', '大肚倉', '岡山倉', '當日合計'];
+  const data = rows.map(r => [r.date, r.daxi, r.dadu, r.gangshan, r.daxi+r.dadu+r.gangshan]);
+  const total = ['月合計', totals.daxi, totals.dadu, totals.gangshan, totals.daxi+totals.dadu+totals.gangshan];
+
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...data, total]);
+  ws['!cols'] = [{wch:10},{wch:14},{wch:14},{wch:14},{wch:14}];
+
+  const info = XLSX.utils.aoa_to_sheet([
+    ['KPL 儀表板 · 運費彙總確認'],[''],
+    ['來源檔案', fileName],
+    ['解析時間', at.toLocaleString('zh-TW')],
+    ['資料天數', rows.length],
+    ['大溪倉合計', totals.daxi],
+    ['大肚倉合計', totals.dadu],
+    ['岡山倉合計', totals.gangshan],
+    ['三倉總計', totals.daxi+totals.dadu+totals.gangshan],
+  ]);
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '運費彙總');
+  XLSX.utils.book_append_sheet(wb, info, '資料說明');
+
+  const n = at;
+  const name = `運費彙總_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}.xlsx`;
+  XLSX.writeFile(wb, name);
+  toast('⬇️ 已下載：' + name);
+}
+
+// ── 重置 ──
+function resetFreight() {
+  parsedFreight = null;
+  document.getElementById('freight-status').textContent = '尚未上傳';
+  document.getElementById('freight-preview').style.display = 'none';
+  document.getElementById('freight-btns').style.display = 'none';
+  document.getElementById('freight-file').value = '';
+}
+
+// ── 資料狀態表 ──
+function updateStatus() {
+  document.getElementById('status-time').textContent =
+    '更新：' + new Date().toLocaleString('zh-TW');
+
+  let daxiF=0, daduF=0, gsF=0, daxiL=0, daduL=0, gsL=0;
+  DATA.dispatch.daily.forEach(r => {
+    daxiL+=r[1]; daxiF+=r[2]; daduL+=r[3]; daduF+=r[4]; gsL+=r[5]; gsF+=r[6];
+  });
+
+  const rows = [
+    { type:'🚚 運務費用', real:!!parsedFreight, daxi:daxiF, dadu:daduF, gs:gsF },
+    { type:'💰 人力費用', real:false,           daxi:daxiL, dadu:daduL, gs:gsL },
+  ];
+
+  document.getElementById('status-tbody').innerHTML = rows.map(r => {
+    const total = r.daxi + r.dadu + r.gs;
+    const c = r.real ? '#1b7c33' : '#e07855';
+    const s = r.real ? '✅ 已上傳' : '⚠️ 範例資料';
+    return `<tr>
+      <td style="font-weight:700">${r.type}</td>
+      <td><span style="color:${c};font-weight:700">${s}</span></td>
+      <td class="mono" style="text-align:right;color:#0E7BAD">$${r.daxi.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:#2DA870">$${r.dadu.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:#E07855">$${r.gs.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;font-weight:800">$${total.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+}
+
+// (初始化改由 app.js 的 initXxxPage() 觸發)
+
+</script>
+<script>
+
+function renderManualForm() {
+  document.getElementById('mi-budget').value     = DATA.budget;
+  document.getElementById('mi-actual').value     = DATA.actual;
+  document.getElementById('mi-day').value        = DATA.dayOfMonth;
+  document.getElementById('mi-total-days').value = DATA.totalDays;
+  document.getElementById('mi-peak').value       = DATA.thresholdPeak;
+  document.getElementById('mi-stable').value     = DATA.thresholdStable;
+
+  // 業務單位表格
+  const tbody = document.getElementById('mi-units-tbody');
+  tbody.innerHTML = DATA.units.map((u, i) => `
+    <tr>
+      <td>${u.name}${u.type === 'sup' ? ' <span class="tag" style="background:#eff6ff;color:#1e5ca8;border-color:#bfdbfe">SUP</span>' : ''}</td>
+      <td><input type="number" class="filter-input" style="width:140px" id="mi-u${i}-fee" value="${u.fee}"></td>
+      <td><input type="number" class="filter-input" style="width:100px" id="mi-u${i}-hr" value="${u.hr}"></td>
+    </tr>
+  `).join('');
+}
+
+function saveManualData() {
+  const g = id => {
+    const v = document.getElementById(id).value;
+    return v === '' ? null : Number(v);
+  };
+
+  DATA.budget      = g('mi-budget')      ?? DATA.budget;
+  DATA.actual      = g('mi-actual')      ?? DATA.actual;
+  DATA.dayOfMonth  = g('mi-day')         ?? DATA.dayOfMonth;
+  DATA.totalDays   = g('mi-total-days')  ?? DATA.totalDays;
+  DATA.thresholdPeak   = g('mi-peak')    ?? DATA.thresholdPeak;
+  DATA.thresholdStable = g('mi-stable')  ?? DATA.thresholdStable;
+
+  DATA.units.forEach((u, i) => {
+    u.fee = g(`mi-u${i}-fee`) ?? u.fee;
+    u.hr  = g(`mi-u${i}-hr`)  ?? u.hr;
+  });
+
+  toast('✓ 資料已儲存，切換到儀表板可看到更新');
+}
+
+function resetManualForm() {
+  renderManualForm();
+  toast('↺ 已重新載入');
+}
+
+// (初始化改由 app.js 的 initXxxPage() 觸發)
+
+</script>
+</body>
+</html>
