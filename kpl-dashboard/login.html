@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>登入 · KPL 績效儀表板</title>
+<style>
+:root {
+  --ry-blue:      #1e5ca8;
+  --ry-blue-dark: #123d74;
+  --ry-gold:      #f5c400;
+  --ry-red:       #d9401b;
+  --ry-ink:       #1a1d24;
+  --ry-muted:     #5a6478;
+  --ry-line:      #dde2ec;
+  --ry-bg:        #f4f6fb;
+  --f-head: system-ui, 'Microsoft JhengHei', sans-serif;
+  --f-mono: 'Courier New', Consolas, monospace;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: var(--f-head);
+  background: var(--ry-blue-dark);
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* 背景紋路 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  background:
+    linear-gradient(135deg, rgba(245,196,0,.06) 0%, transparent 50%),
+    repeating-linear-gradient(0deg, transparent, transparent 40px, rgba(255,255,255,.02) 40px, rgba(255,255,255,.02) 41px);
+}
+
+.login-wrap {
+  position: relative;
+  width: 400px;
+  animation: fadeUp .4s ease both;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+/* 品牌區 */
+.brand {
+  text-align: center;
+  margin-bottom: 28px;
+}
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 52px; height: 52px;
+  background: var(--ry-red);
+  border-radius: 50%;
+  font-size: 20px; font-weight: 900; color: white;
+  margin-bottom: 14px;
+}
+.brand-en {
+  font-size: 15px; font-weight: 700; color: white;
+  letter-spacing: 0.06em;
+}
+.brand-zh {
+  font-size: 11px; color: rgba(255,255,255,.45);
+  margin-top: 3px;
+}
+.brand-module {
+  margin-top: 10px;
+  display: inline-block;
+  background: var(--ry-gold);
+  color: var(--ry-blue-dark);
+  font-size: 11px; font-weight: 700;
+  padding: 4px 14px;
+  border-radius: 99px;
+  letter-spacing: 0.06em;
+}
+
+/* 登入卡片 */
+.login-card {
+  background: white;
+  border-radius: 6px;
+  padding: 32px 36px 28px;
+  border-top: 4px solid var(--ry-gold);
+  box-shadow: 0 20px 60px rgba(0,0,0,.35);
+}
+
+.login-title {
+  font-size: 17px; font-weight: 900;
+  color: var(--ry-blue-dark);
+  margin-bottom: 6px;
+}
+.login-sub {
+  font-size: 11px; color: var(--ry-muted);
+  font-family: var(--f-mono);
+  margin-bottom: 24px;
+}
+
+.field { margin-bottom: 16px; }
+.field label {
+  display: block;
+  font-size: 11px; font-weight: 700;
+  letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ry-muted);
+  margin-bottom: 6px;
+}
+.field input {
+  width: 100%;
+  padding: 10px 14px;
+  border: 1.5px solid var(--ry-line);
+  border-radius: 4px;
+  font-family: var(--f-mono);
+  font-size: 13px;
+  color: var(--ry-ink);
+  transition: border-color .15s;
+  background: white;
+}
+.field input:focus {
+  outline: none;
+  border-color: var(--ry-blue);
+}
+.field input.error {
+  border-color: var(--ry-red);
+  background: #fdf0ec;
+}
+
+.btn-login {
+  width: 100%;
+  padding: 12px;
+  background: var(--ry-blue);
+  color: white;
+  border: none;
+  border-radius: 4px;
+  font-family: var(--f-head);
+  font-size: 14px; font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  transition: background .15s;
+  margin-top: 8px;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.btn-login:hover { background: var(--ry-blue-dark); }
+.btn-login:disabled {
+  background: var(--ry-line);
+  color: var(--ry-muted);
+  cursor: not-allowed;
+}
+
+/* 錯誤訊息 */
+.error-msg {
+  display: none;
+  margin-top: 14px;
+  padding: 10px 14px;
+  background: #fdf0ec;
+  border-left: 3px solid var(--ry-red);
+  border-radius: 3px;
+  font-size: 12px;
+  color: var(--ry-red);
+  font-weight: 600;
+}
+.error-msg.on { display: block; }
+
+/* Loading spinner */
+.spinner {
+  display: inline-block;
+  width: 14px; height: 14px;
+  border: 2px solid rgba(255,255,255,.3);
+  border-top-color: white;
+  border-radius: 50%;
+  animation: spin .6s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.login-footer {
+  text-align: center;
+  margin-top: 18px;
+  font-size: 10px; color: rgba(255,255,255,.3);
+  font-family: var(--f-mono);
+}
+</style>
+</head>
+<body>
+
+<div class="login-wrap">
+  <div class="brand">
+    <div class="brand-badge">RY</div>
+    <div class="brand-en">Re-Yi Distribution</div>
+    <div class="brand-zh">日翊文化行銷股份有限公司</div>
+    <div class="brand-module">KPL 績效儀表板</div>
+  </div>
+
+  <div class="login-card">
+    <div class="login-title">帳號登入</div>
+    <div class="login-sub">請使用公司 AD 帳號登入</div>
+
+    <div class="field">
+      <label>帳號</label>
+      <input type="text" id="user-id" placeholder="請輸入帳號" autocomplete="username">
+    </div>
+    <div class="field">
+      <label>密碼</label>
+      <input type="password" id="password" placeholder="請輸入密碼" autocomplete="current-password">
+    </div>
+
+    <button class="btn-login" id="login-btn" onclick="doLogin()">登入</button>
+
+    <div class="error-msg" id="error-msg"></div>
+  </div>
+
+  <div class="login-footer">
+    © 日翊文化行銷股份有限公司 · 物流部門
+  </div>
+</div>
+
+<script>
+// 如果已登入就直接跳轉
+if (sessionStorage.getItem('kpl_auth')) {
+  location.href = 'index.html';
+}
+
+// Enter 鍵觸發登入
+document.addEventListener('keydown', e => {
+  if (e.key === 'Enter') doLogin();
+});
+
+async function doLogin() {
+  const userId   = document.getElementById('user-id').value.trim();
+  const password = document.getElementById('password').value;
+  const btn      = document.getElementById('login-btn');
+  const errMsg   = document.getElementById('error-msg');
+  const userInput = document.getElementById('user-id');
+  const passInput = document.getElementById('password');
+
+  // 清除錯誤
+  errMsg.classList.remove('on');
+  userInput.classList.remove('error');
+  passInput.classList.remove('error');
+
+  if (!userId) {
+    userInput.classList.add('error');
+    showError('請輸入帳號');
+    return;
+  }
+  if (!password) {
+    passInput.classList.add('error');
+    showError('請輸入密碼');
+    return;
+  }
+
+  // Loading 狀態
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> 驗證中…';
+
+  try {
+    const res = await fetch('https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ USER_ID: userId, PSW: password }),
+    });
+
+    const data = await res.json();
+    const msg = data.MSG || '';
+
+    if (msg.startsWith('000')) {
+      // 登入成功
+      sessionStorage.setItem('kpl_auth', '1');
+      sessionStorage.setItem('kpl_user', userId);
+      location.href = 'index.html';
+    } else if (msg.startsWith('100')) {
+      passInput.classList.add('error');
+      showError('帳號或密碼錯誤，請重新輸入');
+    } else if (msg.startsWith('200')) {
+      showError('AD 認證錯誤，請聯絡資訊部');
+    } else if (msg.startsWith('998')) {
+      showError('資料庫連線異常，請稍後再試');
+    } else {
+      showError('登入失敗：' + msg);
+    }
+  } catch (err) {
+    showError('無法連線至驗證伺服器，請確認網路連線');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '登入';
+}
+
+function showError(msg) {
+  const el = document.getElementById('error-msg');
+  el.textContent = msg;
+  el.classList.add('on');
+}
+</script>
+</body>
+</html>

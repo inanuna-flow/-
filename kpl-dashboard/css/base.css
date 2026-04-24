@@ -1,0 +1,78 @@
+/* ═══════════════════════════════════════════════════════
+   base.css · 品牌 Token + 字型 + 重置
+   日翊文化行銷 Re-Yi Distribution
+   ═══════════════════════════════════════════════════════ */
+
+:root {
+  /* 主色系 */
+  --ry-blue:       #1e5ca8;
+  --ry-blue-dark:  #123d74;
+  --ry-blue-mid:   #2d72cc;
+  --ry-blue-pale:  #e8f0fb;
+
+  /* 輔助色 */
+  --ry-gold:       #f5c400;
+  --ry-red:        #d9401b;
+  --ry-red-pale:   #fdf0ec;
+  --ry-orange:     #e07855;
+  --ry-orange-pale:#fff4e8;
+  --ry-green:      #1b7c33;
+  --ry-green-pale: #eef9f0;
+
+  /* 中性色 */
+  --ry-ink:        #1a1d24;
+  --ry-muted:      #5a6478;
+  --ry-line:       #dde2ec;
+  --ry-bg:         #f4f6fb;
+  --ry-white:      #ffffff;
+  --ry-paper:      #fafbfd;
+
+  /* 字型 */
+  --f-head: system-ui, 'Microsoft JhengHei', '微軟正黑體', sans-serif;
+  --f-mono: 'Courier New', 'Consolas', monospace;
+
+  /* 字體大小 */
+  --fs-xs:    10px;
+  --fs-sm:    12px;
+  --fs-md:    12px;
+  --fs-lg:    14px;
+  --fs-title: 16px;
+  --row-height: 30px;
+
+  /* 倉別代表色（系統通用） */
+  --wh-daxi:     #0E7BAD;
+  --wh-dadu:     #2DA870;
+  --wh-gangshan: #E07855;
+  --wh-all:      var(--ry-blue-dark);
+
+  /* 表格標頭色（僅表格使用，可獨立調整） */
+  --tbl-header:   #123d74;
+  --tbl-daxi:     var(--tbl-header);
+  --tbl-dadu:     var(--tbl-header);
+  --tbl-gangshan: var(--tbl-header);
+  --tbl-all:      var(--tbl-header);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: var(--f-head);
+  background: var(--ry-bg);
+  color: var(--ry-ink);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}

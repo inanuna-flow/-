@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KPL 儀表板 · 日翊文化行銷</title>
+<link rel="stylesheet" href="css/base.css">
+<link rel="stylesheet" href="css/layout.css">
+<link rel="stylesheet" href="css/widget.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+</head>
+<body>
+
+<!-- 頂部 Nav -->
+<nav class="nav">
+  <button class="btn btn-outline" onclick="toggleSidebar()" style="display:none;margin-right:12px" id="menu-toggle">☰</button>
+  <div class="nav-logo">
+    <div class="nav-logo-badge">RY</div>
+    <div>
+      <div class="nav-logo-en">Re-Yi Distribution</div>
+      <div class="nav-logo-zh">日翊文化行銷股份有限公司</div>
+    </div>
+  </div>
+  <div class="nav-sep"></div>
+  <span class="nav-module">KPL 績效儀表板</span>
+  <div class="nav-right">
+    <span style="font-size:var(--fs-xs);color:rgba(255,255,255,.5);font-family:var(--f-mono)" id="nav-time"></span>
+  </div>
+</nav>
+
+<!-- 主容器 -->
+<div class="shell">
+  <aside class="sidebar" id="sidebar"></aside>
+  <main class="main" id="main"></main>
+</div>
+
+<!-- Toast 通知 -->
+<div class="toast" id="toast"></div>
+
+<!-- 子頁面模板（內嵌） -->
+<script id="tpl-daily" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">DAILY BUDGET MONITOR</div>
+  <h1 class="page-h">每日動支監控</h1>
+  <div class="page-p" id="page-meta">載入中…</div>
+</div>
+
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="filter-from">
+  <span style="color:var(--ry-muted)">→</span>
+  <input type="date" class="filter-input" id="filter-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyFilter()">套用</button>
+  <button class="btn btn-gold" onclick="openDailyModal()">📁 資料設定</button>
+  <span class="filter-meta" id="filter-meta"></span>
+</div>
+
+<div class="grid" id="daily-grid"></div>
+
+<div class="modal-overlay" id="daily-modal">
+  <div class="modal">
+    <div class="modal-head">
+      <div>
+        <div class="modal-title">📁 資料設定</div>
+        <div class="modal-sub">未來由資訊部改接 API；目前可手動輸入測試數字</div>
+      </div>
+      <button class="modal-close" onclick="closeDailyModal()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="field-group">
+        <div class="field-group-label">💰 預算 & 累計費用（M012）</div>
+        <div class="field"><label>月預算（$）</label><input type="number" id="in-budget"></div>
+        <div class="field-note">來源：預算 Excel</div>
+        <div class="field"><label>累計人力費用（$）</label><input type="number" id="in-actual"></div>
+        <div class="field-note">排除 SUP 後勤課</div>
+        <div class="field"><label>今天第幾天</label><input type="number" id="in-day"></div>
+        <div class="field"><label>當月總天數</label><input type="number" id="in-total-days"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-group-label">📋 業務單位費用（M015）</div>
+        <div class="field"><label>EC理貨課 $</label><input type="number" id="in-u0-fee"></div>
+        <div class="field"><label>EC理貨課 工時</label><input type="number" id="in-u0-hr"></div>
+        <div class="field"><label>夜配裝箱課 $</label><input type="number" id="in-u1-fee"></div>
+        <div class="field"><label>夜配裝箱課 工時</label><input type="number" id="in-u1-hr"></div>
+        <div class="field"><label>夜配理貨課 $</label><input type="number" id="in-u2-fee"></div>
+        <div class="field"><label>夜配理貨課 工時</label><input type="number" id="in-u2-hr"></div>
+        <div class="field"><label>理貨外圍課 $</label><input type="number" id="in-u3-fee"></div>
+        <div class="field"><label>理貨外圍課 工時</label><input type="number" id="in-u3-hr"></div>
+        <div class="field"><label>異常作業課 $</label><input type="number" id="in-u4-fee"></div>
+        <div class="field"><label>異常作業課 工時</label><input type="number" id="in-u4-hr"></div>
+        <div class="field"><label>後勤支援課 $</label><input type="number" id="in-u5-fee"></div>
+        <div class="field"><label>後勤支援課 工時</label><input type="number" id="in-u5-hr"></div>
+      </div>
+      <div class="field-group">
+        <div class="field-group-label">🎚️ 門檻設定（M015）</div>
+        <div class="field"><label>PEAK 門檻 %</label><input type="number" step="0.1" id="in-peak"></div>
+        <div class="field-note">佔比 &gt; 此值 = PEAK</div>
+        <div class="field"><label>STABLE 門檻 %</label><input type="number" step="0.1" id="in-stable"></div>
+        <div class="field-note">佔比 &lt; 此值 = IDLE</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="closeDailyModal()">取消</button>
+      <button class="btn btn-primary" onclick="saveDailyData()">儲存並更新</button>
+    </div>
+  </div>
+</div>
+</script>
+
+<script id="tpl-dispatch" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">TOTAL DISPATCH RATE · 總費用動支</div>
+  <h1 class="page-h">總費用動支率</h1>
+  <div class="page-p" id="dispatch-meta">載入中…</div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="dispatch-from">
+  <span style="color:var(--ry-muted)">→</span>
+  <input type="date" class="filter-input" id="dispatch-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDispatchFilter()">套用</button>
+  <span class="filter-meta">🔗 與其他頁共用日期設定</span>
+</div>
+<div class="grid" id="dispatch-grid"></div>
+</script>
+
+<script id="tpl-freight" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">FREIGHT P&amp;L · 運費損益</div>
+  <h1 class="page-h">運費損益分析</h1>
+  <div class="page-p" id="freight-meta">載入中…</div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="freight-from">
+  <span style="color:var(--ry-muted)">→</span>
+  <input type="date" class="filter-input" id="freight-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
+  <span class="filter-meta">🔗 與其他頁共用日期設定</span>
+</div>
+<div class="grid" id="freight-grid"></div>
+</script>
+
+<script id="tpl-productivity" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">PRODUCTIVITY MONITOR · 人效監控</div>
+  <h1 class="page-h">人效監控</h1>
+  <div class="page-p">追蹤揀次 PPH、加班佔比、工時區域人效</div>
+</div>
+<div class="wip-page">
+  <div class="wip-icon">🚧</div>
+  <div class="wip-title">建構中</div>
+  <div class="wip-desc">M019 每小時揀次 PPH · M020 單次揀貨成本 · M021 加班佔比 · M023 三倉 PPH 比較 · M025 工時區域人效矩陣</div>
+  <div class="wip-note">📋 下一步：確認揀次資料與人力費用的合併邏輯後開發</div>
+</div>
+</script>
+
+<script id="tpl-monthly" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">MONTHLY SETTLEMENT · 月度結算</div>
+  <h1 class="page-h">月度結算</h1>
+  <div class="page-p">月底結算時使用的本月口袋總結頁面</div>
+</div>
+<div class="wip-page">
+  <div class="wip-icon">🚧</div>
+  <div class="wip-title">建構中</div>
+  <div class="wip-desc">M001 總人力成本 · M002 總工時 · M011 本部費用彙總 · M013-14 服務 EC/營收 EC · F001 月總運費</div>
+  <div class="wip-note">📋 下一步：確認月底結算流程後開發（每月 1 號使用）</div>
+</div>
+</script>
+
+<script id="tpl-import" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">DATA IMPORT · 資料匯入</div>
+  <h1 class="page-h">Excel 資料匯入</h1>
+  <div class="page-p">上傳 Excel 後自動解析，即時更新儀表板數字</div>
+</div>
+<div style="background:#fff9e0;border-left:3px solid var(--ry-gold);padding:12px 16px;border-radius:3px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.8">
+  💡 <b>使用說明：</b>在 Excel 完成樞紐分析後上傳 → 系統自動解析 → 可預覽確認 → 套用到儀表板
+</div>
+<div class="grid">
+  <div class="w s6">
+    <div class="gold-band" style="background:#E07855;color:white">🚚 運務費用（F010 / T002 / T003）</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#E07855"></div>每日各倉運務費用</div>
+      <span class="wmeta" id="freight-status">尚未上傳</span>
+    </div>
+    <div id="freight-drop"
+      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      onclick="document.getElementById('freight-file').click()"
+      ondragover="onDragOver(event,'freight-drop')"
+      ondragleave="onDragLeave('freight-drop')"
+      ondrop="onDrop(event,'freight')">
+      <div style="font-size:32px;margin-bottom:8px">📊</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜分頁名：進貨日與計價費用</div>
+    </div>
+    <input type="file" id="freight-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight')">
+    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
+      欄位：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計
+    </div>
+    <div id="freight-preview" style="display:none;margin-top:12px"></div>
+    <div id="freight-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="applyFreight()">✅ 套用到儀表板</button>
+      <button class="btn btn-gold" onclick="downloadFreight()">⬇️ 下載彙總確認檔</button>
+      <button class="btn btn-ghost" onclick="resetFreight()">↺ 重選</button>
+    </div>
+  </div>
+  <div class="w s6">
+    <div class="gold-band" style="background:var(--ry-muted);color:white">📋 其他資料來源（待資訊部實作）</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>資料盤點清單</div>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>資料</th><th>說明</th><th>狀態</th></tr></thead>
+      <tbody>
+        <tr><td>💰 人力費用</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 × 課</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-orange-pale);color:#e07855;border-radius:3px">待確認格式</span></td></tr>
+        <tr><td>💼 月預算表</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">各倉人力/運務月預算</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-orange-pale);color:#e07855;border-radius:3px">待確認格式</span></td></tr>
+        <tr><td>📦 EC 貨量</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 EC 件數</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-line);color:var(--ry-muted);border-radius:3px">待開發</span></td></tr>
+        <tr><td>⚡ 揀次</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 × 作業區</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-line);color:var(--ry-muted);border-radius:3px">待開發</span></td></tr>
+      </tbody>
+    </table>
+  </div>
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>目前儀表板資料狀態</div>
+      <span class="wmeta" id="status-time">—</span>
+    </div>
+    <table class="tbl">
+      <thead><tr><th>資料類型</th><th>狀態</th><th>大溪倉</th><th>大肚倉</th><th>岡山倉</th><th style="text-align:right">合計</th></tr></thead>
+      <tbody id="status-tbody"></tbody>
+    </table>
+  </div>
+</div>
+</script>
+
+<script id="tpl-manual-input" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">MANUAL INPUT · 手動輸入</div>
+  <h1 class="page-h">手動輸入資料</h1>
+  <div class="page-p">測試與 demo 時使用，直接修改儀表板數字</div>
+</div>
+<div style="background:#fff4e8;border-left:3px solid #e07855;padding:12px 16px;border-radius:3px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.7">
+  💡 <b>提示：</b>測試階段手動輸入數字。未來由「資料匯入」頁面自動同步後，此頁將被取代或隱藏。
+</div>
+<div class="grid">
+  <div class="w s6">
+    <div class="gold-band">💰 M012 預算 & 累計費用</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>預算動支率監控</div><span class="wmeta">對應 M012</span></div>
+    <div class="field"><label>月預算（$）</label><input type="number" id="mi-budget"></div>
+    <div class="field-note">來源：預算 Excel</div>
+    <div class="field"><label>累計費用（$）</label><input type="number" id="mi-actual"></div>
+    <div class="field-note">排除 SUP 後勤課</div>
+    <div class="field"><label>今天第幾天</label><input type="number" id="mi-day"></div>
+    <div class="field"><label>當月總天數</label><input type="number" id="mi-total-days"></div>
+  </div>
+  <div class="w s6">
+    <div class="gold-band" style="background:var(--ry-orange);color:white">🎚️ M015 門檻設定</div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-orange)"></div>業務單位分類門檻</div><span class="wmeta">依佔比分類</span></div>
+    <div class="field"><label>PEAK 門檻 %</label><input type="number" step="0.1" id="mi-peak"></div>
+    <div class="field-note">佔比 &gt; 此值 = PEAK</div>
+    <div class="field"><label>STABLE 門檻 %</label><input type="number" step="0.1" id="mi-stable"></div>
+    <div class="field-note">佔比 &lt; 此值 = IDLE</div>
+  </div>
+  <div class="w s12">
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-orange)"></div>📋 M015 各課別費用</div><span class="wmeta">6 個業務單位</span></div>
+    <table class="tbl">
+      <thead><tr><th>課別</th><th>費用（$）</th><th>工時（h）</th></tr></thead>
+      <tbody id="mi-units-tbody"></tbody>
+    </table>
+  </div>
+</div>
+<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
+  <button class="btn btn-ghost" onclick="resetManualForm()">↺ 重新載入</button>
+  <button class="btn btn-primary" onclick="saveManualData()">💾 儲存並更新儀表板</button>
+</div>
+</script>
+
+<!-- JS 載入順序：data → utils → widgets → app -->
+<script src="js/data.js"></script>
+<script src="js/utils.js"></script>
+<script src="js/widgets.js"></script>
+<script>
+// 從 <script type="text/html"> 讀取模板
+const PAGE_TEMPLATES = {
+  daily:          document.getElementById('tpl-daily').innerHTML,
+  dispatch:       document.getElementById('tpl-dispatch').innerHTML,
+  freight:        document.getElementById('tpl-freight').innerHTML,
+  productivity:   document.getElementById('tpl-productivity').innerHTML,
+  monthly:        document.getElementById('tpl-monthly').innerHTML,
+  import:         document.getElementById('tpl-import').innerHTML,
+  'manual-input': document.getElementById('tpl-manual-input').innerHTML,
+};
+</script>
+<script src="js/app.js"></script>
+</body>
+</html>
