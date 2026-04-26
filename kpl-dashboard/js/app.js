@@ -972,7 +972,7 @@ function renderLaborPage() {
   </div>`;
 
   const meta = document.getElementById('labor-meta');
-  if (meta) meta.textContent = `資料：2026年3月1日 · EC理貨課 · ${data.length} 筆工時記錄`;
+  if (meta) meta.textContent = `資料：2026年3月 · 全區各課 · ${data.length} 筆工時記錄`;
 }
 
 // ════════════════════════════════════════════
