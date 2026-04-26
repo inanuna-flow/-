@@ -264,6 +264,7 @@ function applyFreightFilter() {
 // Import Page 邏輯
 // ════════════════════════════════════════════
 let parsedFreight = null;
+let parsedLabor   = null;
 
 function onDragOver(e, id) {
   e.preventDefault();
@@ -292,6 +293,7 @@ function parseExcel(file, type) {
     try {
       const wb = XLSX.read(e.target.result, { type:'array' });
       if (type === 'freight') parseFreight(wb, file.name);
+      else if (type === 'labor') parseLabor(wb, file.name);
     } catch(err) {
       document.getElementById(type + '-status').textContent = '❌ 解析失敗';
       toast('❌ ' + err.message);
@@ -417,13 +419,132 @@ function resetFreight() {
   document.getElementById('freight-file').value = '';
 }
 
+function parseLabor(wb, fileName) {
+  const sheetName = wb.SheetNames[0];
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+  if (!raw.length) { toast('❌ 找不到有效資料'); return; }
+
+  const sample = raw[0];
+  const required = ['倉別', '日期', '廠商', '班別', '員編', '作業課別', '姓名', '作業區域', '作業時數', '實際費用'];
+  const missing = required.filter(c => !(c in sample));
+  if (missing.length) {
+    toast('❌ 缺少欄位：' + missing.join('、'));
+    document.getElementById('labor-status').textContent = '❌ 格式不符';
+    return;
+  }
+
+  const records = [];
+  raw.forEach(r => {
+    const hrs = Number(r['作業時數']) || 0;
+    if (hrs <= 0) return;
+    const opArea = String(r['作業區域'] || '');
+    if (opArea === '午休時間') return;
+    const serial = Number(r['日期']);
+    let dateStr = '';
+    if (serial > 0) {
+      const d = new Date(Math.round((serial - 25569) * 86400000));
+      dateStr = d.toISOString().slice(0, 10);
+    }
+    records.push({
+      wh:       String(r['倉別'] || ''),
+      date:     dateStr,
+      vendor:   String(r['廠商'] || ''),
+      shift:    String(r['班別'] || ''),
+      empId:    String(r['員編'] || ''),
+      dept:     String(r['作業課別'] || ''),
+      name:     String(r['姓名'] || ''),
+      opArea,
+      hours:    Math.round(hrs * 100) / 100,
+      boxHours: Math.round((Number(r['裝箱時數'])  || 0) * 100) / 100,
+      nightHrs: Math.round((Number(r['夜間時數'])  || 0) * 100) / 100,
+      normHrs:  Math.round((Number(r['正常時數'])  || 0) * 100) / 100,
+      cost:     Number(r['實際費用']) || 0,
+    });
+  });
+
+  if (!records.length) { toast('❌ 找不到有效工時記錄'); return; }
+
+  const totalHrs  = records.reduce((s, r) => s + r.hours, 0);
+  const totalCost = records.reduce((s, r) => s + r.cost,  0);
+  parsedLabor = { records, fileName, at: new Date() };
+  document.getElementById('labor-status').textContent = `✅ ${records.length} 筆 · ${totalHrs.toFixed(1)}h`;
+  showLaborPreview(records, totalHrs, totalCost);
+  document.getElementById('labor-btns').style.display = 'flex';
+  toast(`✅ 工時解析完成：${records.length} 筆記錄`);
+}
+
+function showLaborPreview(records, totalHrs, totalCost) {
+  const byOp = {};
+  records.forEach(r => {
+    if (!byOp[r.opArea]) byOp[r.opArea] = { hrs: 0, cost: 0, count: 0 };
+    byOp[r.opArea].hrs   += r.hours;
+    byOp[r.opArea].cost  += r.cost;
+    byOp[r.opArea].count++;
+  });
+  const trs = Object.entries(byOp)
+    .sort((a, b) => b[1].hrs - a[1].hrs)
+    .map(([op, it]) => `<tr>
+      <td style="padding:6px 10px;font-weight:700">${op}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">${it.hrs.toFixed(1)} h</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">$${it.cost.toLocaleString()}</td>
+      <td style="padding:6px 10px;text-align:right;color:var(--ry-muted)">${it.count}</td>
+    </tr>`).join('');
+
+  document.getElementById('labor-preview').innerHTML = `
+    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">
+      📋 作業區域摘要（${records.length} 筆 / ${totalHrs.toFixed(1)}h / $${totalCost.toLocaleString()}）
+    </div>
+    <div style="max-height:180px;overflow-y:auto;border:1px solid var(--ry-line);border-radius:3px;font-size:var(--fs-xs)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="position:sticky;top:0;background:var(--ry-blue-dark)">
+          <tr>
+            <th style="padding:6px 10px;color:white;text-align:left">作業區域</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">工時</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">費用</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">筆數</th>
+          </tr>
+        </thead>
+        <tbody>${trs}</tbody>
+        <tfoot style="background:var(--ry-blue-pale,#eff6ff);border-top:2px solid var(--ry-blue-dark)">
+          <tr>
+            <td style="padding:6px 10px;font-weight:800;color:var(--ry-blue-dark)">合計</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${totalHrs.toFixed(1)} h</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">$${totalCost.toLocaleString()}</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${records.length}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+  document.getElementById('labor-preview').style.display = 'block';
+}
+
+function applyLabor() {
+  if (!parsedLabor) return;
+  LABOR_RAW = parsedLabor.records;
+  if (currentPageId === 'labor') renderLaborPage();
+  updateStatus();
+  toast('✅ 工時資料已套用！切換至「工時結構分析」頁查看');
+}
+
+function resetLabor() {
+  parsedLabor = null;
+  document.getElementById('labor-status').textContent = '尚未上傳';
+  document.getElementById('labor-preview').style.display = 'none';
+  document.getElementById('labor-btns').style.display = 'none';
+  document.getElementById('labor-file').value = '';
+}
+
 function updateStatus() {
   document.getElementById('status-time').textContent = '更新：' + new Date().toLocaleString('zh-TW');
   let daxiF=0, daduF=0, gsF=0, daxiL=0, daduL=0, gsL=0;
   DATA.dispatch.daily.forEach(r => { daxiL+=r[1]; daxiF+=r[2]; daduL+=r[3]; daduF+=r[4]; gsL+=r[5]; gsF+=r[6]; });
+  let laborCost = 0;
+  if (parsedLabor) {
+    parsedLabor.records.forEach(r => { laborCost += r.cost; });
+  }
   const rows = [
-    { type:'🚚 運務費用', real:!!parsedFreight, daxi:daxiF, dadu:daduF, gs:gsF },
-    { type:'💰 人力費用', real:false,           daxi:daxiL, dadu:daduL, gs:gsL },
+    { type:'🚚 運務費用', real:!!parsedFreight, daxi:daxiF,    dadu:daduF,    gs:gsF },
+    { type:'💰 人力費用', real:!!parsedLabor,   daxi:daxiL,    dadu:daduL,    gs:gsL },
   ];
   document.getElementById('status-tbody').innerHTML = rows.map(r => {
     const total = r.daxi + r.dadu + r.gs;

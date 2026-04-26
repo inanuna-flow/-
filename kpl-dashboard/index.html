@@ -210,19 +210,30 @@
     </div>
   </div>
   <div class="w s6">
-    <div class="gold-band" style="background:var(--ry-muted);color:white">📋 其他資料來源（待資訊部實作）</div>
+    <div class="gold-band" style="background:var(--ry-blue);color:white">⏱ 工時資料（工時結構分析）</div>
     <div class="wh">
-      <div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>資料盤點清單</div>
+      <div class="wl"><div class="wdot" style="background:var(--ry-blue)"></div>EC理貨課每日工時明細</div>
+      <span class="wmeta" id="labor-status">尚未上傳</span>
     </div>
-    <table class="tbl">
-      <thead><tr><th>資料</th><th>說明</th><th>狀態</th></tr></thead>
-      <tbody>
-        <tr><td>💰 人力費用</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 × 課</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-orange-pale);color:#e07855;border-radius:3px">待確認格式</span></td></tr>
-        <tr><td>💼 月預算表</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">各倉人力/運務月預算</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-orange-pale);color:#e07855;border-radius:3px">待確認格式</span></td></tr>
-        <tr><td>📦 EC 貨量</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 EC 件數</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-line);color:var(--ry-muted);border-radius:3px">待開發</span></td></tr>
-        <tr><td>⚡ 揀次</td><td style="font-size:var(--fs-xs);color:var(--ry-muted)">日 × 倉 × 作業區</td><td><span style="font-size:var(--fs-xs);padding:2px 8px;background:var(--ry-line);color:var(--ry-muted);border-radius:3px">待開發</span></td></tr>
-      </tbody>
-    </table>
+    <div id="labor-drop"
+      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      onclick="document.getElementById('labor-file').click()"
+      ondragover="onDragOver(event,'labor-drop')"
+      ondragleave="onDragLeave('labor-drop')"
+      ondrop="onDrop(event,'labor')">
+      <div style="font-size:32px;margin-bottom:8px">⏱</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜與 EC理貨0301工時.xlsx 相同欄位</div>
+    </div>
+    <input type="file" id="labor-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'labor')">
+    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
+      必要欄位：倉別｜日期｜廠商｜班別｜員編｜作業課別｜姓名｜作業區域｜作業時數｜實際費用
+    </div>
+    <div id="labor-preview" style="display:none;margin-top:12px"></div>
+    <div id="labor-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="applyLabor()">✅ 套用到儀表板</button>
+      <button class="btn btn-ghost" onclick="resetLabor()">↺ 重選</button>
+    </div>
   </div>
   <div class="w s12">
     <div class="wh">
