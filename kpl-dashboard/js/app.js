@@ -9,7 +9,9 @@ const PAGES = [
       { id:'daily',        icon:'📅', label:'每日動支監控', status:'ready' },
       { id:'dispatch',     icon:'💼', label:'總費用動支率', status:'ready' },
       { id:'freight',      icon:'🚚', label:'運費損益分析', status:'ready' },
-      { id:'productivity', icon:'⚡', label:'人效監控',     status:'wip'   },
+      { id:'picks',        icon:'⚡', label:'揀次分析',     status:'ready' },
+      { id:'labor',        icon:'⏱', label:'工時結構分析', status:'ready' },
+      { id:'productivity', icon:'📊', label:'人效監控',     status:'wip'   },
       { id:'monthly',      icon:'📆', label:'月度結算',     status:'wip'   },
     ]
   },
@@ -90,6 +92,8 @@ function loadPage(pageId) {
   if (pageId === 'daily')        initDailyPage();
   else if (pageId === 'dispatch') initDispatchPage();
   else if (pageId === 'freight') initFreightPage();
+  else if (pageId === 'picks')   initPicksPage();
+  else if (pageId === 'labor')   initLaborPage();
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'manual-input') initManualPage();
 }
@@ -475,4 +479,270 @@ function saveManualData() {
 function resetManualForm() {
   renderManualForm();
   toast('↺ 已重新載入');
+}
+
+// ════════════════════════════════════════════
+// Picks Page 揀次分析
+// ════════════════════════════════════════════
+function initPicksPage() { renderPicksPage(); }
+
+function renderPicksPage() {
+  const wh = document.getElementById('picks-wh')?.value || '';
+  const op = document.getElementById('picks-op')?.value || '';
+
+  let data = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
+  if (wh) data = data.filter(r => r.wh === wh);
+  if (op) data = data.filter(r => r.op === op);
+
+  const total = data.reduce((s, r) => s + r.picks, 0);
+
+  const byDate = {};
+  data.forEach(r => { byDate[r.date] = (byDate[r.date] || 0) + r.picks; });
+  const dates = Object.keys(byDate).sort();
+  const dailyVals = dates.map(d => byDate[d]);
+  const avgDaily = dates.length ? Math.round(total / dates.length) : 0;
+  const peakIdx = dailyVals.length ? dailyVals.indexOf(Math.max(...dailyVals)) : -1;
+  const peakDate = peakIdx >= 0 ? dates[peakIdx] : '';
+  const peakVal  = peakIdx >= 0 ? dailyVals[peakIdx] : 0;
+
+  const whTotals = { '大肚倉': 0, '大溪倉': 0, '岡山倉': 0 };
+  data.forEach(r => { whTotals[r.wh] = (whTotals[r.wh] || 0) + r.picks; });
+
+  const byOp = {};
+  data.forEach(r => {
+    if (!byOp[r.op]) byOp[r.op] = { total: 0, wh: {} };
+    byOp[r.op].total += r.picks;
+    byOp[r.op].wh[r.wh] = (byOp[r.op].wh[r.wh] || 0) + r.picks;
+  });
+  const ops = Object.keys(byOp).sort((a, b) => byOp[b].total - byOp[a].total);
+  const maxOpVal = ops.length ? byOp[ops[0]].total : 1;
+
+  const maxDay = Math.max(...dailyVals, 1);
+  let trendHtml = '<div style="display:flex;gap:2px;align-items:flex-end;height:80px;padding:12px 16px 8px;overflow-x:auto">';
+  dates.forEach((d, i) => {
+    const h = Math.round(dailyVals[i] / maxDay * 64);
+    const day = d.slice(8);
+    const isPeak = i === peakIdx;
+    trendHtml += `<div style="flex:1;min-width:14px;display:flex;flex-direction:column;align-items:center;gap:2px" title="${d}: ${dailyVals[i].toLocaleString()}">
+      <div style="width:100%;background:${isPeak ? 'var(--ry-gold)' : 'var(--ry-blue)'};height:${Math.max(h, 2)}px;border-radius:2px 2px 0 0"></div>
+      <div style="font-size:9px;color:var(--ry-muted)">${day}</div>
+    </div>`;
+  });
+  trendHtml += '</div>';
+
+  let opRows = ops.map(o => {
+    const item = byOp[o];
+    const pct  = total ? (item.total / total * 100).toFixed(1) : '0.0';
+    const barW = (item.total / maxOpVal * 100).toFixed(1);
+    return `<tr>
+      <td>${o}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">${(item.wh['大肚倉'] || 0).toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">${(item.wh['大溪倉'] || 0).toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">${(item.wh['岡山倉'] || 0).toLocaleString()}</td>
+      <td style="text-align:right;font-weight:700;font-family:var(--f-mono)">${item.total.toLocaleString()}</td>
+      <td style="min-width:130px">
+        <div style="background:var(--ry-line);border-radius:2px;height:8px;margin-bottom:2px">
+          <div style="background:var(--ry-blue);height:8px;border-radius:2px;width:${barW}%"></div>
+        </div>
+        <span style="font-size:10px;color:var(--ry-muted);font-family:var(--f-mono)">${pct}%</span>
+      </td>
+    </tr>`;
+  }).join('');
+  opRows += `<tr style="font-weight:700;border-top:2px solid var(--ry-line)">
+    <td>合計</td>
+    <td style="text-align:right;font-family:var(--f-mono)">${whTotals['大肚倉'].toLocaleString()}</td>
+    <td style="text-align:right;font-family:var(--f-mono)">${whTotals['大溪倉'].toLocaleString()}</td>
+    <td style="text-align:right;font-family:var(--f-mono)">${whTotals['岡山倉'].toLocaleString()}</td>
+    <td style="text-align:right;font-family:var(--f-mono)">${total.toLocaleString()}</td>
+    <td></td>
+  </tr>`;
+
+  document.getElementById('picks-grid').innerHTML = `
+  <div class="w s4">
+    <div class="gold-band">TOTAL</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>月總揀次</div></div>
+    <div style="padding:20px 16px;text-align:center">
+      <div style="font-size:2rem;font-weight:900;color:var(--ry-blue);line-height:1;margin-bottom:6px">${total.toLocaleString()}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted)">三倉合計 · 2026年3月</div>
+    </div>
+  </div>
+  <div class="w s4">
+    <div class="gold-band" style="background:var(--ry-gold);color:var(--ry-blue-dark)">DAILY AVG</div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-gold)"></div>日均揀次</div></div>
+    <div style="padding:20px 16px;text-align:center">
+      <div style="font-size:2rem;font-weight:900;color:var(--ry-ink);line-height:1;margin-bottom:6px">${avgDaily.toLocaleString()}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted)">每日平均（${dates.length} 天）</div>
+    </div>
+  </div>
+  <div class="w s4">
+    <div class="gold-band" style="background:var(--ry-red);color:white">PEAK DAY</div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-red)"></div>峰值日</div></div>
+    <div style="padding:20px 16px;text-align:center">
+      <div style="font-size:2rem;font-weight:900;color:var(--ry-red);line-height:1;margin-bottom:6px">${peakDate.slice(5) || '—'}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted)">${peakVal.toLocaleString()} 揀次</div>
+    </div>
+  </div>
+  <div class="w s12">
+    <div class="gold-band">📅 每日揀次趨勢</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>每日三倉合計揀次（2026/03）</div><span class="wmeta">金色=峰值</span></div>
+    ${trendHtml}
+  </div>
+  <div class="w s12">
+    <div class="gold-band">📊 作業區域分析</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域揀次量 × 三倉</div><span class="wmeta">單位：次</span></div>
+    <table class="tbl">
+      <thead><tr><th>作業區域</th><th style="text-align:right">大肚倉</th><th style="text-align:right">大溪倉</th><th style="text-align:right">岡山倉</th><th style="text-align:right">合計</th><th>佔比</th></tr></thead>
+      <tbody>${opRows}</tbody>
+    </table>
+  </div>`;
+
+  const meta = document.getElementById('picks-meta');
+  if (meta) meta.textContent = `資料：2026年3月 · 三倉 · ${data.length.toLocaleString()} 筆作業記錄`;
+}
+
+// ════════════════════════════════════════════
+// Labor Page 工時結構分析
+// ════════════════════════════════════════════
+function initLaborPage() { renderLaborPage(); }
+
+function renderLaborPage() {
+  const shiftFilter  = document.getElementById('labor-shift')?.value  || '';
+  const vendorFilter = document.getElementById('labor-vendor')?.value || '';
+
+  let data = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
+  data = data.filter(r => r.opArea !== '午休時間' && r.hours > 0);
+  if (shiftFilter)  data = data.filter(r => r.shift  === shiftFilter);
+  if (vendorFilter) data = data.filter(r => r.vendor === vendorFilter);
+
+  const totalHrs  = data.reduce((s, r) => s + r.hours, 0);
+  const totalCost = data.reduce((s, r) => s + r.cost,  0);
+  const avgRate   = totalHrs > 0 ? Math.round(totalCost / totalHrs) : 0;
+  const empCount  = new Set(data.map(r => r.empId)).size;
+
+  const byOp = {};
+  data.forEach(r => {
+    if (!byOp[r.opArea]) byOp[r.opArea] = { hrs: 0, cost: 0 };
+    byOp[r.opArea].hrs  += r.hours;
+    byOp[r.opArea].cost += r.cost;
+  });
+  const ops = Object.keys(byOp).sort((a, b) => byOp[b].hrs - byOp[a].hrs);
+  const COLORS = ['#1e5ca8', '#f5c400', '#d9401b', '#2ea85a', '#e07855', '#5a6478'];
+
+  let structHtml = '';
+  ops.forEach((o, i) => {
+    const pct  = totalHrs > 0 ? (byOp[o].hrs / totalHrs * 100) : 0;
+    const rate = byOp[o].hrs > 0 ? Math.round(byOp[o].cost / byOp[o].hrs) : 0;
+    structHtml += `
+    <div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:4px">
+        <span style="font-size:var(--fs-sm);font-weight:700">${o}</span>
+        <span style="font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">${byOp[o].hrs.toFixed(1)}h · $${rate}/h · ${pct.toFixed(1)}%</span>
+      </div>
+      <div style="background:var(--ry-line);border-radius:3px;height:14px;overflow:hidden">
+        <div style="background:${COLORS[i % COLORS.length]};height:14px;border-radius:3px;width:${pct.toFixed(1)}%;transition:width .4s"></div>
+      </div>
+    </div>`;
+  });
+
+  const byShift = {};
+  data.forEach(r => {
+    if (!byShift[r.shift]) byShift[r.shift] = { hrs: 0, cost: 0 };
+    byShift[r.shift].hrs  += r.hours;
+    byShift[r.shift].cost += r.cost;
+  });
+  const shiftRows = ['日', '中', '夜'].filter(s => byShift[s]).map(s => {
+    const it   = byShift[s];
+    const pct  = totalHrs > 0 ? (it.hrs / totalHrs * 100) : 0;
+    const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
+    return `<tr>
+      <td><b>${s}班</b></td>
+      <td style="text-align:right;font-family:var(--f-mono)">${it.hrs.toFixed(1)}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">$${it.cost.toLocaleString()}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">$${rate}</td>
+      <td style="min-width:80px"><div style="background:var(--ry-line);height:8px;border-radius:2px">
+        <div style="background:var(--ry-blue);height:8px;border-radius:2px;width:${pct.toFixed(1)}%"></div>
+      </div></td>
+    </tr>`;
+  }).join('');
+
+  const byVendor = {};
+  data.forEach(r => {
+    if (!byVendor[r.vendor]) byVendor[r.vendor] = { hrs: 0, cost: 0, emps: new Set() };
+    byVendor[r.vendor].hrs  += r.hours;
+    byVendor[r.vendor].cost += r.cost;
+    byVendor[r.vendor].emps.add(r.empId);
+  });
+  const vendorRows = Object.entries(byVendor)
+    .sort((a, b) => b[1].hrs - a[1].hrs)
+    .map(([v, it]) => {
+      const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
+      return `<tr>
+        <td>${v}</td>
+        <td style="text-align:right">${it.emps.size}</td>
+        <td style="text-align:right;font-family:var(--f-mono)">${it.hrs.toFixed(1)}</td>
+        <td style="text-align:right;font-family:var(--f-mono)">$${it.cost.toLocaleString()}</td>
+        <td style="text-align:right;font-family:var(--f-mono)">$${rate}</td>
+      </tr>`;
+    }).join('');
+
+  const fmeta = document.getElementById('labor-filter-meta');
+  if (fmeta) fmeta.textContent = `${data.length} 筆工時記錄`;
+
+  document.getElementById('labor-grid').innerHTML = `
+  <div class="w s3">
+    <div class="gold-band">HOURS</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>總工時</div></div>
+    <div style="padding:16px;text-align:center">
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-blue);line-height:1">${totalHrs.toFixed(1)}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">小時</div>
+    </div>
+  </div>
+  <div class="w s3">
+    <div class="gold-band" style="background:var(--ry-gold);color:var(--ry-blue-dark)">COST</div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-gold)"></div>總費用</div></div>
+    <div style="padding:16px;text-align:center">
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">$${totalCost.toLocaleString()}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">元</div>
+    </div>
+  </div>
+  <div class="w s3">
+    <div class="gold-band" style="background:#2ea85a;color:white">RATE</div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:#2ea85a"></div>平均時薪</div></div>
+    <div style="padding:16px;text-align:center">
+      <div style="font-size:1.8rem;font-weight:900;color:#2ea85a;line-height:1">$${avgRate}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">元/小時</div>
+    </div>
+  </div>
+  <div class="w s3">
+    <div class="gold-band" style="background:var(--ry-muted);color:white">PEOPLE</div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>出勤人次</div></div>
+    <div style="padding:16px;text-align:center">
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${empCount}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">人</div>
+    </div>
+  </div>
+  <div class="w s6">
+    <div class="gold-band">⚡ 工時結構 · 作業區域</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域工時佔比</div><span class="wmeta">總 ${totalHrs.toFixed(1)} h</span></div>
+    <div style="padding:16px">${structHtml || '<div style="color:var(--ry-muted);padding:16px;text-align:center">無資料</div>'}</div>
+  </div>
+  <div class="w s6">
+    <div class="gold-band">🌙 班別工時分析</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>日班 / 中班 / 夜班</div></div>
+    <table class="tbl">
+      <thead><tr><th>班別</th><th style="text-align:right">工時(h)</th><th style="text-align:right">費用</th><th style="text-align:right">時薪</th><th>佔比</th></tr></thead>
+      <tbody>${shiftRows || '<tr><td colspan="5" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
+    </table>
+  </div>
+  <div class="w s12">
+    <div class="gold-band">🏢 廠商工時彙總</div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>各派遣廠商工時與費用</div></div>
+    <table class="tbl">
+      <thead><tr><th>廠商</th><th style="text-align:right">人次</th><th style="text-align:right">工時(h)</th><th style="text-align:right">費用</th><th style="text-align:right">時薪</th></tr></thead>
+      <tbody>${vendorRows || '<tr><td colspan="5" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
+    </table>
+  </div>`;
+
+  const meta = document.getElementById('labor-meta');
+  if (meta) meta.textContent = `資料：2026年3月1日 · EC理貨課 · ${data.length} 筆工時記錄`;
 }

@@ -279,7 +279,82 @@
 </div>
 </script>
 
-<!-- JS 載入順序：data → utils → widgets → app -->
+<script id="tpl-picks" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">PICKS ANALYSIS · 揀次分析</div>
+  <h1 class="page-h">揀次分析</h1>
+  <div class="page-p" id="picks-meta">載入中…</div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">倉庫</span>
+  <select class="filter-input" id="picks-wh" onchange="renderPicksPage()">
+    <option value="">全部倉庫</option>
+    <option value="大肚倉">大肚倉</option>
+    <option value="大溪倉">大溪倉</option>
+    <option value="岡山倉">岡山倉</option>
+  </select>
+  <div class="filter-divider"></div>
+  <span class="filter-label">作業區域</span>
+  <select class="filter-input" id="picks-op" onchange="renderPicksPage()">
+    <option value="">全部</option>
+    <option value="夜配理貨">夜配理貨</option>
+    <option value="夜配裝箱">夜配裝箱</option>
+    <option value="日配理貨">日配理貨</option>
+    <option value="日配裝箱">日配裝箱</option>
+    <option value="分揀理貨">分揀理貨</option>
+    <option value="人工驗收">人工驗收</option>
+    <option value="自動驗收">自動驗收</option>
+    <option value="O2O理貨">O2O理貨</option>
+    <option value="店訂理貨">店訂理貨</option>
+    <option value="團預購理貨">團預購理貨</option>
+    <option value="EC店退">EC店退</option>
+    <option value="EC廠退">EC廠退</option>
+    <option value="一般品退貨">一般品退貨</option>
+    <option value="大夜作業">大夜作業</option>
+  </select>
+</div>
+<div class="grid" id="picks-grid"></div>
+</script>
+
+<script id="tpl-labor" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">LABOR ANALYSIS · 工時結構分析</div>
+  <h1 class="page-h">工時結構分析</h1>
+  <div class="page-p" id="labor-meta">載入中…</div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">班別</span>
+  <select class="filter-input" id="labor-shift" onchange="renderLaborPage()">
+    <option value="">全部班別</option>
+    <option value="日">日班</option>
+    <option value="中">中班</option>
+    <option value="夜">夜班</option>
+  </select>
+  <div class="filter-divider"></div>
+  <span class="filter-label">廠商</span>
+  <select class="filter-input" id="labor-vendor" onchange="renderLaborPage()">
+    <option value="">全部廠商</option>
+    <option value="丞景">丞景</option>
+    <option value="全勤">全勤</option>
+    <option value="岓泉">岓泉</option>
+    <option value="承奕">承奕</option>
+    <option value="昊宇">昊宇</option>
+    <option value="金鑫">金鑫</option>
+    <option value="品佳">品佳</option>
+    <option value="品豐">品豐</option>
+    <option value="建豐">建豐</option>
+    <option value="高順">高順</option>
+    <option value="智遠">智遠</option>
+  </select>
+  <div class="filter-divider"></div>
+  <span class="filter-meta" id="labor-filter-meta"></span>
+</div>
+<div class="grid" id="labor-grid"></div>
+</script>
+
+<!-- JS 載入順序：picks/labor data → data → utils → widgets → app -->
+<script src="js/picks_data.js"></script>
+<script src="js/labor_data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/utils.js"></script>
 <script src="js/widgets.js"></script>
@@ -289,6 +364,8 @@ const PAGE_TEMPLATES = {
   daily:          document.getElementById('tpl-daily').innerHTML,
   dispatch:       document.getElementById('tpl-dispatch').innerHTML,
   freight:        document.getElementById('tpl-freight').innerHTML,
+  picks:          document.getElementById('tpl-picks').innerHTML,
+  labor:          document.getElementById('tpl-labor').innerHTML,
   productivity:   document.getElementById('tpl-productivity').innerHTML,
   monthly:        document.getElementById('tpl-monthly').innerHTML,
   import:         document.getElementById('tpl-import').innerHTML,
