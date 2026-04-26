@@ -182,7 +182,7 @@
   💡 <b>使用說明：</b>在 Excel 完成樞紐分析後上傳 → 系統自動解析 → 可預覽確認 → 套用到儀表板
 </div>
 <div class="grid">
-  <div class="w s6">
+  <div class="w s4">
     <div class="gold-band" style="background:#E07855;color:white">🚚 運務費用（F010 / T002 / T003）</div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:#E07855"></div>每日各倉運務費用</div>
@@ -209,7 +209,7 @@
       <button class="btn btn-ghost" onclick="resetFreight()">↺ 重選</button>
     </div>
   </div>
-  <div class="w s6">
+  <div class="w s4">
     <div class="gold-band" style="background:var(--ry-blue);color:white">⏱ 工時資料（工時結構分析）</div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:var(--ry-blue)"></div>EC理貨課每日工時明細</div>
@@ -233,6 +233,32 @@
     <div id="labor-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
       <button class="btn btn-primary" onclick="applyLabor()">✅ 套用到儀表板</button>
       <button class="btn btn-ghost" onclick="resetLabor()">↺ 重選</button>
+    </div>
+  </div>
+  <div class="w s4">
+    <div class="gold-band" style="background:#7c3aed;color:white">⚡ 揀次資料（揀次分析）</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#7c3aed"></div>三倉每日揀次明細</div>
+      <span class="wmeta" id="picks-import-status">尚未上傳</span>
+    </div>
+    <div id="picks-drop"
+      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      onclick="document.getElementById('picks-file').click()"
+      ondragover="onDragOver(event,'picks-drop')"
+      ondragleave="onDragLeave('picks-drop')"
+      ondrop="onDrop(event,'picks')">
+      <div style="font-size:32px;margin-bottom:8px">⚡</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜與 貨量揀次.xlsx 相同欄位</div>
+    </div>
+    <input type="file" id="picks-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'picks')">
+    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
+      必要欄位：倉別｜日期｜業務類別｜作業區｜工時區域｜揀次
+    </div>
+    <div id="picks-preview" style="display:none;margin-top:12px"></div>
+    <div id="picks-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="applyPicks()">✅ 套用到儀表板</button>
+      <button class="btn btn-ghost" onclick="resetPicks()">↺ 重選</button>
     </div>
   </div>
   <div class="w s12">

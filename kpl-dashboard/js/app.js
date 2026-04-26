@@ -18,7 +18,7 @@ const PAGES = [
   {
     group: '📁 資料管理',
     items: [
-      { id:'import',       icon:'📤', label:'資料匯入',     status:'placeholder' },
+      { id:'import',       icon:'📤', label:'資料匯入',     status:'ready' },
       { id:'org',          icon:'🏢', label:'組織設定',     status:'ready' },
       { id:'manual-input', icon:'✏️', label:'手動輸入',     status:'ready' },
     ]
@@ -267,6 +267,7 @@ function applyFreightFilter() {
 // ════════════════════════════════════════════
 let parsedFreight = null;
 let parsedLabor   = null;
+let parsedPicks   = null;
 
 function onDragOver(e, id) {
   e.preventDefault();
@@ -296,6 +297,7 @@ function parseExcel(file, type) {
       const wb = XLSX.read(e.target.result, { type:'array' });
       if (type === 'freight') parseFreight(wb, file.name);
       else if (type === 'labor') parseLabor(wb, file.name);
+      else if (type === 'picks') parsePicks(wb, file.name);
     } catch(err) {
       document.getElementById(type + '-status').textContent = '❌ 解析失敗';
       toast('❌ ' + err.message);
@@ -536,29 +538,132 @@ function resetLabor() {
   document.getElementById('labor-file').value = '';
 }
 
+function parsePicks(wb, fileName) {
+  const sheetName = wb.SheetNames[0];
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+  if (!raw.length) { toast('❌ 找不到有效資料'); return; }
+
+  const sample = raw[0];
+  const required = ['倉別', '日期', '業務類別', '作業區', '工時區域', '揀次'];
+  const missing = required.filter(c => !(c in sample));
+  if (missing.length) {
+    toast('❌ 缺少欄位：' + missing.join('、'));
+    document.getElementById('picks-import-status').textContent = '❌ 格式不符';
+    return;
+  }
+
+  const records = [];
+  raw.forEach(r => {
+    const p = Number(r['揀次']) || 0;
+    if (p <= 0) return;
+    const serial = Number(r['日期']);
+    let dateStr = '';
+    if (serial > 0) {
+      const d = new Date(Math.round((serial - 25569) * 86400000));
+      dateStr = d.toISOString().slice(0, 10);
+    }
+    records.push({
+      date:  dateStr,
+      wh:    String(r['倉別'] || ''),
+      biz:   String(r['業務類別'] || ''),
+      area:  String(r['作業區'] || ''),
+      op:    String(r['工時區域'] || ''),
+      picks: p,
+    });
+  });
+
+  if (!records.length) { toast('❌ 找不到有效揀次記錄'); return; }
+
+  const totals = {};
+  records.forEach(r => { totals[r.wh] = (totals[r.wh] || 0) + r.picks; });
+  const totalPicks = records.reduce((s, r) => s + r.picks, 0);
+
+  parsedPicks = { records, fileName, totals, at: new Date() };
+  document.getElementById('picks-import-status').textContent = `✅ ${records.length} 筆 · ${totalPicks.toLocaleString()} 次`;
+  showPicksPreview(records, totals, totalPicks);
+  document.getElementById('picks-btns').style.display = 'flex';
+  toast(`✅ 揀次解析完成：${records.length} 筆記錄`);
+}
+
+function showPicksPreview(records, totals, totalPicks) {
+  const byOp = {};
+  records.forEach(r => { byOp[r.op] = (byOp[r.op] || 0) + r.picks; });
+  const trs = Object.entries(byOp)
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 8)
+    .map(([op, cnt]) => `<tr>
+      <td style="padding:6px 10px;font-weight:700">${op}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">${cnt.toLocaleString()}</td>
+    </tr>`).join('');
+
+  document.getElementById('picks-preview').innerHTML = `
+    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">📋 工時區域摘要（共 ${totalPicks.toLocaleString()} 揀次）</div>
+    <div style="max-height:180px;overflow-y:auto;border:1px solid var(--ry-line);border-radius:3px;font-size:var(--fs-xs)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="position:sticky;top:0;background:var(--ry-blue-dark)">
+          <tr>
+            <th style="padding:6px 10px;color:white;text-align:left">工時區域</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">揀次</th>
+          </tr>
+        </thead>
+        <tbody>${trs}</tbody>
+        <tfoot style="background:var(--ry-blue-pale,#eff6ff);border-top:2px solid var(--ry-blue-dark)">
+          <tr>
+            <td style="padding:6px 10px;font-weight:800;color:var(--ry-blue-dark)">合計</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${totalPicks.toLocaleString()}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+  document.getElementById('picks-preview').style.display = 'block';
+}
+
+function applyPicks() {
+  if (!parsedPicks) return;
+  PICKS_RAW = parsedPicks.records;
+  if (currentPageId === 'picks') renderPicksPage();
+  updateStatus();
+  toast('✅ 揀次資料已套用！切換至「揀次分析」頁查看');
+}
+
+function resetPicks() {
+  parsedPicks = null;
+  document.getElementById('picks-import-status').textContent = '尚未上傳';
+  document.getElementById('picks-preview').style.display = 'none';
+  document.getElementById('picks-btns').style.display = 'none';
+  document.getElementById('picks-file').value = '';
+}
+
 function updateStatus() {
   document.getElementById('status-time').textContent = '更新：' + new Date().toLocaleString('zh-TW');
   let daxiF=0, daduF=0, gsF=0, daxiL=0, daduL=0, gsL=0;
   DATA.dispatch.daily.forEach(r => { daxiL+=r[1]; daxiF+=r[2]; daduL+=r[3]; daduF+=r[4]; gsL+=r[5]; gsF+=r[6]; });
-  let laborCost = 0;
-  if (parsedLabor) {
-    parsedLabor.records.forEach(r => { laborCost += r.cost; });
-  }
+
+  const src = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
+  let daxiP=0, daduP=0, gsP=0;
+  src.forEach(r => {
+    if (r.wh === '大溪倉') daxiP += r.picks;
+    else if (r.wh === '大肚倉') daduP += r.picks;
+    else if (r.wh === '岡山倉') gsP   += r.picks;
+  });
+
   const rows = [
-    { type:'🚚 運務費用', real:!!parsedFreight, daxi:daxiF,    dadu:daduF,    gs:gsF },
-    { type:'💰 人力費用', real:!!parsedLabor,   daxi:daxiL,    dadu:daduL,    gs:gsL },
+    { type:'🚚 運務費用', real:!!parsedFreight, daxi:daxiF,  dadu:daduF,  gs:gsF,  unit:'$' },
+    { type:'💰 人力費用', real:!!parsedLabor,   daxi:daxiL,  dadu:daduL,  gs:gsL,  unit:'$' },
+    { type:'⚡ 揀次資料', real:!!parsedPicks,   daxi:daxiP,  dadu:daduP,  gs:gsP,  unit:''  },
   ];
   document.getElementById('status-tbody').innerHTML = rows.map(r => {
     const total = r.daxi + r.dadu + r.gs;
     const c = r.real ? '#1b7c33' : '#e07855';
     const s = r.real ? '✅ 已上傳' : '⚠️ 範例資料';
+    const fmt = v => r.unit === '$' ? '$' + v.toLocaleString() : v.toLocaleString();
     return `<tr>
       <td style="font-weight:700">${r.type}</td>
       <td><span style="color:${c};font-weight:700">${s}</span></td>
-      <td class="mono" style="text-align:right;color:#0E7BAD">$${r.daxi.toLocaleString()}</td>
-      <td class="mono" style="text-align:right;color:#2DA870">$${r.dadu.toLocaleString()}</td>
-      <td class="mono" style="text-align:right;color:#E07855">$${r.gs.toLocaleString()}</td>
-      <td class="mono" style="text-align:right;font-weight:800">$${total.toLocaleString()}</td>
+      <td class="mono" style="text-align:right;color:#0E7BAD">${fmt(r.daxi)}</td>
+      <td class="mono" style="text-align:right;color:#2DA870">${fmt(r.dadu)}</td>
+      <td class="mono" style="text-align:right;color:#E07855">${fmt(r.gs)}</td>
+      <td class="mono" style="text-align:right;font-weight:800">${fmt(total)}</td>
     </tr>`;
   }).join('');
 }
