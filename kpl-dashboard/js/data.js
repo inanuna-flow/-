@@ -112,6 +112,26 @@ const DATA = {
     ],
   },
 
+  // 組織設定
+  org: {
+    warehouses: [
+      { name: '大溪倉', region: '北區營運部',  color: '#1e5ca8' },
+      { name: '岡山倉', region: '中南區營運部', color: '#d9401b' },
+      { name: '大肚倉', region: '中南區營運部', color: '#2ea85a' },
+    ],
+    depts: [
+      { name: 'EC驗收課',     type: '服務EC',  wh: '大溪倉', color: '#1e5ca8' },
+      { name: 'EC理貨課',     type: '服務EC',  wh: '大溪倉', color: '#2ea85a' },
+      { name: '岡山營運課',   type: '服務EC',  wh: '岡山倉', color: '#d9401b' },
+      { name: '大肚服務EC課', type: '服務EC',  wh: '大肚倉', color: '#6366f1' },
+      { name: '商品理貨課',   type: '營收EC',  wh: '大溪倉', color: '#f59e0b' },
+      { name: '倉儲管理課',   type: '營收EC',  wh: '大溪倉', color: '#7c3aed' },
+      { name: '大肚營收EC課', type: '營收EC',  wh: '大肚倉', color: '#0ea5e9' },
+      { name: '其他單位',     type: '後勤支援', wh: '大溪倉', color: '#9ca3af' },
+      { name: '大肚運務課',   type: '後勤支援', wh: '大肚倉', color: '#d1d5db' },
+    ],
+  },
+
   // 總費用動支率（T001 / T002 / T003）
   dispatch: {
     budget: {

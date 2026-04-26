@@ -248,6 +248,18 @@
 </div>
 </script>
 
+<script id="tpl-org" type="text/html">
+<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+  <div>
+    <div class="page-eyebrow">ORG SETTINGS · 組織設定</div>
+    <h1 class="page-h">組織設定</h1>
+    <div class="page-p">點擊任一列進行編輯</div>
+  </div>
+  <button class="btn btn-primary" onclick="saveOrgSettings()" style="margin-top:8px">儲存設定</button>
+</div>
+<div class="grid" id="org-grid"></div>
+</script>
+
 <script id="tpl-manual-input" type="text/html">
 <div class="page-head">
   <div class="page-eyebrow">MANUAL INPUT · 手動輸入</div>
@@ -380,6 +392,7 @@ const PAGE_TEMPLATES = {
   productivity:   document.getElementById('tpl-productivity').innerHTML,
   monthly:        document.getElementById('tpl-monthly').innerHTML,
   import:         document.getElementById('tpl-import').innerHTML,
+  org:            document.getElementById('tpl-org').innerHTML,
   'manual-input': document.getElementById('tpl-manual-input').innerHTML,
 };
 </script>

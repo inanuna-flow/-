@@ -285,6 +285,52 @@ td.mono { font-family: var(--f-mono); }
 }
 .toast.on { opacity: 1; transform: translateY(0); }
 
+/* ══ 組織設定 ══ */
+.org-card {
+  background: white;
+  border-radius: 8px;
+  box-shadow: 0 1px 4px rgba(0,0,0,.08);
+  overflow: hidden;
+}
+.org-card-head {
+  padding: 16px 20px 12px;
+  border-bottom: 1px solid var(--ry-line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.org-card-title { font-size: 15px; font-weight: 800; color: var(--ry-ink); }
+.org-card-count { font-size: var(--fs-xs); color: var(--ry-muted); margin-top: 2px; }
+.org-row {
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--ry-line);
+  cursor: pointer;
+  transition: background .15s;
+}
+.org-row:last-child { border-bottom: none; }
+.org-row:hover { background: var(--ry-bg); }
+.org-row.editing { background: var(--ry-bg); padding: 14px 16px; cursor: default; }
+.org-row-main { display: flex; align-items: center; gap: 12px; }
+.org-color-dot { width: 36px; height: 36px; border-radius: 8px; flex-shrink: 0; }
+.org-row-info { flex: 1; }
+.org-row-name { font-size: var(--fs-sm); font-weight: 700; color: var(--ry-ink); }
+.org-row-sub { font-size: var(--fs-xs); color: var(--ry-muted); margin-top: 2px; }
+.org-row-arrow { color: var(--ry-muted); font-size: 18px; line-height: 1; }
+.org-type-tag {
+  display: inline-block;
+  font-size: 10px; font-weight: 700;
+  padding: 2px 8px; border-radius: 99px;
+  margin-left: 6px; vertical-align: middle;
+}
+.org-color-picker { display: flex; flex-wrap: wrap; gap: 4px; width: 128px; flex-shrink: 0; }
+.org-color-swatch {
+  width: 20px; height: 20px; border-radius: 4px;
+  cursor: pointer; border: 2.5px solid transparent;
+  transition: transform .1s;
+}
+.org-color-swatch:hover { transform: scale(1.2); }
+.org-color-swatch.selected { border-color: var(--ry-ink); }
+
 /* ══ RWD 卡片收縮 ══ */
 @media (max-width: 1100px) {
   .w.s3, .w.s4 { grid-column: span 6; }

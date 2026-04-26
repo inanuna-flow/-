@@ -19,6 +19,7 @@ const PAGES = [
     group: '📁 資料管理',
     items: [
       { id:'import',       icon:'📤', label:'資料匯入',     status:'placeholder' },
+      { id:'org',          icon:'🏢', label:'組織設定',     status:'ready' },
       { id:'manual-input', icon:'✏️', label:'手動輸入',     status:'ready' },
     ]
   },
@@ -95,6 +96,7 @@ function loadPage(pageId) {
   else if (pageId === 'picks')   initPicksPage();
   else if (pageId === 'labor')   initLaborPage();
   else if (pageId === 'import')  initImportPage();
+  else if (pageId === 'org')     initOrgPage();
   else if (pageId === 'manual-input') initManualPage();
 }
 
@@ -866,4 +868,181 @@ function renderLaborPage() {
 
   const meta = document.getElementById('labor-meta');
   if (meta) meta.textContent = `資料：2026年3月1日 · EC理貨課 · ${data.length} 筆工時記錄`;
+}
+
+// ════════════════════════════════════════════
+// Org Page 組織設定
+// ════════════════════════════════════════════
+let orgEditWh   = -1;
+let orgEditDept = -1;
+
+const ORG_COLORS = [
+  '#1e5ca8','#2ea85a','#d9401b','#6366f1',
+  '#f59e0b','#7c3aed','#0ea5e9','#e07855',
+  '#14b8a6','#ec4899','#9ca3af','#f5c400',
+];
+const TYPE_COLORS = { '服務EC': '#1e5ca8', '營收EC': '#e07855', '後勤支援': '#2ea85a' };
+
+function initOrgPage() {
+  orgEditWh = -1;
+  orgEditDept = -1;
+  renderOrgPage();
+}
+
+function renderOrgPage() {
+  const { warehouses, depts } = DATA.org;
+
+  const whSwatches = (i, sel) => ORG_COLORS.map(c =>
+    `<div class="org-color-swatch ${c===sel?'selected':''}" style="background:${c}" onclick="setOrgWhColor(${i},'${c}')"></div>`
+  ).join('');
+  const deptSwatches = (i, sel) => ORG_COLORS.map(c =>
+    `<div class="org-color-swatch ${c===sel?'selected':''}" style="background:${c}" onclick="setOrgDeptColor(${i},'${c}')"></div>`
+  ).join('');
+
+  const whRows = warehouses.map((w, i) => {
+    if (orgEditWh === i) {
+      return `<div class="org-row editing">
+        <div class="org-row-main" style="flex-wrap:wrap;gap:8px">
+          <div class="org-color-picker">${whSwatches(i, w.color)}</div>
+          <input class="filter-input" style="flex:1;min-width:90px" id="owh-n-${i}" value="${w.name}" placeholder="倉別名稱">
+          <input class="filter-input" style="flex:2;min-width:120px" id="owh-r-${i}" value="${w.region}" placeholder="所屬部門">
+          <button class="btn btn-ghost" style="font-size:11px;color:var(--ry-red)" onclick="deleteOrgWh(${i})">刪除</button>
+          <button class="btn btn-primary" style="font-size:11px" onclick="saveOrgWhRow(${i})">確認</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="org-row" onclick="editOrgWh(${i})">
+      <div class="org-row-main">
+        <div class="org-color-dot" style="background:${w.color}"></div>
+        <div class="org-row-info">
+          <div class="org-row-name">${w.name}</div>
+          <div class="org-row-sub">${w.region}</div>
+        </div>
+        <div class="org-row-arrow">›</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  const deptRows = depts.map((d, i) => {
+    const tc = TYPE_COLORS[d.type] || '#5a6478';
+    if (orgEditDept === i) {
+      const whOpts = warehouses.map(w =>
+        `<option ${w.name === d.wh ? 'selected' : ''}>${w.name}</option>`).join('');
+      const typeOpts = ['服務EC','營收EC','後勤支援'].map(t =>
+        `<option ${t === d.type ? 'selected' : ''}>${t}</option>`).join('');
+      return `<div class="org-row editing">
+        <div class="org-row-main" style="flex-wrap:wrap;gap:8px">
+          <div class="org-color-picker">${deptSwatches(i, d.color)}</div>
+          <input class="filter-input" style="flex:1;min-width:90px" id="odept-n-${i}" value="${d.name}" placeholder="課別名稱">
+          <select class="filter-input" style="flex:1;min-width:80px" id="odept-t-${i}">${typeOpts}</select>
+          <select class="filter-input" style="flex:1;min-width:80px" id="odept-w-${i}">${whOpts}</select>
+          <button class="btn btn-ghost" style="font-size:11px;color:var(--ry-red)" onclick="deleteOrgDept(${i})">刪除</button>
+          <button class="btn btn-primary" style="font-size:11px" onclick="saveOrgDeptRow(${i})">確認</button>
+        </div>
+      </div>`;
+    }
+    return `<div class="org-row" onclick="editOrgDept(${i})">
+      <div class="org-row-main">
+        <div class="org-color-dot" style="background:${d.color}"></div>
+        <div class="org-row-info">
+          <div class="org-row-name">${d.name} <span class="org-type-tag" style="background:${tc}20;color:${tc}">● ${d.type}</span></div>
+          <div class="org-row-sub">${d.wh}</div>
+        </div>
+        <div class="org-row-arrow">›</div>
+      </div>
+    </div>`;
+  }).join('');
+
+  document.getElementById('org-grid').innerHTML = `
+  <div class="w s6">
+    <div class="org-card">
+      <div class="org-card-head">
+        <div>
+          <div class="org-card-title">倉別</div>
+          <div class="org-card-count">${warehouses.length} 個倉別</div>
+        </div>
+        <button class="btn btn-outline" style="font-size:12px" onclick="addOrgWh()">+ 新增倉別</button>
+      </div>
+      ${whRows}
+    </div>
+  </div>
+  <div class="w s6">
+    <div class="org-card">
+      <div class="org-card-head">
+        <div>
+          <div class="org-card-title">課別</div>
+          <div class="org-card-count">${depts.length} 個課別</div>
+        </div>
+        <button class="btn btn-outline" style="font-size:12px" onclick="addOrgDept()">+ 新增課別</button>
+      </div>
+      ${deptRows}
+    </div>
+  </div>`;
+}
+
+function editOrgWh(i)   { orgEditWh = i; orgEditDept = -1; renderOrgPage(); }
+function editOrgDept(i) { orgEditDept = i; orgEditWh = -1; renderOrgPage(); }
+
+function setOrgWhColor(i, color) {
+  DATA.org.warehouses[i].color = color;
+  orgEditWh = i;
+  renderOrgPage();
+}
+function setOrgDeptColor(i, color) {
+  DATA.org.depts[i].color = color;
+  orgEditDept = i;
+  renderOrgPage();
+}
+
+function saveOrgWhRow(i) {
+  const n = document.getElementById(`owh-n-${i}`)?.value.trim();
+  const r = document.getElementById(`owh-r-${i}`)?.value.trim();
+  if (n) DATA.org.warehouses[i].name   = n;
+  if (r) DATA.org.warehouses[i].region = r;
+  orgEditWh = -1;
+  renderOrgPage();
+}
+function saveOrgDeptRow(i) {
+  const n = document.getElementById(`odept-n-${i}`)?.value.trim();
+  const t = document.getElementById(`odept-t-${i}`)?.value;
+  const w = document.getElementById(`odept-w-${i}`)?.value;
+  if (n) DATA.org.depts[i].name = n;
+  if (t) DATA.org.depts[i].type = t;
+  if (w) DATA.org.depts[i].wh   = w;
+  orgEditDept = -1;
+  renderOrgPage();
+}
+
+function deleteOrgWh(i) {
+  if (!confirm(`確定刪除「${DATA.org.warehouses[i].name}」？`)) return;
+  DATA.org.warehouses.splice(i, 1);
+  orgEditWh = -1;
+  renderOrgPage();
+}
+function deleteOrgDept(i) {
+  if (!confirm(`確定刪除「${DATA.org.depts[i].name}」？`)) return;
+  DATA.org.depts.splice(i, 1);
+  orgEditDept = -1;
+  renderOrgPage();
+}
+
+function addOrgWh() {
+  DATA.org.warehouses.push({ name: '新倉別', region: '請輸入部門', color: '#9ca3af' });
+  orgEditWh   = DATA.org.warehouses.length - 1;
+  orgEditDept = -1;
+  renderOrgPage();
+}
+function addOrgDept() {
+  const wh = DATA.org.warehouses[0]?.name || '';
+  DATA.org.depts.push({ name: '新課別', type: '服務EC', wh, color: '#9ca3af' });
+  orgEditDept = DATA.org.depts.length - 1;
+  orgEditWh   = -1;
+  renderOrgPage();
+}
+
+function saveOrgSettings() {
+  orgEditWh = -1;
+  orgEditDept = -1;
+  renderOrgPage();
+  toast('✅ 組織設定已儲存');
 }
