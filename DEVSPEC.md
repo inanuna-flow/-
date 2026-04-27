@@ -149,9 +149,16 @@ const swatches = (i, sel) => COLORS.map(c =>
 - 必要欄位：`倉別`｜`日期`（Excel serial）｜`業務類別`｜`作業區`｜`工時區域`｜`揀次`
 - 過濾規則：排除 `揀次 <= 0`
 
+### 年度預算（年度預算.xlsx）✅ 已整合至 DATA.annualBudget
+- 分頁1：人力預算_轉換 → 欄位：倉別(A)｜月份(B)｜金額(C)，3倉×12月=36列
+- 分頁2：運費預算_轉換 → 欄位：倉別(A)｜類別(B)｜子類別(C)｜月份(D)｜金額(E)，3倉×N類×12月
+- 倉別名稱：人力分頁用「大溪/大肚/岡山」（無「倉」），運費分頁用「大溪倉/大肚倉/岡山倉」
+- DATA.annualBudget.labor / freight：陣列 index 0~11 = 1月~12月
+- DATA.dispatch.budget：3月月預算（人力+運費）
+- DATA.freight.warehouseBudget：3月運費月預算
+
 ### 待整合（資料尚未提供）
 - `EC出貨預估與時機.xlsx` — EC出貨預估 vs 實際對比頁面
-- `年度預算表.xlsx` — 年度預算整合到各儀表板 KPI
 
 ---
 
