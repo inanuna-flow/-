@@ -605,6 +605,7 @@ function renderT002() {
       </div>
       <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
         📌 動支% = 實際 ÷ 期間預算 · 期間預算 = 月預算 × (篩選天數 ÷ 當月天數)<br>
+        📌 月預算（3月）：大溪倉 人力 ${fmtMoney(DATA.dispatch.budget['大溪倉'].labor)} + 運費 ${fmtMoney(DATA.dispatch.budget['大溪倉'].freight)} ｜ 大肚倉 人力 ${fmtMoney(DATA.dispatch.budget['大肚倉'].labor)} + 運費 ${fmtMoney(DATA.dispatch.budget['大肚倉'].freight)} ｜ 岡山倉 人力 ${fmtMoney(DATA.dispatch.budget['岡山倉'].labor)} + 運費 ${fmtMoney(DATA.dispatch.budget['岡山倉'].freight)}<br>
         📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
       </div>
     </div>
@@ -623,34 +624,56 @@ function renderT003() {
   };
   const dailyBudgetAll = dailyBudget.daxi + dailyBudget.dadu + dailyBudget.gangshan;
 
+  function pctBadge(pct) {
+    const c = colorFor(pct);
+    return `<span style="display:inline-block;padding:2px 8px;background:${c};color:white;border-radius:99px;font-weight:800;font-size:10px;font-family:var(--f-mono)">${pct.toFixed(1)}%</span>`;
+  }
+
+  function budgetCell(actual, budget, pct, isAll) {
+    const bg = isAll ? 'background:var(--ry-blue-pale);' : 'background:var(--ry-bg);';
+    return `<td style="text-align:center;padding:5px 8px;${bg}">
+      ${pctBadge(pct)}
+      <div style="font-size:9px;color:var(--ry-muted);font-family:var(--f-mono);margin-top:2px;white-space:nowrap">${fmtMoney(actual)} / ${fmtMoney(Math.round(budget))}</div>
+    </td>`;
+  }
+
   function dayRows(row) {
     const [date, dxL, dxF, ddL, ddF, gsL, gsF] = row;
-    const dxTotal = dxL + dxF;
-    const ddTotal = ddL + ddF;
-    const gsTotal = gsL + gsF;
+    const dxTotal  = dxL + dxF;
+    const ddTotal  = ddL + ddF;
+    const gsTotal  = gsL + gsF;
     const allTotal = dxTotal + ddTotal + gsTotal;
-    const dayPct = allTotal / dailyBudgetAll * 100;
-    const dayColor = colorFor(dayPct);
+    const dxPct    = dxTotal  / dailyBudget.daxi     * 100;
+    const ddPct    = ddTotal  / dailyBudget.dadu     * 100;
+    const gsPct    = gsTotal  / dailyBudget.gangshan * 100;
+    const allPct   = allTotal / dailyBudgetAll        * 100;
 
     const laborRow = `<tr>
-      <td rowspan="2" style="vertical-align:middle;font-weight:700;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line)">${date}</td>
+      <td rowspan="3" style="vertical-align:middle;font-weight:700;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line);text-align:center">${date}</td>
       <td style="font-size:var(--fs-xs);color:var(--ry-muted)">💰 人力</td>
       <td class="mono" style="text-align:right">${fmtMoney(dxL)}</td>
       <td class="mono" style="text-align:right">${fmtMoney(ddL)}</td>
       <td class="mono" style="text-align:right">${fmtMoney(gsL)}</td>
       <td class="mono" style="text-align:right;background:var(--ry-blue-pale);font-weight:700">${fmtMoney(dxL + ddL + gsL)}</td>
-      <td rowspan="2" style="vertical-align:middle;text-align:center;background:${bgFor(dayPct)};border-left:2px solid var(--ry-line)">
-        <span style="display:inline-block;padding:4px 12px;background:${dayColor};color:white;border-radius:99px;font-weight:800;font-size:var(--fs-xs);font-family:var(--f-mono)">${dayPct.toFixed(1)}%</span>
-      </td>
     </tr>`;
-    const freightRow = `<tr style="border-bottom:2px solid var(--ry-line)">
+
+    const freightRow = `<tr>
       <td style="font-size:var(--fs-xs);color:var(--ry-muted)">🚚 運務</td>
       <td class="mono" style="text-align:right">${fmtMoney(dxF)}</td>
       <td class="mono" style="text-align:right">${fmtMoney(ddF)}</td>
       <td class="mono" style="text-align:right">${fmtMoney(gsF)}</td>
       <td class="mono" style="text-align:right;background:var(--ry-blue-pale);font-weight:700">${fmtMoney(dxF + ddF + gsF)}</td>
     </tr>`;
-    return laborRow + freightRow;
+
+    const budgetRow = `<tr style="border-bottom:2px solid var(--ry-line)">
+      <td style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-blue)">📊 動支率</td>
+      ${budgetCell(dxTotal,  dailyBudget.daxi,     dxPct,  false)}
+      ${budgetCell(ddTotal,  dailyBudget.dadu,     ddPct,  false)}
+      ${budgetCell(gsTotal,  dailyBudget.gangshan, gsPct,  false)}
+      ${budgetCell(allTotal, dailyBudgetAll,       allPct, true)}
+    </tr>`;
+
+    return laborRow + freightRow + budgetRow;
   }
 
   return `
@@ -661,24 +684,23 @@ function renderT003() {
     </div>
     <div style="margin:0 -18px -16px">
       <div style="max-height:520px;overflow-y:auto;overflow-x:auto">
-        <table class="tbl" style="min-width:860px">
+        <table class="tbl" style="min-width:760px">
           <thead style="position:sticky;top:0;z-index:10">
             <tr style="background:var(--ry-blue-dark);border-bottom:3px solid var(--ry-gold)">
               <th style="width:90px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">日期</th>
-              <th style="width:110px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">費用類別</th>
+              <th style="width:100px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">費用類別</th>
               <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-daxi)">大溪倉</th>
               <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-dadu)">大肚倉</th>
               <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-gangshan)">岡山倉</th>
               <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-all)">🌐 全區</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:center">當日動支率</th>
             </tr>
           </thead>
           <tbody>${rows.map(dayRows).join('')}</tbody>
         </table>
       </div>
       <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
-        📌 當日動支率 = (當日三倉人力+運務合計) ÷ (單日預算 × 3) · 單日預算 = 各倉月預算 ÷ ${totalDays} 天<br>
-        📌 每日兩列：💰 人力 + 🚚 運務；全區欄位為三倉加總
+        📌 動支率 = 當日（人力+運務）÷ 單日預算 · 單日預算 = 月預算 ÷ ${totalDays} 天<br>
+        📌 📊 動支率列：% 徽章 + 「實際 / 單日預算」 · 三色門檻：&lt; 75% 🟢 · 75–90% 🟡 · &gt; 90% 🔴
       </div>
     </div>
   </div>`;
