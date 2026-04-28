@@ -64,7 +64,7 @@ function renderM015() {
 
   function statusTag(u) {
     if (u.type === 'sup') return { label:'SUP', bg:'#eff6ff', fg:'#1e5ca8', border:'#bfdbfe' };
-    const pct = u.fee / totalFee * 100;
+    const pct = totalFee ? u.fee / totalFee * 100 : 0;
     if (pct > DATA.thresholdPeak)   return { label:'PEAK',   bg:'#fff3e0', fg:'#e65100', border:'#ffcc80' };
     if (pct >= DATA.thresholdStable) return { label:'STABLE', bg:'#e8f5e9', fg:'#1b7c33', border:'#a5d6a7' };
     return { label:'IDLE', bg:'#f3f4f6', fg:'#6b7280', border:'#d1d5db' };
@@ -77,7 +77,7 @@ function renderM015() {
   });
 
   const rows = sorted.map(u => {
-    const pct = u.type === 'sup' ? null : (u.fee / totalFee * 100);
+    const pct = u.type === 'sup' ? null : (totalFee ? u.fee / totalFee * 100 : 0);
     const tag = statusTag(u);
     return `
     <tr>
@@ -125,11 +125,11 @@ function freightDateInRange(fullDate) {
 }
 
 function getFreightDailyRowsFiltered() {
-  return DATA.freight.dailyByWarehouse.filter(row => freightDateInRange(shortToFreightFullDate(row[0])));
+  return DATA.freight.dailyByWarehouse.filter(row => freightDateInRange(row[4] || shortToFreightFullDate(row[0])));
 }
 
 function getFreightTrendFiltered() {
-  return DATA.freight.dailyTrend.filter(row => freightDateInRange(shortToFreightFullDate(row[0])));
+  return DATA.freight.dailyTrend.filter(row => freightDateInRange(row[2] || shortToFreightFullDate(row[0])));
 }
 
 function getFreightDetailsFiltered() {
@@ -341,7 +341,7 @@ function renderF010() {
   });
 
   function cellsFor(actual, budgetVal) {
-    const pct = actual / budgetVal * 100;
+    const pct = budgetVal ? actual / budgetVal * 100 : 0;
     const color = colorFor(pct);
     const bg = bgFor(pct);
     return `
@@ -363,7 +363,7 @@ function renderF010() {
   }).join('');
 
   function summaryCell(actual, budgetVal) {
-    const pct = actual / budgetVal * 100;
+    const pct = budgetVal ? actual / budgetVal * 100 : 0;
     const color = colorFor(pct);
     return `
       <td class="mono" style="text-align:right">${fmtMoney(budgetVal)}</td>
@@ -416,9 +416,38 @@ function renderF010() {
 // ── 總費用動支共用工具 ──
 
 function getDispatchDailyFiltered() {
-  const from = DATA.dateFrom.slice(5).replace('-', '/');
-  const to   = DATA.dateTo.slice(5).replace('-', '/');
-  return DATA.dispatch.daily.filter(row => row[0] >= from && row[0] <= to);
+  return DATA.dispatch.daily.filter(row => {
+    const fullDate = dispatchRowFullDate(row);
+    return fullDate >= DATA.dateFrom && fullDate <= DATA.dateTo;
+  });
+}
+
+function dispatchRowFullDate(row) {
+  if (row[7]) return row[7];
+  const year = (DATA.dateFrom || '').slice(0, 4) || String(new Date().getFullYear());
+  const parts = String(row[0] || '').split('/');
+  if (parts.length !== 2) return '';
+  return `${year}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+}
+
+function daysInDispatchMonth() {
+  const y = Number((DATA.dateFrom || '').slice(0, 4));
+  const m = Number((DATA.dateFrom || '').slice(5, 7));
+  if (!y || !m) return 30;
+  return new Date(y, m, 0).getDate();
+}
+
+function selectedDispatchDayCount() {
+  const from = new Date(`${DATA.dateFrom}T00:00:00`);
+  const to = new Date(`${DATA.dateTo}T00:00:00`);
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return 0;
+  return Math.round((to - from) / 86400000) + 1;
+}
+
+function getDispatchLatestUploadDate() {
+  if (DATA.dispatch.latestUploadDate) return DATA.dispatch.latestUploadDate;
+  const dates = DATA.dispatch.daily.map(dispatchRowFullDate).filter(Boolean).sort();
+  return dates.length ? dates[dates.length - 1] : '';
 }
 
 function sumWarehouse(rows, warehouseIdx) {
@@ -429,8 +458,7 @@ function sumWarehouse(rows, warehouseIdx) {
   rows.forEach(r => { labor += r[laborCol]; freight += r[freightCol]; });
   const total = labor + freight;
   const b = DATA.dispatch.budget[names[warehouseIdx]];
-  const totalDays = DATA.dispatch.daily.length;
-  const periodRatio = rows.length / totalDays;
+  const periodRatio = selectedDispatchDayCount() / daysInDispatchMonth();
   const laborBudget   = b.labor   * periodRatio;
   const freightBudget = b.freight * periodRatio;
   const periodBudget  = laborBudget + freightBudget;
@@ -438,9 +466,9 @@ function sumWarehouse(rows, warehouseIdx) {
     name: names[warehouseIdx],
     labor, freight, total,
     laborBudget, freightBudget, budget: periodBudget,
-    laborPct:   labor   / laborBudget   * 100,
-    freightPct: freight / freightBudget * 100,
-    pct:        total   / periodBudget  * 100,
+    laborPct:   laborBudget   ? labor   / laborBudget   * 100 : 0,
+    freightPct: freightBudget ? freight / freightBudget * 100 : 0,
+    pct:        periodBudget  ? total   / periodBudget  * 100 : 0,
   };
 }
 
@@ -458,9 +486,9 @@ function sumAll(rows) {
     name: '全區',
     labor, freight, total,
     laborBudget, freightBudget, budget,
-    laborPct:   labor   / laborBudget   * 100,
-    freightPct: freight / freightBudget * 100,
-    pct:        total   / budget        * 100,
+    laborPct:   laborBudget   ? labor   / laborBudget   * 100 : 0,
+    freightPct: freightBudget ? freight / freightBudget * 100 : 0,
+    pct:        budget        ? total   / budget        * 100 : 0,
   };
 }
 
@@ -618,92 +646,134 @@ function renderT002() {
 // T003 每日動支明細表
 function renderT003() {
   const rows = getDispatchDailyFiltered();
-  const totalDays = DATA.dispatch.daily.length;
+  const totalDays = daysInDispatchMonth();
 
   const dailyBudget = {
-    daxi:     (DATA.dispatch.budget['大溪倉'].labor + DATA.dispatch.budget['大溪倉'].freight) / totalDays,
-    dadu:     (DATA.dispatch.budget['大肚倉'].labor + DATA.dispatch.budget['大肚倉'].freight) / totalDays,
-    gangshan: (DATA.dispatch.budget['岡山倉'].labor + DATA.dispatch.budget['岡山倉'].freight) / totalDays,
+    '大溪倉': {
+      labor: DATA.dispatch.budget['大溪倉'].labor / totalDays,
+      freight: DATA.dispatch.budget['大溪倉'].freight / totalDays,
+    },
+    '大肚倉': {
+      labor: DATA.dispatch.budget['大肚倉'].labor / totalDays,
+      freight: DATA.dispatch.budget['大肚倉'].freight / totalDays,
+    },
+    '岡山倉': {
+      labor: DATA.dispatch.budget['岡山倉'].labor / totalDays,
+      freight: DATA.dispatch.budget['岡山倉'].freight / totalDays,
+    },
   };
-  const dailyBudgetAll = dailyBudget.daxi + dailyBudget.dadu + dailyBudget.gangshan;
+  Object.values(dailyBudget).forEach(b => { b.total = b.labor + b.freight; });
 
   function pctBadge(pct) {
     const c = colorFor(pct);
-    return `<span style="display:inline-block;padding:2px 8px;background:${c};color:white;border-radius:99px;font-weight:800;font-size:10px;font-family:var(--f-mono)">${pct.toFixed(1)}%</span>`;
+    return `<span style="display:inline-block;min-width:54px;padding:2px 8px;background:${c};color:white;border-radius:99px;font-weight:800;font-size:10px;font-family:var(--f-mono);text-align:center">${pct.toFixed(1)}%</span>`;
   }
 
-  function budgetCell(actual, budget, pct, isAll) {
-    const bg = isAll ? 'background:var(--ry-blue-pale);' : 'background:var(--ry-bg);';
-    return `<td class="tbl-compact-cell" style="text-align:center;${bg}">
-      ${pctBadge(pct)}
-      <div style="font-size:9px;color:var(--ry-muted);font-family:var(--f-mono);margin-top:2px;white-space:nowrap">${fmtMoney(actual)} / ${fmtMoney(Math.round(budget))}</div>
-    </td>`;
+  function dateLabel(row) {
+    const full = dispatchRowFullDate(row);
+    const parts = full.split('-').map(Number);
+    if (parts.length !== 3 || parts.some(n => !n)) return row[0];
+    return `${parts[0]}/${parts[1]}/${parts[2]}`;
   }
 
-  function dayRows(row) {
-    const [date, dxL, dxF, ddL, ddF, gsL, gsF] = row;
-    const dxTotal  = dxL + dxF;
-    const ddTotal  = ddL + ddF;
-    const gsTotal  = gsL + gsF;
-    const allTotal = dxTotal + ddTotal + gsTotal;
-    const dxPct    = dxTotal  / dailyBudget.daxi     * 100;
-    const ddPct    = ddTotal  / dailyBudget.dadu     * 100;
-    const gsPct    = gsTotal  / dailyBudget.gangshan * 100;
-    const allPct   = allTotal / dailyBudgetAll        * 100;
+  const whDefs = [
+    { name:'全區', laborCol:null, freightCol:null, laborBudget:0, freightBudget:0 },
+    { name:'大溪倉', laborCol:1, freightCol:2, laborBudget:dailyBudget['大溪倉'].labor, freightBudget:dailyBudget['大溪倉'].freight },
+    { name:'大肚倉', laborCol:3, freightCol:4, laborBudget:dailyBudget['大肚倉'].labor, freightBudget:dailyBudget['大肚倉'].freight },
+    { name:'岡山倉', laborCol:5, freightCol:6, laborBudget:dailyBudget['岡山倉'].labor, freightBudget:dailyBudget['岡山倉'].freight },
+  ];
 
-    const laborRow = `<tr>
-      <td rowspan="3" style="vertical-align:middle;font-weight:700;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line);text-align:center">${date}</td>
-      <td style="font-size:var(--fs-xs);color:var(--ry-muted)">💰 人力</td>
-      <td class="mono" style="text-align:right">${fmtMoney(dxL)}</td>
-      <td class="mono" style="text-align:right">${fmtMoney(ddL)}</td>
-      <td class="mono" style="text-align:right">${fmtMoney(gsL)}</td>
-      <td class="mono" style="text-align:right;background:var(--ry-blue-pale);font-weight:700">${fmtMoney(dxL + ddL + gsL)}</td>
-    </tr>`;
+  whDefs[0].laborBudget = whDefs.slice(1).reduce((s, w) => s + w.laborBudget, 0);
+  whDefs[0].freightBudget = whDefs.slice(1).reduce((s, w) => s + w.freightBudget, 0);
 
-    const freightRow = `<tr>
-      <td style="font-size:var(--fs-xs);color:var(--ry-muted)">🚚 運務</td>
-      <td class="mono" style="text-align:right">${fmtMoney(dxF)}</td>
-      <td class="mono" style="text-align:right">${fmtMoney(ddF)}</td>
-      <td class="mono" style="text-align:right">${fmtMoney(gsF)}</td>
-      <td class="mono" style="text-align:right;background:var(--ry-blue-pale);font-weight:700">${fmtMoney(dxF + ddF + gsF)}</td>
-    </tr>`;
+  const domains = [
+    { key:'labor', label:'人力', icon:'💰', color:'#0E7BAD', budgetOf:w=>w.laborBudget, actualOf:(row,w)=>w.name === '全區' ? row[1]+row[3]+row[5] : row[w.laborCol] },
+    { key:'freight', label:'運務', icon:'🚚', color:'#E07855', budgetOf:w=>w.freightBudget, actualOf:(row,w)=>w.name === '全區' ? row[2]+row[4]+row[6] : row[w.freightCol] },
+    { key:'total', label:'合計', icon:'📊', color:'var(--ry-blue-dark)', budgetOf:w=>w.laborBudget+w.freightBudget, actualOf:(row,w)=> {
+      if (w.name === '全區') return row[1]+row[2]+row[3]+row[4]+row[5]+row[6];
+      return row[w.laborCol] + row[w.freightCol];
+    }},
+  ];
 
-    const budgetRow = `<tr style="border-bottom:2px solid var(--ry-line)">
-      <td style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-blue)">📊 動支率</td>
-      ${budgetCell(dxTotal,  dailyBudget.daxi,     dxPct,  false)}
-      ${budgetCell(ddTotal,  dailyBudget.dadu,     ddPct,  false)}
-      ${budgetCell(gsTotal,  dailyBudget.gangshan, gsPct,  false)}
-      ${budgetCell(allTotal, dailyBudgetAll,       allPct, true)}
-    </tr>`;
-
-    return laborRow + freightRow + budgetRow;
+  function valueFor(row, w, domain, item) {
+    const budget = domain.budgetOf(w);
+    const actual = domain.actualOf(row, w);
+    if (item === '預算') return `<span class="mono">${fmtMoney(Math.round(budget))}</span>`;
+    if (item === '實際') return `<span class="mono" style="font-weight:700;color:#1b7c33">${fmtMoney(actual)}</span>`;
+    const pct = budget ? actual / budget * 100 : 0;
+    return pctBadge(pct);
   }
+
+  function matrixRows() {
+    return domains.map(domain => {
+      const domainRowspan = whDefs.length * 3;
+      return whDefs.map((w, whIndex) => {
+        return ['預算', '實際', '動支'].map((item, itemIndex) => {
+          const firstDomainCell = whIndex === 0 && itemIndex === 0
+            ? `<td rowspan="${domainRowspan}" style="position:sticky;left:0;z-index:4;vertical-align:middle;text-align:center;background:${domain.color};color:white;font-weight:900;border-right:2px solid var(--ry-white);line-height:1.6;min-width:78px">
+                <div style="font-size:20px;margin-bottom:4px">${domain.icon}</div>${domain.label}
+              </td>`
+            : '';
+          const whCell = itemIndex === 0
+            ? `<td rowspan="3" style="position:sticky;left:78px;z-index:3;background:${w.name === '全區' ? 'var(--ry-blue-pale)' : 'var(--ry-paper)'};font-weight:800;color:var(--ry-ink);text-align:center;border-right:2px solid var(--ry-line);min-width:86px">${w.name}</td>`
+            : '';
+          const dateCells = rows.map(row => {
+            const full = dispatchRowFullDate(row);
+            const isLatest = full === getDispatchLatestUploadDate();
+            const bg = isLatest ? 'background:#e8f1fb;' : '';
+            return `<td style="text-align:center;min-width:136px;${bg}">${valueFor(row, w, domain, item)}</td>`;
+          }).join('');
+          return `<tr>
+            ${firstDomainCell}
+            ${whCell}
+            <td style="position:sticky;left:164px;z-index:3;background:var(--ry-paper);font-weight:800;color:var(--ry-ink);text-align:center;border-right:2px solid var(--ry-line);min-width:70px">${item}</td>
+            ${dateCells}
+          </tr>`;
+        }).join('');
+      }).join('');
+    }).join('');
+  }
+
+  if (!rows.length) {
+    return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-gold);"></div>T003 每日動支明細</div>
+      <span class="wmeta">0 天 · 資料最新日期 ${getDispatchLatestUploadDate() || '尚未匯入'}</span>
+    </div>
+    <div style="padding:32px;text-align:center;color:var(--ry-muted);font-size:var(--fs-sm)">此日期區間沒有總費用資料</div>
+  </div>`;
+  }
+
+  const dateHeaders = rows.map(row => {
+    const full = dispatchRowFullDate(row);
+    const isLatest = full === getDispatchLatestUploadDate();
+    return `<th style="min-width:136px;text-align:center;color:var(--ry-ink);font-size:16px;font-weight:900;background:${isLatest ? '#dce9f7' : '#eaf2f9'}">${dateLabel(row)}</th>`;
+  }).join('');
 
   return `
   <div class="w s12">
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:var(--ry-gold);"></div>T003 每日動支明細</div>
-      <span class="wmeta">${rows.length} 天 · 縱向捲動</span>
+      <span class="wmeta">${rows.length} 天 · 橫向日期 · 資料最新日期 ${getDispatchLatestUploadDate()}</span>
     </div>
     <div style="margin:0 -18px -16px">
-      <div style="max-height:520px;overflow-y:auto;overflow-x:auto">
-        <table class="tbl" style="min-width:760px">
+      <div style="max-height:560px;overflow:auto">
+        <table class="tbl" style="min-width:${260 + rows.length * 136}px;border-collapse:separate;border-spacing:0">
           <thead style="position:sticky;top:0;z-index:10">
             <tr style="background:var(--ry-blue-dark);border-bottom:3px solid var(--ry-gold)">
-              <th style="width:90px;color:white;font-size:var(--fs-lg);font-weight:900">日期</th>
-              <th style="width:100px;color:white;font-size:var(--fs-lg);font-weight:900">費用類別</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-daxi)">大溪倉</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-dadu)">大肚倉</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-gangshan)">岡山倉</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-all)">🌐 全區</th>
+              <th style="position:sticky;left:0;z-index:12;width:78px;color:white;text-align:center;font-size:var(--fs-lg);font-weight:900;background:var(--ry-blue-dark)">領域</th>
+              <th style="position:sticky;left:78px;z-index:12;width:86px;color:white;text-align:center;font-size:var(--fs-lg);font-weight:900;background:var(--ry-blue-dark)">倉別</th>
+              <th style="position:sticky;left:164px;z-index:12;width:70px;color:white;text-align:center;font-size:var(--fs-lg);font-weight:900;background:var(--ry-blue-dark)">項目</th>
+              ${dateHeaders}
             </tr>
           </thead>
-          <tbody>${rows.map(dayRows).join('')}</tbody>
+          <tbody>${matrixRows()}</tbody>
         </table>
       </div>
       <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
-        📌 動支率 = 當日（人力+運務）÷ 單日預算 · 單日預算 = 月預算 ÷ ${totalDays} 天<br>
-        📌 📊 動支率列：% 徽章 + 「實際 / 單日預算」 · 三色門檻：&lt; 75% 🟢 · 75–90% 🟡 · &gt; 90% 🔴
+        📌 日期欄依篩選區間橫向展開 · 淺藍欄為目前已匯入資料最新日期 ${getDispatchLatestUploadDate() || '尚未匯入'}<br>
+        📌 動支率 = 當日實際 ÷ 單日預算 · 單日預算 = 月預算 ÷ ${totalDays} 天
       </div>
     </div>
   </div>`;

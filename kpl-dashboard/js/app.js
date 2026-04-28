@@ -221,14 +221,17 @@ function saveDailyData() {
 // Dispatch Page 邏輯
 // ════════════════════════════════════════════
 function renderDispatchPage() {
+  syncDispatchBudgetForCurrentMonth();
+  syncDispatchLaborFromRaw();
   const grid = document.getElementById('dispatch-grid');
   grid.innerHTML = [renderT001(), renderT002(), renderT003()].join('');
 
   document.getElementById('dispatch-from').value = DATA.dateFrom;
   document.getElementById('dispatch-to').value   = DATA.dateTo;
   const days = getDispatchDailyFiltered().length;
+  const latestDate = getDispatchLatestUploadDate();
   document.getElementById('dispatch-meta').textContent =
-    `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${days} 天 · 含人力+運務總覽`;
+    `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · 資料最新日期：${latestDate || '尚未匯入'} · 共 ${days} 天 · 含人力+運務總覽`;
 }
 
 function applyDispatchFilter() {
@@ -236,6 +239,7 @@ function applyDispatchFilter() {
   const to   = document.getElementById('dispatch-to').value;
   if (from) DATA.dateFrom = from;
   if (to)   DATA.dateTo = to;
+  syncDispatchBudgetForCurrentMonth();
   renderDispatchPage();
   toast('🔄 已更新');
 }
@@ -391,6 +395,11 @@ function buildDispatchBudget(labor, freight, monthIndex) {
     '大肚倉': { labor: labor['大肚倉'][monthIndex] || 0, freight: freight['大肚倉'][monthIndex] || 0 },
     '岡山倉': { labor: labor['岡山倉'][monthIndex] || 0, freight: freight['岡山倉'][monthIndex] || 0 },
   };
+}
+
+function syncDispatchBudgetForCurrentMonth() {
+  if (!DATA.annualBudget?.labor || !DATA.annualBudget?.freight) return;
+  DATA.dispatch.budget = buildDispatchBudget(DATA.annualBudget.labor, DATA.annualBudget.freight, getCurrentMonthIndex());
 }
 
 function showBudgetPreview(parsed) {
@@ -711,8 +720,8 @@ function showFreightPreview(parsed) {
 
 function applyFreight() {
   if (!parsedFreight) return;
-  DATA.freight.dailyByWarehouse = parsedFreight.rows.map(r => [r.date, r.daxi, r.dadu, r.gangshan]);
-  DATA.freight.dailyTrend = parsedFreight.rows.map(r => [r.date, r.daxi + r.dadu + r.gangshan]);
+  DATA.freight.dailyByWarehouse = parsedFreight.rows.map(r => [r.date, r.daxi, r.dadu, r.gangshan, r.fullDate]);
+  DATA.freight.dailyTrend = parsedFreight.rows.map(r => [r.date, r.daxi + r.dadu + r.gangshan, r.fullDate]);
   DATA.freight.totalCost = parsedFreight.totals.daxi + parsedFreight.totals.dadu + parsedFreight.totals.gangshan;
   DATA.freight.estimatedCost = parsedFreight.detailSummary.estimatedCost;
   DATA.freight.actualCost = parsedFreight.detailSummary.actualCost;
@@ -723,11 +732,22 @@ function applyFreight() {
   DATA.freight.vendors = parsedFreight.detailSummary.vendors;
   DATA.freight.details = parsedFreight.detailRecords;
   const map = {};
-  parsedFreight.rows.forEach(r => { map[r.date] = r; });
+  parsedFreight.rows.forEach(r => { map[r.fullDate] = r; });
+  const existing = {};
+  DATA.dispatch.daily.forEach(row => { existing[dispatchRowFullDate(row)] = row; });
+
   DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
-    const f = map[row[0]];
-    return f ? [row[0], row[1], f.daxi, row[3], f.dadu, row[5], f.gangshan] : row;
+    const f = map[dispatchRowFullDate(row)];
+    return f ? [row[0], row[1], f.daxi, row[3], f.dadu, row[5], f.gangshan, f.fullDate] : row;
   });
+
+  parsedFreight.rows.forEach(r => {
+    if (existing[r.fullDate]) return;
+    DATA.dispatch.daily.push([r.date, 0, r.daxi, 0, r.dadu, 0, r.gangshan, r.fullDate]);
+  });
+
+  DATA.dispatch.daily.sort((a, b) => dispatchRowFullDate(a).localeCompare(dispatchRowFullDate(b)));
+  updateDispatchLatestUploadDate(parsedFreight.rows.map(r => r.fullDate));
   updateStatus();
   toast('✅ 運務資料已套用！切換至「總費用動支率」頁查看');
 }
@@ -917,6 +937,7 @@ function applyLabor() {
   if (!parsedLabor) return;
   LABOR_RAW = parsedLabor.records;
   applyLaborToDispatch(parsedLabor.daily);
+  updateDispatchLatestUploadDate(parsedLabor.daily.map(r => r.date));
   if (currentPageId === 'labor') renderLaborPage();
   if (currentPageId === 'dispatch') renderDispatchPage();
   updateStatus();
@@ -926,15 +947,36 @@ function applyLabor() {
 function applyLaborToDispatch(dailyRows) {
   const map = {};
   dailyRows.forEach(r => {
-    const mmdd = r.date.slice(5).replace('-', '/');
-    map[mmdd] = r;
+    map[r.date] = r;
   });
+  const existing = {};
+  DATA.dispatch.daily.forEach(row => { existing[dispatchRowFullDate(row)] = row; });
+
   DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
-    const labor = map[row[0]];
+    const labor = map[dispatchRowFullDate(row)];
     return labor
-      ? [row[0], labor['大溪倉'], row[2], labor['大肚倉'], row[4], labor['岡山倉'], row[6]]
+      ? [row[0], labor['大溪倉'], row[2], labor['大肚倉'], row[4], labor['岡山倉'], row[6], labor.date]
       : row;
   });
+
+  dailyRows.forEach(r => {
+    const mmdd = r.date.slice(5).replace('-', '/');
+    if (existing[r.date]) return;
+    DATA.dispatch.daily.push([mmdd, r['大溪倉'], 0, r['大肚倉'], 0, r['岡山倉'], 0, r.date]);
+  });
+
+  DATA.dispatch.daily.sort((a, b) => dispatchRowFullDate(a).localeCompare(dispatchRowFullDate(b)));
+}
+
+function syncDispatchLaborFromRaw() {
+  if (typeof LABOR_RAW === 'undefined' || !LABOR_RAW.length) return;
+  applyLaborToDispatch(summarizeLaborDaily(getLaborKpiRecords(LABOR_RAW)));
+}
+
+function updateDispatchLatestUploadDate(dates) {
+  const validDates = (dates || []).filter(Boolean).sort();
+  if (!validDates.length) return;
+  DATA.dispatch.latestUploadDate = validDates[validDates.length - 1];
 }
 
 function resetLabor() {

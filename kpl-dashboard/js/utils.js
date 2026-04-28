@@ -43,13 +43,17 @@ function toast(msg) {
 
 // 計算常用數值
 function getActualPct() {
+  if (!DATA.budget) return 0;
   return DATA.actual / DATA.budget * 100;
 }
 
 function getMonthProgress() {
+  if (!DATA.totalDays) return 0;
   return DATA.dayOfMonth / DATA.totalDays;
 }
 
 function getProjectedPct() {
+  const progress = getMonthProgress();
+  if (!progress) return 0;
   return getActualPct() / getMonthProgress();
 }
