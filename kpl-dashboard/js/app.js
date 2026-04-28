@@ -245,12 +245,24 @@ function applyDispatchFilter() {
 // ════════════════════════════════════════════
 function renderFreightPage() {
   const grid = document.getElementById('freight-grid');
-  grid.innerHTML = [renderF001(), renderF002(), renderF003(), renderF009(), renderF010()].join('');
+  grid.innerHTML = [
+    renderF001(),
+    renderF002(),
+    renderF003(),
+    renderF009(),
+    renderF010(),
+  ].join('');
 
   document.getElementById('freight-from').value = DATA.dateFrom;
   document.getElementById('freight-to').value   = DATA.dateTo;
+  const summary = typeof getFreightFilteredSummary === 'function'
+    ? getFreightFilteredSummary()
+    : { totalOrders: DATA.freight.totalOrders };
+  const days = typeof getFreightTrendFiltered === 'function'
+    ? getFreightTrendFiltered().length
+    : DATA.freight.dailyTrend.length;
   document.getElementById('freight-meta').textContent =
-    `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${DATA.freight.totalOrders.toLocaleString()} 筆配送`;
+    `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · ${days} 天 · 共 ${summary.totalOrders.toLocaleString()} 筆配送`;
 }
 
 function applyFreightFilter() {
@@ -268,6 +280,7 @@ function applyFreightFilter() {
 let parsedFreight = null;
 let parsedLabor   = null;
 let parsedPicks   = null;
+let parsedBudget  = null;
 
 function onDragOver(e, id) {
   e.preventDefault();
@@ -298,6 +311,7 @@ function parseExcel(file, type) {
       if (type === 'freight') parseFreight(wb, file.name);
       else if (type === 'labor') parseLabor(wb, file.name);
       else if (type === 'picks') parsePicks(wb, file.name);
+      else if (type === 'budget') parseBudget(wb, file.name);
     } catch(err) {
       document.getElementById(type + '-status').textContent = '❌ 解析失敗';
       toast('❌ ' + err.message);
@@ -306,39 +320,350 @@ function parseExcel(file, type) {
   reader.readAsArrayBuffer(file);
 }
 
+function parseBudget(wb, fileName) {
+  const LABOR_SHEET = '人力預算_轉換';
+  const FREIGHT_SHEET = '運費預算_轉換';
+  if (!wb.SheetNames.includes(LABOR_SHEET) || !wb.SheetNames.includes(FREIGHT_SHEET)) {
+    toast('❌ 年度預算缺少必要分頁');
+    document.getElementById('budget-status').textContent = '❌ 分頁不存在';
+    return;
+  }
+
+  const laborRows = XLSX.utils.sheet_to_json(wb.Sheets[LABOR_SHEET], { defval:'' });
+  const freightRows = XLSX.utils.sheet_to_json(wb.Sheets[FREIGHT_SHEET], { defval:'' });
+  const labor = { '大溪倉': Array(12).fill(0), '大肚倉': Array(12).fill(0), '岡山倉': Array(12).fill(0) };
+  const freight = { '大溪倉': Array(12).fill(0), '大肚倉': Array(12).fill(0), '岡山倉': Array(12).fill(0) };
+  const warnings = [];
+
+  laborRows.forEach((r, i) => {
+    const wh = normalizeWarehouseName(r['區域']);
+    const monthIndex = parseBudgetMonth(r['月份']);
+    const amount = parseMoney(r['金額']);
+    if (!wh || monthIndex < 0 || Number.isNaN(amount)) {
+      warnings.push(`人力預算第 ${i + 2} 列無法辨識`);
+      return;
+    }
+    labor[wh][monthIndex] += amount;
+  });
+
+  freightRows.forEach((r, i) => {
+    const wh = normalizeWarehouseName(r['倉庫']);
+    const monthIndex = parseBudgetMonth(r['月份']);
+    const amount = parseMoney(r['金額']);
+    if (!wh || monthIndex < 0 || Number.isNaN(amount)) {
+      warnings.push(`運費預算第 ${i + 2} 列無法辨識`);
+      return;
+    }
+    freight[wh][monthIndex] += amount;
+  });
+
+  const monthIndex = getCurrentMonthIndex();
+  parsedBudget = {
+    labor,
+    freight,
+    dispatchBudget: buildDispatchBudget(labor, freight, monthIndex),
+    monthIndex,
+    warnings,
+    fileName,
+    at: new Date(),
+  };
+  document.getElementById('budget-status').textContent = `✅ ${monthIndex + 1}月預算`;
+  showBudgetPreview(parsedBudget);
+  document.getElementById('budget-btns').style.display = 'flex';
+  toast(`✅ 年度預算解析完成：${monthIndex + 1}月`);
+}
+
+function parseBudgetMonth(value) {
+  const m = String(value || '').match(/(\d{1,2})/);
+  if (!m) return -1;
+  const n = Number(m[1]);
+  return n >= 1 && n <= 12 ? n - 1 : -1;
+}
+
+function getCurrentMonthIndex() {
+  const m = Number(String(DATA.dateFrom || '').slice(5, 7));
+  return m >= 1 && m <= 12 ? m - 1 : 0;
+}
+
+function buildDispatchBudget(labor, freight, monthIndex) {
+  return {
+    '大溪倉': { labor: labor['大溪倉'][monthIndex] || 0, freight: freight['大溪倉'][monthIndex] || 0 },
+    '大肚倉': { labor: labor['大肚倉'][monthIndex] || 0, freight: freight['大肚倉'][monthIndex] || 0 },
+    '岡山倉': { labor: labor['岡山倉'][monthIndex] || 0, freight: freight['岡山倉'][monthIndex] || 0 },
+  };
+}
+
+function showBudgetPreview(parsed) {
+  const rows = Object.entries(parsed.dispatchBudget).map(([wh, b]) => `
+    <tr>
+      <td style="padding:6px 10px;font-weight:700">${wh}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">${fmtMoney(b.labor)}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">${fmtMoney(b.freight)}</td>
+      <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800">${fmtMoney(b.labor + b.freight)}</td>
+    </tr>`).join('');
+  const total = Object.values(parsed.dispatchBudget).reduce((s, b) => s + b.labor + b.freight, 0);
+  document.getElementById('budget-preview').innerHTML = `
+    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">
+      📋 年度預算預覽（套用月份：${parsed.monthIndex + 1}月）
+    </div>
+    ${parsed.warnings.length ? `<div style="margin-bottom:8px;padding:8px 10px;background:var(--ry-orange-pale);border-left:3px solid var(--ry-orange);font-size:var(--fs-xs);line-height:1.7;color:var(--ry-ink)">
+      ⚠️ 警告：${parsed.warnings.length.toLocaleString()} 項（前 5 項：${parsed.warnings.slice(0, 5).join('；')}）
+    </div>` : ''}
+    <div style="max-height:180px;overflow-y:auto;border:1px solid var(--ry-line);border-radius:3px;font-size:var(--fs-xs)">
+      <table style="width:100%;border-collapse:collapse">
+        <thead style="position:sticky;top:0;background:var(--ry-blue-dark)">
+          <tr>
+            <th style="padding:6px 10px;color:white;text-align:left">倉別</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">人力預算</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">運費預算</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">合計</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot style="background:var(--ry-blue-pale);border-top:2px solid var(--ry-blue-dark)">
+          <tr>
+            <td style="padding:6px 10px;font-weight:800;color:var(--ry-blue-dark)">合計</td>
+            <td colspan="3" style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${fmtMoney(total)}</td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>`;
+  document.getElementById('budget-preview').style.display = 'block';
+}
+
+function applyBudget() {
+  if (!parsedBudget) return;
+  DATA.annualBudget.labor = parsedBudget.labor;
+  DATA.annualBudget.freight = parsedBudget.freight;
+  DATA.dispatch.budget = parsedBudget.dispatchBudget;
+  DATA.budget = Object.values(parsedBudget.dispatchBudget).reduce((s, b) => s + b.labor + b.freight, 0);
+  if (currentPageId === 'dispatch') renderDispatchPage();
+  if (currentPageId === 'daily') renderDailyPage();
+  updateStatus();
+  toast('✅ 年度預算已套用！總費用動支率預算已更新');
+}
+
+function resetBudget() {
+  parsedBudget = null;
+  document.getElementById('budget-status').textContent = '尚未上傳';
+  document.getElementById('budget-preview').style.display = 'none';
+  document.getElementById('budget-btns').style.display = 'none';
+  document.getElementById('budget-file').value = '';
+}
+
 function parseFreight(wb, fileName) {
-  const SHEET = '進貨日與計價費用';
-  if (!wb.SheetNames.includes(SHEET)) {
-    toast('❌ 找不到「' + SHEET + '」分頁');
+  const SUMMARY_SHEET = '進貨日與計價費用';
+  const DETAIL_SHEET = '貨運費用明細總表';
+  if (!wb.SheetNames.includes(SUMMARY_SHEET)) {
+    toast('❌ 找不到「' + SUMMARY_SHEET + '」分頁');
     document.getElementById('freight-status').textContent = '❌ 分頁不存在';
     return;
   }
-  const raw = XLSX.utils.sheet_to_json(wb.Sheets[SHEET], { defval:0 });
+  if (!wb.SheetNames.includes(DETAIL_SHEET)) {
+    toast('❌ 找不到「' + DETAIL_SHEET + '」分頁');
+    document.getElementById('freight-status').textContent = '❌ 明細分頁不存在';
+    return;
+  }
+
+  const errors = [];
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[SUMMARY_SHEET], { defval:0 });
   const rows = [];
-  raw.forEach(r => {
+  const seenDates = {};
+  raw.forEach((r, i) => {
     const d = String(r['列標籤'] || '');
     if (!d || d.includes('總計')) return;
-    const parts = d.split('/');
-    if (parts.length < 3) return;
-    const date = parts[1].padStart(2,'0') + '/' + parts[2].padStart(2,'0');
-    rows.push({ date, daxi: Number(r['大溪倉'] || 0), dadu: Number(r['大肚倉'] || 0), gangshan: Number(r['岡山倉'] || 0) });
+    const dateInfo = parseFreightDate(d);
+    if (!dateInfo) {
+      errors.push(`彙總分頁第 ${i + 2} 列日期無法辨識：${d}`);
+      return;
+    }
+    const row = {
+      date: dateInfo.short,
+      fullDate: dateInfo.full,
+      daxi: Number(r['大溪倉'] || 0),
+      dadu: Number(r['大肚倉'] || 0),
+      gangshan: Number(r['岡山倉'] || 0),
+    };
+    if ([row.daxi, row.dadu, row.gangshan].some(v => Number.isNaN(v))) {
+      errors.push(`彙總分頁第 ${i + 2} 列金額不是數字`);
+      return;
+    }
+    if ([row.daxi, row.dadu, row.gangshan].some(v => v < 0)) {
+      errors.push(`彙總分頁第 ${i + 2} 列出現負數，依規則不可匯入`);
+      return;
+    }
+    if (seenDates[row.fullDate]) {
+      errors.push(`彙總分頁日期 ${row.fullDate} 重複出現，請先回 Excel 彙總成每日一列`);
+      return;
+    }
+    seenDates[row.fullDate] = true;
+    rows.push(row);
   });
-  if (!rows.length) { toast('❌ 找不到有效資料'); return; }
+
+  const detailResult = parseFreightDetails(wb.Sheets[DETAIL_SHEET]);
+  errors.push(...detailResult.errors);
+
+  if (errors.length) {
+    document.getElementById('freight-status').textContent = '❌ 驗證失敗';
+    document.getElementById('freight-preview').innerHTML = `
+      <div style="padding:10px 12px;background:var(--ry-red-pale);border-left:3px solid var(--ry-red);border-radius:3px;font-size:var(--fs-xs);line-height:1.8;color:var(--ry-ink)">
+        <b style="color:var(--ry-red)">匯入已擋下</b><br>
+        ${errors.slice(0, 8).map(e => `• ${e}`).join('<br>')}
+        ${errors.length > 8 ? `<br>• 其餘 ${errors.length - 8} 項錯誤省略` : ''}
+      </div>`;
+    document.getElementById('freight-preview').style.display = 'block';
+    document.getElementById('freight-btns').style.display = 'none';
+    toast(`❌ 運費匯入驗證失敗：${errors.length} 項`);
+    return;
+  }
+
+  if (!rows.length) { toast('❌ 找不到有效彙總資料'); return; }
+  if (!detailResult.records.length) { toast('❌ 找不到有效明細資料'); return; }
 
   const totals = {
     daxi:     rows.reduce((s,r)=>s+r.daxi,0),
     dadu:     rows.reduce((s,r)=>s+r.dadu,0),
     gangshan: rows.reduce((s,r)=>s+r.gangshan,0),
   };
-  parsedFreight = { rows, fileName, totals, at: new Date() };
-  document.getElementById('freight-status').textContent = `✅ ${rows.length} 天`;
-  showFreightPreview(rows, totals);
+  parsedFreight = {
+    rows,
+    fileName,
+    totals,
+    detailRecords: detailResult.records,
+    detailSummary: summarizeFreightDetails(detailResult.records),
+    at: new Date(),
+  };
+  document.getElementById('freight-status').textContent = `✅ ${rows.length} 天 · ${detailResult.records.length} 筆`;
+  showFreightPreview(parsedFreight);
   const btns = document.getElementById('freight-btns');
   btns.style.display = 'flex';
-  toast(`✅ 解析完成：${rows.length} 天資料`);
+  toast(`✅ 解析完成：${rows.length} 天 / ${detailResult.records.length} 筆明細`);
 }
 
-function showFreightPreview(rows, totals) {
+function parseFreightDate(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const yyyy = value.getFullYear();
+    const mm = String(value.getMonth() + 1).padStart(2, '0');
+    const dd = String(value.getDate()).padStart(2, '0');
+    return { full: `${yyyy}-${mm}-${dd}`, short: `${mm}/${dd}` };
+  }
+  const s = String(value || '').trim();
+  const parts = s.split(/[/-]/);
+  if (parts.length !== 3) return null;
+  let yyyy = Number(parts[0]);
+  const mm = Number(parts[1]);
+  const dd = Number(parts[2]);
+  if (!yyyy || !mm || !dd) return null;
+  if (yyyy < 1911) yyyy += 1911;
+  if (mm < 1 || mm > 12 || dd < 1 || dd > 31) return null;
+  return {
+    full: `${String(yyyy).padStart(4,'0')}-${String(mm).padStart(2,'0')}-${String(dd).padStart(2,'0')}`,
+    short: `${String(mm).padStart(2,'0')}/${String(dd).padStart(2,'0')}`,
+  };
+}
+
+function normalizedKey(s) {
+  return String(s || '').replace(/\s+/g, '');
+}
+
+function valueByHeader(row, header) {
+  const target = normalizedKey(header);
+  for (const key of Object.keys(row)) {
+    if (normalizedKey(key) === target) return row[key];
+  }
+  return undefined;
+}
+
+function parseMoney(value) {
+  if (value === null || value === undefined || value === '') return 0;
+  const n = Number(String(value).replace(/,/g, ''));
+  return Number.isFinite(n) ? n : NaN;
+}
+
+function parseFreightDetails(sheet) {
+  const raw = XLSX.utils.sheet_to_json(sheet, { defval:'' });
+  const errors = [];
+  const records = [];
+  if (!raw.length) return { records, errors:['明細分頁沒有資料'] };
+
+  const required = ['倉別', '進貨日', '配送商', '預計計價結果', '到點計價結果', '計價結果'];
+  const first = raw[0];
+  required.forEach(name => {
+    if (valueByHeader(first, name) === undefined) errors.push(`明細分頁缺少欄位：${name}`);
+  });
+  if (errors.length) return { records, errors };
+
+  const duplicateRows = {};
+  raw.forEach((r, i) => {
+    const dateInfo = parseFreightDate(valueByHeader(r, '進貨日'));
+    const warehouse = String(valueByHeader(r, '倉別') || '').trim();
+    const vendor = String(valueByHeader(r, '配送商') || '').trim();
+    const estimated = parseMoney(valueByHeader(r, '預計計價結果'));
+    const point = parseMoney(valueByHeader(r, '到點計價結果'));
+    const actual = parseMoney(valueByHeader(r, '計價結果'));
+    if (!dateInfo || !warehouse || !vendor) return;
+    if ([estimated, point, actual].some(v => Number.isNaN(v))) {
+      errors.push(`明細分頁第 ${i + 2} 列金額不是數字`);
+      return;
+    }
+    if ([estimated, point, actual].some(v => v < 0)) {
+      errors.push(`明細分頁第 ${i + 2} 列出現負數，依規則不可匯入`);
+      return;
+    }
+
+    const fullRowKey = Object.keys(r).sort().map(k => `${k}:${r[k]}`).join('|');
+    if (duplicateRows[fullRowKey]) {
+      errors.push(`明細分頁第 ${i + 2} 列與第 ${duplicateRows[fullRowKey]} 列完全重複`);
+      return;
+    }
+    duplicateRows[fullRowKey] = i + 2;
+
+    records.push({
+      date: dateInfo.short,
+      fullDate: dateInfo.full,
+      warehouse,
+      vendor,
+      estimated,
+      point,
+      actual,
+      diff: actual - estimated,
+      rate: estimated ? actual / estimated * 100 : 0,
+    });
+  });
+
+  return { records, errors };
+}
+
+function summarizeFreightDetails(records) {
+  const vendors = {};
+  records.forEach(r => {
+    if (!vendors[r.vendor]) vendors[r.vendor] = { name:r.vendor, contract:0, point:0, actual:0, count:0, overCount:0, saveCount:0 };
+    const v = vendors[r.vendor];
+    v.contract += r.estimated;
+    v.point += r.point;
+    v.actual += r.actual;
+    v.count += 1;
+    if (r.rate > 90) v.overCount += 1;
+    else v.saveCount += 1;
+  });
+  const vendorRows = Object.values(vendors).map(v => ({
+    ...v,
+    amount: v.actual - v.contract,
+  }));
+  const estimatedCost = records.reduce((s, r) => s + r.estimated, 0);
+  const actualCost = records.reduce((s, r) => s + r.actual, 0);
+  return {
+    vendors: vendorRows,
+    estimatedCost,
+    actualCost,
+    overCount: records.filter(r => r.rate > 90).length,
+    saveCount: records.filter(r => r.rate <= 90).length,
+    totalOrders: records.length,
+  };
+}
+
+function showFreightPreview(parsed) {
+  const { rows, totals, detailSummary } = parsed;
   const show = rows.length <= 8 ? rows :
     [...rows.slice(0,4), {date:'…',daxi:'…',dadu:'…',gangshan:'…'}, ...rows.slice(-3)];
 
@@ -353,7 +678,13 @@ function showFreightPreview(rows, totals) {
   }).join('');
 
   document.getElementById('freight-preview').innerHTML = `
-    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">📋 資料預覽（共 ${rows.length} 天）</div>
+    <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">📋 資料預覽（${rows.length} 天 / ${detailSummary.totalOrders.toLocaleString()} 筆明細）</div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:10px;font-size:var(--fs-xs)">
+      <div style="background:var(--ry-bg);padding:8px;border-radius:3px"><b>預計</b><br><span class="mono">${fmtMoney(detailSummary.estimatedCost)}</span></div>
+      <div style="background:var(--ry-bg);padding:8px;border-radius:3px"><b>實際</b><br><span class="mono">${fmtMoney(detailSummary.actualCost)}</span></div>
+      <div style="background:var(--ry-bg);padding:8px;border-radius:3px"><b>動支率&gt;90%</b><br><span class="mono">${detailSummary.overCount.toLocaleString()} 筆</span></div>
+      <div style="background:var(--ry-bg);padding:8px;border-radius:3px"><b>配送商</b><br><span class="mono">${detailSummary.vendors.length.toLocaleString()} 家</span></div>
+    </div>
     <div style="max-height:200px;overflow-y:auto;border:1px solid var(--ry-line);border-radius:3px;font-size:var(--fs-xs)">
       <table style="width:100%;border-collapse:collapse">
         <thead style="position:sticky;top:0;background:var(--ry-blue-dark)">
@@ -380,7 +711,17 @@ function showFreightPreview(rows, totals) {
 
 function applyFreight() {
   if (!parsedFreight) return;
-  DATA.freight.dailyByWarehouse = parsedFreight.rows.map(r => [r.date, r.daxi, r.gangshan, r.dadu]);
+  DATA.freight.dailyByWarehouse = parsedFreight.rows.map(r => [r.date, r.daxi, r.dadu, r.gangshan]);
+  DATA.freight.dailyTrend = parsedFreight.rows.map(r => [r.date, r.daxi + r.dadu + r.gangshan]);
+  DATA.freight.totalCost = parsedFreight.totals.daxi + parsedFreight.totals.dadu + parsedFreight.totals.gangshan;
+  DATA.freight.estimatedCost = parsedFreight.detailSummary.estimatedCost;
+  DATA.freight.actualCost = parsedFreight.detailSummary.actualCost;
+  DATA.freight.totalOrders = parsedFreight.detailSummary.totalOrders;
+  DATA.freight.overCount = parsedFreight.detailSummary.overCount;
+  DATA.freight.saveCount = parsedFreight.detailSummary.saveCount;
+  DATA.freight.diffThreshold = 90;
+  DATA.freight.vendors = parsedFreight.detailSummary.vendors;
+  DATA.freight.details = parsedFreight.detailRecords;
   const map = {};
   parsedFreight.rows.forEach(r => { map[r.date] = r; });
   DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
@@ -424,7 +765,7 @@ function resetFreight() {
 }
 
 function parseLabor(wb, fileName) {
-  const sheetName = wb.SheetNames[0];
+  const sheetName = wb.SheetNames.includes('3月總') ? '3月總' : wb.SheetNames[0];
   const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
   if (!raw.length) { toast('❌ 找不到有效資料'); return; }
 
@@ -438,19 +779,22 @@ function parseLabor(wb, fileName) {
   }
 
   const records = [];
-  raw.forEach(r => {
+  const warnings = [];
+  raw.forEach((r, index) => {
     const hrs = Number(r['作業時數']) || 0;
-    if (hrs <= 0) return;
+    const cost = Number(r['實際費用']) || 0;
+    const dateStr = excelSerialToDateString(r['日期']);
+    const wh = normalizeWarehouseName(r['倉別']);
+    const check = String(r['檢核'] || '').trim();
+    if (!dateStr) warnings.push(`第 ${index + 2} 列日期無法辨識`);
+    if (!wh) warnings.push(`第 ${index + 2} 列倉別無法辨識：${r['倉別']}`);
+    if (check && check !== 'ok') warnings.push(`第 ${index + 2} 列檢核=${check}`);
+    if (hrs < 0 || cost < 0) warnings.push(`第 ${index + 2} 列出現負數工時或費用`);
+    if (!dateStr || !wh || hrs < 0 || cost < 0) return;
+
     const opArea = String(r['作業區域'] || '');
-    if (opArea === '午休時間') return;
-    const serial = Number(r['日期']);
-    let dateStr = '';
-    if (serial > 0) {
-      const d = new Date(Math.round((serial - 25569) * 86400000));
-      dateStr = d.toISOString().slice(0, 10);
-    }
     records.push({
-      wh:       String(r['倉別'] || ''),
+      wh,
       date:     dateStr,
       vendor:   String(r['廠商'] || ''),
       shift:    String(r['班別'] || ''),
@@ -462,28 +806,72 @@ function parseLabor(wb, fileName) {
       boxHours: Math.round((Number(r['裝箱時數'])  || 0) * 100) / 100,
       nightHrs: Math.round((Number(r['夜間時數'])  || 0) * 100) / 100,
       normHrs:  Math.round((Number(r['正常時數'])  || 0) * 100) / 100,
-      cost:     Number(r['實際費用']) || 0,
+      cost,
+      check,
     });
   });
 
   if (!records.length) { toast('❌ 找不到有效工時記錄'); return; }
 
-  const totalHrs  = records.reduce((s, r) => s + r.hours, 0);
-  const totalCost = records.reduce((s, r) => s + r.cost,  0);
-  parsedLabor = { records, fileName, at: new Date() };
-  document.getElementById('labor-status').textContent = `✅ ${records.length} 筆 · ${totalHrs.toFixed(1)}h`;
-  showLaborPreview(records, totalHrs, totalCost);
+  const kpiRecords = getLaborKpiRecords(records);
+  const totalHrs  = kpiRecords.reduce((s, r) => s + r.hours, 0);
+  const totalCost = kpiRecords.reduce((s, r) => s + r.cost,  0);
+  const personDays = new Set(kpiRecords.map(r => `${r.date}|${r.empId}`)).size;
+  parsedLabor = {
+    records,
+    daily: summarizeLaborDaily(kpiRecords),
+    warnings,
+    fileName,
+    sheetName,
+    at: new Date(),
+  };
+  document.getElementById('labor-status').textContent = `✅ ${records.length.toLocaleString()} 筆 · ${totalHrs.toFixed(1)}h`;
+  showLaborPreview(records, totalHrs, totalCost, personDays, warnings);
   document.getElementById('labor-btns').style.display = 'flex';
-  toast(`✅ 工時解析完成：${records.length} 筆記錄`);
+  toast(`✅ 工時解析完成：${records.length.toLocaleString()} 筆，警告 ${warnings.length.toLocaleString()} 項`);
 }
 
-function showLaborPreview(records, totalHrs, totalCost) {
-  const byOp = {};
+function normalizeWarehouseName(value) {
+  const s = String(value || '').trim();
+  if (s === '大溪' || s === '大溪倉') return '大溪倉';
+  if (s === '大肚' || s === '大肚倉') return '大肚倉';
+  if (s === '岡山' || s === '岡山倉') return '岡山倉';
+  return '';
+}
+
+function excelSerialToDateString(value) {
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    const y = value.getFullYear();
+    const m = String(value.getMonth() + 1).padStart(2, '0');
+    const d = String(value.getDate()).padStart(2, '0');
+    return `${y}-${m}-${d}`;
+  }
+  const serial = Number(value);
+  if (!Number.isFinite(serial) || serial <= 0) return '';
+  const d = new Date(Math.round((serial - 25569) * 86400000));
+  return d.toISOString().slice(0, 10);
+}
+
+function getLaborKpiRecords(records) {
+  return records.filter(r => r.hours > 0 || r.cost > 0);
+}
+
+function summarizeLaborDaily(records) {
+  const map = {};
   records.forEach(r => {
-    if (!byOp[r.opArea]) byOp[r.opArea] = { hrs: 0, cost: 0, count: 0 };
+    if (!map[r.date]) map[r.date] = { date:r.date, '大溪倉':0, '大肚倉':0, '岡山倉':0 };
+    map[r.date][r.wh] += r.cost;
+  });
+  return Object.values(map).sort((a, b) => a.date.localeCompare(b.date));
+}
+
+function showLaborPreview(records, totalHrs, totalCost, personDays, warnings) {
+  const byOp = {};
+  getLaborKpiRecords(records).forEach(r => {
+    if (!byOp[r.opArea]) byOp[r.opArea] = { hrs: 0, cost: 0, personDays: new Set() };
     byOp[r.opArea].hrs   += r.hours;
     byOp[r.opArea].cost  += r.cost;
-    byOp[r.opArea].count++;
+    byOp[r.opArea].personDays.add(`${r.date}|${r.empId}`);
   });
   const trs = Object.entries(byOp)
     .sort((a, b) => b[1].hrs - a[1].hrs)
@@ -491,13 +879,16 @@ function showLaborPreview(records, totalHrs, totalCost) {
       <td style="padding:6px 10px;font-weight:700">${op}</td>
       <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">${it.hrs.toFixed(1)} h</td>
       <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono)">$${it.cost.toLocaleString()}</td>
-      <td style="padding:6px 10px;text-align:right;color:var(--ry-muted)">${it.count}</td>
+      <td style="padding:6px 10px;text-align:right;color:var(--ry-muted)">${it.personDays.size.toLocaleString()}</td>
     </tr>`).join('');
 
   document.getElementById('labor-preview').innerHTML = `
     <div style="font-size:var(--fs-xs);font-weight:700;color:var(--ry-muted);margin-bottom:6px">
-      📋 作業區域摘要（${records.length} 筆 / ${totalHrs.toFixed(1)}h / $${totalCost.toLocaleString()}）
+      📋 作業區域摘要（${records.length.toLocaleString()} 筆 / ${personDays.toLocaleString()} 人日 / ${totalHrs.toFixed(1)}h / $${totalCost.toLocaleString()}）
     </div>
+    ${warnings.length ? `<div style="margin-bottom:8px;padding:8px 10px;background:var(--ry-orange-pale);border-left:3px solid var(--ry-orange);font-size:var(--fs-xs);line-height:1.7;color:var(--ry-ink)">
+      ⚠️ 警告但允許套用：${warnings.length.toLocaleString()} 項（前 5 項：${warnings.slice(0, 5).join('；')}）
+    </div>` : ''}
     <div style="max-height:180px;overflow-y:auto;border:1px solid var(--ry-line);border-radius:3px;font-size:var(--fs-xs)">
       <table style="width:100%;border-collapse:collapse">
         <thead style="position:sticky;top:0;background:var(--ry-blue-dark)">
@@ -505,7 +896,7 @@ function showLaborPreview(records, totalHrs, totalCost) {
             <th style="padding:6px 10px;color:white;text-align:left">作業區域</th>
             <th style="padding:6px 10px;color:#b3d4f5;text-align:right">工時</th>
             <th style="padding:6px 10px;color:#b3d4f5;text-align:right">費用</th>
-            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">筆數</th>
+            <th style="padding:6px 10px;color:#b3d4f5;text-align:right">人日</th>
           </tr>
         </thead>
         <tbody>${trs}</tbody>
@@ -514,7 +905,7 @@ function showLaborPreview(records, totalHrs, totalCost) {
             <td style="padding:6px 10px;font-weight:800;color:var(--ry-blue-dark)">合計</td>
             <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${totalHrs.toFixed(1)} h</td>
             <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">$${totalCost.toLocaleString()}</td>
-            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${records.length}</td>
+            <td style="padding:6px 10px;text-align:right;font-family:var(--f-mono);font-weight:800;color:var(--ry-blue)">${personDays.toLocaleString()}</td>
           </tr>
         </tfoot>
       </table>
@@ -525,9 +916,25 @@ function showLaborPreview(records, totalHrs, totalCost) {
 function applyLabor() {
   if (!parsedLabor) return;
   LABOR_RAW = parsedLabor.records;
+  applyLaborToDispatch(parsedLabor.daily);
   if (currentPageId === 'labor') renderLaborPage();
+  if (currentPageId === 'dispatch') renderDispatchPage();
   updateStatus();
-  toast('✅ 工時資料已套用！切換至「工時結構分析」頁查看');
+  toast('✅ 工時資料已套用！總費用動支率的人力欄位已更新');
+}
+
+function applyLaborToDispatch(dailyRows) {
+  const map = {};
+  dailyRows.forEach(r => {
+    const mmdd = r.date.slice(5).replace('-', '/');
+    map[mmdd] = r;
+  });
+  DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
+    const labor = map[row[0]];
+    return labor
+      ? [row[0], labor['大溪倉'], row[2], labor['大肚倉'], row[4], labor['岡山倉'], row[6]]
+      : row;
+  });
 }
 
 function resetLabor() {
@@ -846,6 +1253,7 @@ function renderLaborPage() {
   const totalCost = data.reduce((s, r) => s + r.cost,  0);
   const avgRate   = totalHrs > 0 ? Math.round(totalCost / totalHrs) : 0;
   const empCount  = new Set(data.map(r => r.empId)).size;
+  const personDays = new Set(data.map(r => `${r.date}|${r.empId}`)).size;
 
   const byOp = {};
   data.forEach(r => {
@@ -943,10 +1351,10 @@ function renderLaborPage() {
   </div>
   <div class="w s3">
     <div class="gold-band" style="background:var(--ry-muted);color:white">PEOPLE</div>
-    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>出勤人次</div></div>
+    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>出勤人日</div></div>
     <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${empCount}</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">人</div>
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${personDays.toLocaleString()}</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">${empCount.toLocaleString()} 位員工</div>
     </div>
   </div>
   <div class="w s6">
@@ -972,7 +1380,7 @@ function renderLaborPage() {
   </div>`;
 
   const meta = document.getElementById('labor-meta');
-  if (meta) meta.textContent = `資料：2026年3月 · 全區各課 · ${data.length} 筆工時記錄`;
+  if (meta) meta.textContent = `資料：2026年3月 · 全區各課 · ${personDays.toLocaleString()} 人日 · ${data.length.toLocaleString()} 筆明細`;
 }
 
 // ════════════════════════════════════════════

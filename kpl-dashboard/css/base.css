@@ -37,7 +37,13 @@
   --fs-md:    12px;
   --fs-lg:    14px;
   --fs-title: 16px;
-  --row-height: 30px;
+  --row-height: 28px;
+  --tbl-cell-py: 12px;
+  --tbl-cell-px: 16px;
+  --tbl-head-py: 10px;
+  --tbl-head-px: 16px;
+  --tbl-compact-py: 5px;
+  --tbl-compact-px: 8px;
 
   /* 倉別代表色（系統通用） */
   --wh-daxi:     #0E7BAD;

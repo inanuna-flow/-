@@ -182,8 +182,35 @@
   💡 <b>使用說明：</b>在 Excel 完成樞紐分析後上傳 → 系統自動解析 → 可預覽確認 → 套用到儀表板
 </div>
 <div class="grid">
-  <div class="w s4">
-    <div class="gold-band" style="background:#E07855;color:white">🚚 運務費用（F010 / T002 / T003）</div>
+  <div class="w s6">
+    <div class="gold-band" style="background:var(--ry-blue-dark);color:white">💰 年度預算（總費用動支率）</div>
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:var(--ry-blue-dark)"></div>人力預算 + 運費預算</div>
+      <span class="wmeta" id="budget-status">尚未上傳</span>
+    </div>
+    <div id="budget-drop"
+      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      onclick="document.getElementById('budget-file').click()"
+      ondragover="onDragOver(event,'budget-drop')"
+      ondragleave="onDragLeave('budget-drop')"
+      ondrop="onDrop(event,'budget')">
+      <div style="font-size:32px;margin-bottom:8px">💰</div>
+      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜需含：人力預算_轉換、運費預算_轉換</div>
+    </div>
+    <input type="file" id="budget-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'budget')">
+    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
+      人力欄位：區域｜月份｜金額<br>
+      運費欄位：倉庫｜類別｜作業項目｜月份｜金額
+    </div>
+    <div id="budget-preview" style="display:none;margin-top:12px"></div>
+    <div id="budget-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="applyBudget()">✅ 套用到儀表板</button>
+      <button class="btn btn-ghost" onclick="resetBudget()">↺ 重選</button>
+    </div>
+  </div>
+  <div class="w s6">
+    <div class="gold-band" style="background:#E07855;color:white">🚚 運務費用（F002-F003 / F010 / T002 / T003）</div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:#E07855"></div>每日各倉運務費用</div>
       <span class="wmeta" id="freight-status">尚未上傳</span>
@@ -196,11 +223,12 @@
       ondrop="onDrop(event,'freight')">
       <div style="font-size:32px;margin-bottom:8px">📊</div>
       <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜分頁名：進貨日與計價費用</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜需含：進貨日與計價費用、貨運費用明細總表</div>
     </div>
     <input type="file" id="freight-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight')">
     <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
-      欄位：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計
+      彙總分頁：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計<br>
+      明細分頁：進貨日｜倉別｜配送商｜預計計價結果｜到點計價結果｜計價結果
     </div>
     <div id="freight-preview" style="display:none;margin-top:12px"></div>
     <div id="freight-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
@@ -210,7 +238,7 @@
     </div>
   </div>
   <div class="w s4">
-    <div class="gold-band" style="background:var(--ry-blue);color:white">⏱ 工時資料（工時結構分析）</div>
+    <div class="gold-band" style="background:var(--ry-blue);color:white">⏱ 工時資料（總費用動支率 / 工時結構）</div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:var(--ry-blue)"></div>全區人力工時明細</div>
       <span class="wmeta" id="labor-status">尚未上傳</span>
@@ -223,11 +251,12 @@
       ondrop="onDrop(event,'labor')">
       <div style="font-size:32px;margin-bottom:8px">⏱</div>
       <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜各倉各課人力工時明細，欄位格式固定</div>
+      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜建議分頁：3月總</div>
     </div>
     <input type="file" id="labor-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'labor')">
     <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
-      必要欄位：倉別｜日期｜廠商｜班別｜員編｜作業課別｜姓名｜作業區域｜作業時數｜實際費用
+      來源：全區工時.xlsx / 3月總<br>
+      必要欄位：倉別｜日期（Excel序號）｜廠商｜班別｜員編｜作業課別｜姓名｜作業區域｜作業時數｜實際費用
     </div>
     <div id="labor-preview" style="display:none;margin-top:12px"></div>
     <div id="labor-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">

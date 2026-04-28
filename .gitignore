@@ -1,0 +1,7 @@
+# 內部資料檔（不推上 GitHub）
+*.xlsx
+*.xls
+*.docx
+*.doc
+初始資料/
+read_budget.ps1

@@ -173,17 +173,26 @@
   border-bottom: 2px solid var(--ry-blue-dark);
 }
 .tbl th {
-  padding: 10px 16px;
+  padding: var(--tbl-head-py) var(--tbl-head-px);
   text-align: left;
   font-size: var(--fs-xs); font-weight: 700;
   letter-spacing: 0.08em; color: var(--ry-muted);
   text-transform: uppercase;
 }
 .tbl td {
-  padding: 12px 16px;
+  padding: var(--tbl-cell-py) var(--tbl-cell-px);
   border-bottom: 1px solid var(--ry-line);
   height: var(--row-height);
   vertical-align: middle;
+}
+.tbl-compact th {
+  padding: var(--tbl-compact-py) var(--tbl-compact-px);
+}
+.tbl-compact td {
+  padding: var(--tbl-compact-py) var(--tbl-compact-px);
+}
+.tbl .tbl-compact-cell {
+  padding: var(--tbl-compact-py) var(--tbl-compact-px);
 }
 td.mono { font-family: var(--f-mono); }
 

@@ -110,10 +110,75 @@ function renderM015() {
   </div>`;
 }
 
+function shortToFreightFullDate(mmdd) {
+  const year = (DATA.dateFrom || '').slice(0, 4) || String(new Date().getFullYear());
+  const parts = String(mmdd || '').split('/');
+  if (parts.length !== 2) return '';
+  return `${year}-${parts[0].padStart(2, '0')}-${parts[1].padStart(2, '0')}`;
+}
+
+function freightDateInRange(fullDate) {
+  if (!fullDate) return false;
+  if (DATA.dateFrom && fullDate < DATA.dateFrom) return false;
+  if (DATA.dateTo && fullDate > DATA.dateTo) return false;
+  return true;
+}
+
+function getFreightDailyRowsFiltered() {
+  return DATA.freight.dailyByWarehouse.filter(row => freightDateInRange(shortToFreightFullDate(row[0])));
+}
+
+function getFreightTrendFiltered() {
+  return DATA.freight.dailyTrend.filter(row => freightDateInRange(shortToFreightFullDate(row[0])));
+}
+
+function getFreightDetailsFiltered() {
+  if (!DATA.freight.details) return null;
+  return DATA.freight.details.filter(r => freightDateInRange(r.fullDate));
+}
+
+function summarizeFreightVendorsForRange(records) {
+  const vendors = {};
+  records.forEach(r => {
+    if (!vendors[r.vendor]) vendors[r.vendor] = { name:r.vendor, contract:0, point:0, actual:0, count:0 };
+    vendors[r.vendor].contract += r.estimated;
+    vendors[r.vendor].point += r.point;
+    vendors[r.vendor].actual += r.actual;
+    vendors[r.vendor].count += 1;
+  });
+  return Object.values(vendors).map(v => ({ ...v, amount: v.actual - v.contract }));
+}
+
+function getFreightFilteredSummary() {
+  const details = getFreightDetailsFiltered();
+  if (details) {
+    const threshold = DATA.freight.diffThreshold || 90;
+    return {
+      estimatedCost: details.reduce((s, r) => s + r.estimated, 0),
+      actualCost: details.reduce((s, r) => s + r.actual, 0),
+      totalOrders: details.length,
+      overCount: details.filter(r => r.rate > threshold).length,
+      saveCount: details.filter(r => r.rate <= threshold).length,
+      vendors: summarizeFreightVendorsForRange(details),
+    };
+  }
+  return {
+    estimatedCost: DATA.freight.estimatedCost,
+    actualCost: DATA.freight.actualCost,
+    totalOrders: DATA.freight.totalOrders,
+    overCount: DATA.freight.overCount,
+    saveCount: DATA.freight.saveCount,
+    vendors: DATA.freight.vendors,
+  };
+}
+
 // F001 月總運費
 function renderF001() {
   const f = DATA.freight;
-  const trend = (f.totalCost - f.lastMonthCost) / f.lastMonthCost * 100;
+  const daily = getFreightTrendFiltered();
+  const summary = getFreightFilteredSummary();
+  const totalCost = daily.reduce((s, d) => s + d[1], 0);
+  const trend = f.lastMonthCost ? (totalCost - f.lastMonthCost) / f.lastMonthCost * 100 : 0;
   const up = trend >= 0;
   const trendColor = up ? '#d9401b' : '#1b7c33';
   return `
@@ -122,19 +187,19 @@ function renderF001() {
       <div class="wl"><div class="wdot"></div>F001 月總運費</div>
       <span class="wmeta">本期結算</span>
     </div>
-    <div class="kv" style="font-size:28px;color:var(--ry-blue)">${fmtMoney(f.totalCost)}</div>
+    <div class="kv" style="font-size:28px;color:var(--ry-blue)">${fmtMoney(totalCost)}</div>
     <div class="kd">
       <span style="color:${trendColor};font-weight:700">${up ? '↑' : '↓'} ${Math.abs(trend).toFixed(1)}%</span>
-      較上月（${fmtMoney(f.lastMonthCost)}）· ${f.totalOrders.toLocaleString()} 筆配送
+      較上月（${fmtMoney(f.lastMonthCost)}）· ${summary.totalOrders.toLocaleString()} 筆配送
     </div>
   </div>`;
 }
 
 // F002 預計 vs 實際差異率
 function renderF002() {
-  const f = DATA.freight;
-  const diff = f.actualCost - f.estimatedCost;
-  const diffPct = (diff / f.estimatedCost * 100);
+  const summary = getFreightFilteredSummary();
+  const diff = summary.actualCost - summary.estimatedCost;
+  const diffPct = summary.estimatedCost ? (diff / summary.estimatedCost * 100) : 0;
   const color = diff > 0 ? '#d9401b' : '#1b7c33';
   const label = diff > 0 ? '🔴 超支' : '🟢 節省';
   return `
@@ -145,8 +210,8 @@ function renderF002() {
     </div>
     <div class="kv" style="font-size:28px;color:${color}">${diffPct > 0 ? '+' : ''}${diffPct.toFixed(2)}%</div>
     <div class="kd">
-      實際 ${fmtMoney(f.actualCost)}<br>
-      預計 ${fmtMoney(f.estimatedCost)}（差異 ${diff > 0 ? '+' : ''}${fmtMoney(diff)}）
+      實際 ${fmtMoney(summary.actualCost)}<br>
+      預計 ${fmtMoney(summary.estimatedCost)}（差異 ${diff > 0 ? '+' : ''}${fmtMoney(diff)}）
     </div>
   </div>`;
 }
@@ -154,40 +219,51 @@ function renderF002() {
 // F003 超支/節省筆數
 function renderF003() {
   const f = DATA.freight;
-  const total = f.overCount + f.saveCount;
-  const overPct = (f.overCount / total * 100).toFixed(1);
+  const summary = getFreightFilteredSummary();
+  const total = summary.overCount + summary.saveCount;
+  const overPct = total ? (summary.overCount / total * 100).toFixed(1) : '0.0';
   return `
   <div class="w s4" style="border-top:3px solid var(--ry-red)">
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:var(--ry-red)"></div>F003 超支／節省筆數</div>
-      <span class="wmeta">差異 &gt; ${fmtMoney(f.diffThreshold)}</span>
+      <span class="wmeta">動支率 &gt; ${f.diffThreshold || 90}%</span>
     </div>
     <div style="display:flex;align-items:baseline;gap:16px;margin:4px 0">
       <div>
         <div style="font-size:9px;color:var(--ry-red);font-weight:700;letter-spacing:.08em">🔴 超支</div>
-        <div style="font-family:var(--f-mono);font-size:26px;font-weight:800;color:var(--ry-red)">${f.overCount}</div>
+        <div style="font-family:var(--f-mono);font-size:26px;font-weight:800;color:var(--ry-red)">${summary.overCount}</div>
       </div>
       <div style="font-size:14px;color:var(--ry-muted)">／</div>
       <div>
         <div style="font-size:9px;color:#1b7c33;font-weight:700;letter-spacing:.08em">🟢 節省</div>
-        <div style="font-family:var(--f-mono);font-size:26px;font-weight:800;color:#1b7c33">${f.saveCount}</div>
+        <div style="font-family:var(--f-mono);font-size:26px;font-weight:800;color:#1b7c33">${summary.saveCount}</div>
       </div>
     </div>
-    <div class="kd">共 ${total.toLocaleString()} 筆有顯著差異 · 超支佔 ${overPct}%</div>
+    <div class="kd">共 ${total.toLocaleString()} 筆明細 · 動支率 &gt; ${f.diffThreshold || 90}% 佔 ${overPct}%</div>
   </div>`;
 }
 
 // F009 日費用趨勢（折線圖）
 function renderF009() {
-  const data = DATA.freight.dailyTrend;
+  const data = getFreightTrendFiltered();
+  if (!data.length) {
+    return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>F009 日費用趨勢</div>
+      <span class="wmeta">0 天</span>
+    </div>
+    <div style="padding:32px;text-align:center;color:var(--ry-muted);font-size:var(--fs-sm)">此日期區間沒有運費資料</div>
+  </div>`;
+  }
   const maxCost = Math.max(...data.map(d => d[1]));
   const minCost = Math.min(...data.map(d => d[1]));
   const avgCost = data.reduce((s, d) => s + d[1], 0) / data.length;
 
   const W = 1000, H = 240, padL = 56, padR = 20, padT = 20, padB = 36;
   const plotW = W - padL - padR, plotH = H - padT - padB;
-  const xStep = plotW / (data.length - 1);
-  const range = maxCost - minCost;
+  const xStep = data.length > 1 ? plotW / (data.length - 1) : plotW;
+  const range = maxCost - minCost || 1;
   const yFor = v => padT + plotH - ((v - minCost) / range * plotH);
 
   const pathD = data.map((d, i) => {
@@ -234,109 +310,34 @@ function renderF009() {
   </div>`;
 }
 
-// F005 配送商損益紅綠榜
-function renderF005() {
-  const vendors = [...DATA.freight.vendors].sort((a, b) => b.amount - a.amount);
-  const maxAbs = Math.max(...vendors.map(v => Math.abs(v.amount)));
-  const scale = maxAbs * 1.1;
-
-  const html = vendors.map(r => {
-    const pct = (Math.abs(r.amount) / scale * 100).toFixed(1);
-    const isOver = r.amount > 0;
-    const tip = `合約預計：${fmtMoney(r.contract)}\n到點計價：${fmtMoney(r.actual)}\n差　　異：${r.amount > 0 ? '+' : ''}${r.amount.toLocaleString()}`;
-    const bar = isOver
-      ? `<div style="width:${pct}%;height:14px;background:var(--ry-red);margin-left:auto;border-radius:0 2px 2px 0" title="${tip}"></div>`
-      : `<div style="width:${pct}%;height:14px;background:#1b7c33;margin-right:auto;border-radius:2px 0 0 2px" title="${tip}"></div>`;
-    return `
-    <div style="display:grid;grid-template-columns:64px 1fr 1fr 82px;gap:4px;padding:7px 14px;align-items:center;border-bottom:1px solid var(--ry-line)" title="${tip}">
-      <span style="font-size:var(--fs-xs);font-weight:700">${r.name}</span>
-      <div style="display:flex;height:14px">${isOver ? '' : bar}</div>
-      <div style="display:flex;height:14px">${isOver ? bar : ''}</div>
-      <span style="font-family:var(--f-mono);font-weight:700;font-size:var(--fs-xs);text-align:right;color:${isOver ? 'var(--ry-red)' : '#1b7c33'}">
-        ${isOver ? '+' : ''}${r.amount.toLocaleString()}
-      </span>
-    </div>`;
-  }).join('');
-
-  return `
-  <div class="w s6">
-    <div class="gold-band" style="font-size:var(--fs-xs);line-height:1.6">
-      F005 配送商損益紅綠榜 · 基準線（0）= 合約預計金額
-    </div>
-    <div class="wh">
-      <div class="wl"><div class="wdot" style="background:#E07855"></div>到點計價 vs 合約預計差異</div>
-      <span class="wmeta">滑鼠移到長條可看明細</span>
-    </div>
-    <div style="margin:0 -18px -16px">
-      <div style="display:grid;grid-template-columns:64px 1fr 1fr 82px;gap:4px;padding:8px 14px;font-family:var(--f-mono);font-size:9px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--ry-muted);border-bottom:1.5px solid var(--ry-blue-dark);background:var(--ry-bg)">
-        <span>廠商</span>
-        <span style="text-align:right;padding-right:6px;color:var(--ry-red)">🔴 超支</span>
-        <span style="padding-left:6px;color:#1b7c33">🟢 節省</span>
-        <span style="text-align:right">差異金額</span>
-      </div>
-      ${html}
-      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);line-height:1.7">
-        📌 中心軸 0 = 合約預計金額 · 🔴 = 到點 &gt; 合約 · 🟢 = 到點 &lt; 合約
-      </div>
-    </div>
-  </div>`;
-}
-
-// F004 配送商費用排行
-function renderF004() {
-  const vendors = [...DATA.freight.vendors].sort((a, b) => b.actual - a.actual);
-  const maxActual = vendors[0].actual;
-
-  const rows = vendors.map((v, i) => {
-    const pct = (v.actual / maxActual * 100).toFixed(1);
-    const rankColor = i === 0 ? '#f5c400' : i === 1 ? '#9ca3af' : i === 2 ? '#cd7f32' : '#dde2ec';
-    return `
-    <div style="padding:8px 14px;border-bottom:1px solid var(--ry-line)">
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
-        <span style="display:inline-block;width:20px;height:20px;background:${rankColor};color:white;border-radius:50%;font-size:var(--fs-xs);font-weight:900;font-family:var(--f-mono);text-align:center;line-height:20px">${i + 1}</span>
-        <span style="font-size:var(--fs-sm);font-weight:700;flex:1">${v.name}</span>
-        <span style="font-family:var(--f-mono);font-size:var(--fs-sm);font-weight:700;color:var(--ry-blue)">${fmtMoney(v.actual)}</span>
-      </div>
-      <div style="height:6px;background:var(--ry-bg);border-radius:99px;overflow:hidden">
-        <div style="width:${pct}%;height:100%;background:var(--ry-blue);border-radius:99px;transition:width .4s"></div>
-      </div>
-    </div>`;
-  }).join('');
-
-  const total = vendors.reduce((s, v) => s + v.actual, 0);
-
-  return `
-  <div class="w s6">
-    <div class="wh">
-      <div class="wl"><div class="wdot"></div>F004 配送商費用排行</div>
-      <span class="wmeta">依到點實際費用</span>
-    </div>
-    <div style="margin:0 -18px -16px">
-      ${rows}
-      <div style="padding:10px 14px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);background:var(--ry-bg);border-top:1px solid var(--ry-line);line-height:1.7">
-        📌 共 ${vendors.length} 家 · 總運費 ${fmtMoney(total)} · TOP3：${vendors.slice(0,3).map(v=>v.name).join('、')}
-      </div>
-    </div>
-  </div>`;
-}
-
 // F010 三倉每日運費動支
 function renderF010() {
   const budget = DATA.freight.warehouseBudget;
-  const daily  = DATA.freight.dailyByWarehouse;
+  const daily  = getFreightDailyRowsFiltered();
   const totalDays = daily.length;
+
+  if (!totalDays) {
+    return `
+  <div class="w s12">
+    <div class="wh">
+      <div class="wl"><div class="wdot" style="background:#E07855"></div>F010 三倉每日運費動支</div>
+      <span class="wmeta">0 天</span>
+    </div>
+    <div style="padding:32px;text-align:center;color:var(--ry-muted);font-size:var(--fs-sm)">此日期區間沒有運費資料</div>
+  </div>`;
+  }
 
   const dailyBudget = {
     '大溪倉': budget['大溪倉'] / totalDays,
-    '岡山倉': budget['岡山倉'] / totalDays,
     '大肚倉': budget['大肚倉'] / totalDays,
+    '岡山倉': budget['岡山倉'] / totalDays,
   };
 
   const accumActual = { '大溪倉':0, '岡山倉':0, '大肚倉':0 };
   daily.forEach(row => {
     accumActual['大溪倉'] += row[1];
-    accumActual['岡山倉'] += row[2];
-    accumActual['大肚倉'] += row[3];
+    accumActual['大肚倉'] += row[2];
+    accumActual['岡山倉'] += row[3];
   });
 
   function cellsFor(actual, budgetVal) {
@@ -356,8 +357,8 @@ function renderF010() {
     return `<tr>
       <td style="font-weight:700;color:var(--ry-ink)">${date}</td>
       ${cellsFor(d1, dailyBudget['大溪倉'])}
-      ${cellsFor(d2, dailyBudget['岡山倉'])}
-      ${cellsFor(d3, dailyBudget['大肚倉'])}
+      ${cellsFor(d2, dailyBudget['大肚倉'])}
+      ${cellsFor(d3, dailyBudget['岡山倉'])}
     </tr>`;
   }).join('');
 
@@ -375,8 +376,8 @@ function renderF010() {
   const summary = `<tr style="background:var(--ry-blue-pale);border-top:2px solid var(--ry-blue-dark);position:sticky;bottom:0;font-weight:800">
     <td style="font-weight:900;color:var(--ry-blue-dark)">月累計</td>
     ${summaryCell(accumActual['大溪倉'], budget['大溪倉'])}
-    ${summaryCell(accumActual['岡山倉'], budget['岡山倉'])}
     ${summaryCell(accumActual['大肚倉'], budget['大肚倉'])}
+    ${summaryCell(accumActual['岡山倉'], budget['岡山倉'])}
   </tr>`;
 
   return `
@@ -392,8 +393,8 @@ function renderF010() {
             <tr style="background:var(--ry-blue-dark)">
               <th rowspan="2" style="color:white;border-right:2px solid var(--ry-blue);vertical-align:middle">日期</th>
               <th colspan="3" style="color:white;text-align:center;border-right:2px solid var(--ry-blue);background:#0E7BAD">🏭 大溪倉</th>
-              <th colspan="3" style="color:white;text-align:center;border-right:2px solid var(--ry-blue);background:#E07855">🏭 岡山倉</th>
-              <th colspan="3" style="color:white;text-align:center;background:#2DA870">🏭 大肚倉</th>
+              <th colspan="3" style="color:white;text-align:center;border-right:2px solid var(--ry-blue);background:#2DA870">🏭 大肚倉</th>
+              <th colspan="3" style="color:white;text-align:center;background:#E07855">🏭 岡山倉</th>
             </tr>
             <tr style="background:var(--ry-bg);border-bottom:2px solid var(--ry-blue-dark)">
               <th style="text-align:right">預算</th><th style="text-align:right">實際</th><th style="text-align:right">動支率</th>
@@ -482,7 +483,7 @@ function renderT001() {
     const color = colors[stats.name];
     const rateColor = colorFor(stats.pct);
     return `
-    <div class="w s3" style="border-top:3px solid ${isAll ? 'var(--ry-gold)' : color}">
+    <div class="w s3">
       <div class="wh">
         <div class="wl"><div class="wdot" style="background:${color}"></div>${isAll ? '🌐 全區' : stats.name}</div>
         <span class="wmeta">${labelFor(stats.pct)}</span>
@@ -505,8 +506,10 @@ function renderT001() {
           <div class="mono" style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);margin-top:2px">${fmtMoney(stats.freight)}</div>
         </div>
       </div>
-      <div style="margin-top:6px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono)">
-        本期總計 ${fmtMoney(stats.total)} / 預算 ${fmtMoney(Math.round(stats.budget))}
+      <div style="margin-top:6px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.6">
+        <div>本期總計 ----------</div>
+        <div>總實際 ${fmtMoney(stats.total)}</div>
+        <div>總預算 ${fmtMoney(Math.round(stats.budget))}</div>
       </div>
     </div>`;
   }
@@ -532,30 +535,30 @@ function renderT002() {
 
   const warehouseHeader = warehouses.map(w => {
     const isAll = w.name === '全區';
-    return `<th style="text-align:right;color:white;padding:12px 16px;font-size:14px;font-weight:900;letter-spacing:.04em;background:${whColor[w.name]}">${isAll ? '🌐 ' : ''}${w.name}</th>`;
+    return `<th style="text-align:right;color:white;font-size:14px;font-weight:900;letter-spacing:.04em;background:${whColor[w.name]}">${isAll ? '🌐 ' : ''}${w.name}</th>`;
   }).join('');
 
   function domainRows(domainLabel, domainIcon, domainBg, keyMap) {
     const budgetCells = warehouses.map(w => {
       const cellBg = w.name === '全區' ? 'background:var(--ry-blue-pale);' : '';
-      return `<td class="mono" style="text-align:right;padding:10px 14px;${cellBg}">${fmtMoney(Math.round(w[keyMap.b]))}</td>`;
+      return `<td class="mono" style="text-align:right;${cellBg}">${fmtMoney(Math.round(w[keyMap.b]))}</td>`;
     }).join('');
 
     const actualCells = warehouses.map(w => {
       const cellBg = w.name === '全區' ? 'background:var(--ry-blue-pale);' : '';
       const color = colorFor(w[keyMap.p]);
-      return `<td class="mono" style="text-align:right;padding:10px 14px;font-weight:700;color:${color};${cellBg}">${fmtMoney(w[keyMap.a])}</td>`;
+      return `<td class="mono" style="text-align:right;font-weight:700;color:${color};${cellBg}">${fmtMoney(w[keyMap.a])}</td>`;
     }).join('');
 
     const pctCells = warehouses.map(w => {
       const cellBg = w.name === '全區' ? 'background:var(--ry-blue-pale);' : '';
       const color = colorFor(w[keyMap.p]);
-      return `<td style="text-align:right;padding:10px 14px;${cellBg}">
+      return `<td style="text-align:right;${cellBg}">
         <span style="display:inline-block;padding:3px 12px;background:${color};color:white;border-radius:99px;font-weight:800;font-size:var(--fs-xs);font-family:var(--f-mono)">${w[keyMap.p].toFixed(1)}%</span>
       </td>`;
     }).join('');
 
-    const domainCell = `<td rowspan="3" style="vertical-align:middle;text-align:center;background:${domainBg};color:white;font-weight:800;font-size:var(--fs-sm);padding:14px 10px;border-right:2px solid var(--ry-white);letter-spacing:.04em;line-height:1.5">
+    const domainCell = `<td rowspan="3" style="vertical-align:middle;text-align:center;background:${domainBg};color:white;font-weight:800;font-size:var(--fs-sm);border-right:2px solid var(--ry-white);letter-spacing:.04em;line-height:1.5">
       <div style="font-size:20px;margin-bottom:4px">${domainIcon}</div>
       ${domainLabel}
     </td>`;
@@ -563,15 +566,15 @@ function renderT002() {
     return `
       <tr style="border-top:2px solid var(--ry-line)">
         ${domainCell}
-        <td style="padding:11px 16px;font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);background:var(--ry-paper);text-align:center;border-right:2px solid var(--ry-line)">預算</td>
+        <td style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);background:var(--ry-paper);text-align:center;border-right:2px solid var(--ry-line)">預算</td>
         ${budgetCells}
       </tr>
       <tr>
-        <td style="padding:11px 16px;font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);background:var(--ry-paper);text-align:center;border-right:2px solid var(--ry-line)">實際</td>
+        <td style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-ink);background:var(--ry-paper);text-align:center;border-right:2px solid var(--ry-line)">實際</td>
         ${actualCells}
       </tr>
       <tr>
-        <td style="padding:11px 16px;font-size:var(--fs-sm);font-weight:800;text-align:center;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line)">動支</td>
+        <td style="font-size:var(--fs-sm);font-weight:800;text-align:center;color:var(--ry-ink);background:var(--ry-paper);border-right:2px solid var(--ry-line)">動支</td>
         ${pctCells}
       </tr>`;
   }
@@ -588,11 +591,11 @@ function renderT002() {
     </div>
     <div style="margin:0 -18px -16px">
       <div style="overflow-x:auto">
-        <table style="width:100%;border-collapse:collapse;font-size:var(--fs-sm);min-width:780px">
+        <table class="tbl" style="min-width:780px">
           <thead>
             <tr style="background:var(--ry-blue-dark);border-bottom:3px solid var(--ry-gold)">
-              <th style="width:90px;color:white;text-align:center;padding:12px 14px;font-size:var(--fs-lg);font-weight:900;letter-spacing:.06em">領域</th>
-              <th style="width:80px;color:white;text-align:center;padding:12px 14px;font-size:var(--fs-lg);font-weight:900;letter-spacing:.06em">項目</th>
+              <th style="width:90px;color:white;text-align:center;font-size:var(--fs-lg);font-weight:900;letter-spacing:.06em">領域</th>
+              <th style="width:80px;color:white;text-align:center;font-size:var(--fs-lg);font-weight:900;letter-spacing:.06em">項目</th>
               ${warehouseHeader}
             </tr>
           </thead>
@@ -631,7 +634,7 @@ function renderT003() {
 
   function budgetCell(actual, budget, pct, isAll) {
     const bg = isAll ? 'background:var(--ry-blue-pale);' : 'background:var(--ry-bg);';
-    return `<td style="text-align:center;padding:5px 8px;${bg}">
+    return `<td class="tbl-compact-cell" style="text-align:center;${bg}">
       ${pctBadge(pct)}
       <div style="font-size:9px;color:var(--ry-muted);font-family:var(--f-mono);margin-top:2px;white-space:nowrap">${fmtMoney(actual)} / ${fmtMoney(Math.round(budget))}</div>
     </td>`;
@@ -687,12 +690,12 @@ function renderT003() {
         <table class="tbl" style="min-width:760px">
           <thead style="position:sticky;top:0;z-index:10">
             <tr style="background:var(--ry-blue-dark);border-bottom:3px solid var(--ry-gold)">
-              <th style="width:90px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">日期</th>
-              <th style="width:100px;color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px">費用類別</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-daxi)">大溪倉</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-dadu)">大肚倉</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-gangshan)">岡山倉</th>
-              <th style="color:white;font-size:var(--fs-lg);font-weight:900;padding:12px 14px;text-align:right;background:var(--tbl-all)">🌐 全區</th>
+              <th style="width:90px;color:white;font-size:var(--fs-lg);font-weight:900">日期</th>
+              <th style="width:100px;color:white;font-size:var(--fs-lg);font-weight:900">費用類別</th>
+              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-daxi)">大溪倉</th>
+              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-dadu)">大肚倉</th>
+              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-gangshan)">岡山倉</th>
+              <th style="color:white;font-size:var(--fs-lg);font-weight:900;text-align:right;background:var(--tbl-all)">🌐 全區</th>
             </tr>
           </thead>
           <tbody>${rows.map(dayRows).join('')}</tbody>
