@@ -4,16 +4,16 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KPL 儀表板 · 日翊文化行銷</title>
-<link rel="stylesheet" href="css/base.css?v=20260428-2">
-<link rel="stylesheet" href="css/layout.css?v=20260428-2">
-<link rel="stylesheet" href="css/widget.css?v=20260428-2">
+<link rel="stylesheet" href="css/base.css?v=20260504-3">
+<link rel="stylesheet" href="css/layout.css?v=20260505-2">
+<link rel="stylesheet" href="css/widget.css?v=20260505-11">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
 <!-- 頂部 Nav -->
 <nav class="nav">
-  <button class="btn btn-outline" onclick="toggleSidebar()" style="display:none;margin-right:12px" id="menu-toggle">☰</button>
+  <button class="btn btn-outline nav-menu-toggle" onclick="toggleSidebar()" id="menu-toggle">☰</button>
   <div class="nav-logo">
     <div class="nav-logo-badge">RY</div>
     <div>
@@ -24,7 +24,7 @@
   <div class="nav-sep"></div>
   <span class="nav-module">KPL 績效儀表板</span>
   <div class="nav-right">
-    <span style="font-size:var(--fs-xs);color:rgba(255,255,255,.5);font-family:var(--f-mono)" id="nav-time"></span>
+    <span class="nav-time" id="nav-time"></span>
   </div>
 </nav>
 
@@ -48,7 +48,7 @@
 <div class="filter-bar">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="filter-from">
-  <span style="color:var(--ry-muted)">→</span>
+  <span class="range-arrow">→</span>
   <input type="date" class="filter-input" id="filter-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyFilter()">套用</button>
@@ -117,7 +117,7 @@
 <div class="filter-bar">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="dispatch-from">
-  <span style="color:var(--ry-muted)">→</span>
+  <span class="range-arrow">→</span>
   <input type="date" class="filter-input" id="dispatch-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDispatchFilter()">套用</button>
@@ -135,7 +135,7 @@
 <div class="filter-bar">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="freight-from">
-  <span style="color:var(--ry-muted)">→</span>
+  <span class="range-arrow">→</span>
   <input type="date" class="filter-input" id="freight-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
@@ -148,28 +148,36 @@
 <div class="page-head">
   <div class="page-eyebrow">PRODUCTIVITY MONITOR · 人效監控</div>
   <h1 class="page-h">人效監控</h1>
-  <div class="page-p">追蹤揀次 PPH、加班佔比、工時區域人效</div>
+  <div class="page-p" id="productivity-meta">追蹤揀次 PPH、加班佔比、工時區域人效</div>
 </div>
-<div class="wip-page">
-  <div class="wip-icon">🚧</div>
-  <div class="wip-title">建構中</div>
-  <div class="wip-desc">M019 每小時揀次 PPH · M020 單次揀貨成本 · M021 加班佔比 · M023 三倉 PPH 比較 · M025 工時區域人效矩陣</div>
-  <div class="wip-note">📋 下一步：確認揀次資料與人力費用的合併邏輯後開發</div>
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="productivity-from">
+  <span class="range-arrow">→</span>
+  <input type="date" class="filter-input" id="productivity-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDashboardDateFilter('productivity')">套用</button>
+  <span class="filter-meta" id="productivity-date-meta"></span>
 </div>
+<div class="grid" id="productivity-grid"></div>
 </script>
 
 <script id="tpl-monthly" type="text/html">
 <div class="page-head">
   <div class="page-eyebrow">MONTHLY SETTLEMENT · 月度結算</div>
   <h1 class="page-h">月度結算</h1>
-  <div class="page-p">月底結算時使用的本月口袋總結頁面</div>
+  <div class="page-p" id="monthly-meta">月底結算時使用的本月口袋總結頁面</div>
 </div>
-<div class="wip-page">
-  <div class="wip-icon">🚧</div>
-  <div class="wip-title">建構中</div>
-  <div class="wip-desc">M001 總人力成本 · M002 總工時 · M011 本部費用彙總 · M013-14 服務 EC/營收 EC · F001 月總運費</div>
-  <div class="wip-note">📋 下一步：確認月底結算流程後開發（每月 1 號使用）</div>
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="monthly-from">
+  <span class="range-arrow">→</span>
+  <input type="date" class="filter-input" id="monthly-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDashboardDateFilter('monthly')">套用</button>
+  <span class="filter-meta" id="monthly-date-meta"></span>
 </div>
+<div class="grid" id="monthly-grid"></div>
 </script>
 
 <script id="tpl-import" type="text/html">
@@ -178,183 +186,165 @@
   <h1 class="page-h">Excel 資料匯入</h1>
   <div class="page-p">上傳 Excel 後自動解析，即時更新儀表板數字</div>
 </div>
-<div style="background:#fff9e0;border-left:3px solid var(--ry-gold);padding:12px 16px;border-radius:3px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.8">
-  💡 <b>使用說明：</b>在 Excel 完成樞紐分析後上傳 → 系統自動解析 → 可預覽確認 → 套用到儀表板
+<div class="w import-status-panel">
+  <div class="wh">
+    <div class="wl"><div class="wdot"></div>目前儀表板資料狀態</div>
+    <span class="wmeta" id="status-time">—</span>
+  </div>
+  <table class="tbl status-table">
+    <thead><tr>
+      <th>資料類型</th>
+      <th>狀態</th>
+      <th class="num-right">大溪倉</th>
+      <th class="num-right">大肚倉</th>
+      <th class="num-right">岡山倉</th>
+      <th class="num-right">合計</th>
+    </tr></thead>
+    <tbody id="status-tbody"></tbody>
+  </table>
 </div>
-<div class="grid">
-  <div class="w s6">
-    <div class="gold-band" style="background:var(--ry-blue-dark);color:white">💰 年度預算（總費用動支率）</div>
-    <div class="wh">
-      <div class="wl"><div class="wdot" style="background:var(--ry-blue-dark)"></div>人力預算 + 運費預算</div>
-      <span class="wmeta" id="budget-status">尚未上傳</span>
+<div class="import-list">
+  <div class="w import-row">
+    <div class="import-accent import-accent-budget"></div>
+    <div class="import-info">
+      <div class="import-kicker">💰 年度預算（總費用動支率）</div>
+      <div class="wl"><div class="wdot dot-budget"></div>人力預算 + 運費預算</div>
+      <div class="import-note">
+        <div>人力欄位：區域｜月份｜金額</div>
+        <div>運費欄位：倉庫｜類別｜作業項目｜月份｜金額</div>
+      </div>
     </div>
+    <div class="import-drop-wrap">
     <div id="budget-drop"
-      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      class="import-drop"
       onclick="document.getElementById('budget-file').click()"
       ondragover="onDragOver(event,'budget-drop')"
       ondragleave="onDragLeave('budget-drop')"
       ondrop="onDrop(event,'budget')">
-      <div style="font-size:32px;margin-bottom:8px">💰</div>
-      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜需含：人力預算_轉換、運費預算_轉換</div>
+      <div class="import-drop-icon">💰</div>
+      <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
+      <div class="import-drop-hint">.xlsx 格式｜需含：人力預算_轉換、運費預算_轉換</div>
     </div>
     <input type="file" id="budget-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'budget')">
-    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
-      人力欄位：區域｜月份｜金額<br>
-      運費欄位：倉庫｜類別｜作業項目｜月份｜金額
     </div>
-    <div id="budget-preview" style="display:none;margin-top:12px"></div>
-    <div id="budget-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+    <div class="import-actions">
+      <span class="wmeta" id="budget-status">尚未上傳</span>
+    <div id="budget-preview" class="import-preview" style="display:none"></div>
+    <div id="budget-btns" class="import-btns" style="display:none">
       <button class="btn btn-primary" onclick="applyBudget()">✅ 套用到儀表板</button>
       <button class="btn btn-ghost" onclick="resetBudget()">↺ 重選</button>
     </div>
-  </div>
-  <div class="w s6">
-    <div class="gold-band" style="background:#E07855;color:white">🚚 運務費用（F002-F003 / F010 / T002 / T003）</div>
-    <div class="wh">
-      <div class="wl"><div class="wdot" style="background:#E07855"></div>每日各倉運務費用</div>
-      <span class="wmeta" id="freight-status">尚未上傳</span>
     </div>
+  </div>
+  <div class="w import-row">
+    <div class="import-accent import-accent-freight"></div>
+    <div class="import-info">
+      <div class="import-kicker">🚚 運務費用（F002-F003 / F010 / T002 / T003）</div>
+      <div class="wl"><div class="wdot dot-freight"></div>每日各倉運務費用</div>
+      <div class="import-note">
+        <div>彙總分頁：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計</div>
+        <div>明細分頁：進貨日｜倉別｜配送商｜預計計價結果｜到點計價結果｜計價結果</div>
+      </div>
+    </div>
+    <div class="import-drop-wrap">
     <div id="freight-drop"
-      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      class="import-drop"
       onclick="document.getElementById('freight-file').click()"
       ondragover="onDragOver(event,'freight-drop')"
       ondragleave="onDragLeave('freight-drop')"
       ondrop="onDrop(event,'freight')">
-      <div style="font-size:32px;margin-bottom:8px">📊</div>
-      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜需含：進貨日與計價費用、貨運費用明細總表</div>
+      <div class="import-drop-icon">📊</div>
+      <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
+      <div class="import-drop-hint">.xlsx 格式｜需含：進貨日與計價費用、貨運費用明細總表</div>
     </div>
     <input type="file" id="freight-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight')">
-    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
-      彙總分頁：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計<br>
-      明細分頁：進貨日｜倉別｜配送商｜預計計價結果｜到點計價結果｜計價結果
     </div>
-    <div id="freight-preview" style="display:none;margin-top:12px"></div>
-    <div id="freight-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+    <div class="import-actions">
+      <span class="wmeta" id="freight-status">尚未上傳</span>
+    <div id="freight-preview" class="import-preview" style="display:none"></div>
+    <div id="freight-btns" class="import-btns" style="display:none">
       <button class="btn btn-primary" onclick="applyFreight()">✅ 套用到儀表板</button>
       <button class="btn btn-gold" onclick="downloadFreight()">⬇️ 下載彙總確認檔</button>
       <button class="btn btn-ghost" onclick="resetFreight()">↺ 重選</button>
     </div>
-  </div>
-  <div class="w s4">
-    <div class="gold-band" style="background:var(--ry-blue);color:white">⏱ 工時資料（總費用動支率 / 工時結構）</div>
-    <div class="wh">
-      <div class="wl"><div class="wdot" style="background:var(--ry-blue)"></div>全區人力工時明細</div>
-      <span class="wmeta" id="labor-status">尚未上傳</span>
     </div>
+  </div>
+  <div class="w import-row">
+    <div class="import-accent import-accent-labor"></div>
+    <div class="import-info">
+      <div class="import-kicker">⏱ 工時資料（總費用動支率 / 工時結構）</div>
+      <div class="wl"><div class="wdot dot-labor"></div>全區人力工時明細</div>
+      <div class="import-note">
+        <div>必要欄位：倉別｜日期｜廠商｜班別｜員編｜作業課別｜姓名｜作業區域｜作業時數｜實際費用</div>
+        <div>一次最多匯入 31 天｜系統自動讀取分頁中的資料日期｜歷年資料後續由 GCP 管理</div>
+      </div>
+    </div>
+    <div class="import-drop-wrap">
     <div id="labor-drop"
-      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      class="import-drop"
       onclick="document.getElementById('labor-file').click()"
       ondragover="onDragOver(event,'labor-drop')"
       ondragleave="onDragLeave('labor-drop')"
       ondrop="onDrop(event,'labor')">
-      <div style="font-size:32px;margin-bottom:8px">⏱</div>
-      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜建議分頁：3月總</div>
+      <div class="import-drop-icon">⏱</div>
+      <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
+      <div class="import-drop-hint">.xlsx 格式｜一次最多 31 天</div>
     </div>
     <input type="file" id="labor-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'labor')">
-    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
-      來源：全區工時.xlsx / 3月總<br>
-      必要欄位：倉別｜日期（Excel序號）｜廠商｜班別｜員編｜作業課別｜姓名｜作業區域｜作業時數｜實際費用
     </div>
-    <div id="labor-preview" style="display:none;margin-top:12px"></div>
-    <div id="labor-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+    <div class="import-actions">
+      <span class="wmeta" id="labor-status">尚未上傳</span>
+    <div id="labor-preview" class="import-preview" style="display:none"></div>
+    <div id="labor-btns" class="import-btns" style="display:none">
       <button class="btn btn-primary" onclick="applyLabor()">✅ 套用到儀表板</button>
       <button class="btn btn-ghost" onclick="resetLabor()">↺ 重選</button>
     </div>
-  </div>
-  <div class="w s4">
-    <div class="gold-band" style="background:#7c3aed;color:white">⚡ 揀次資料（揀次分析）</div>
-    <div class="wh">
-      <div class="wl"><div class="wdot" style="background:#7c3aed"></div>三倉每日揀次明細</div>
-      <span class="wmeta" id="picks-import-status">尚未上傳</span>
     </div>
+  </div>
+  <div class="w import-row">
+    <div class="import-accent import-accent-picks"></div>
+    <div class="import-info">
+      <div class="import-kicker">⚡ 揀次資料（揀次分析）</div>
+      <div class="wl"><div class="wdot dot-picks"></div>三倉每日揀次明細</div>
+      <div class="import-note">
+        <div>必要欄位：倉別｜日期｜業務類別｜作業區｜工時區域｜揀次</div>
+      </div>
+    </div>
+    <div class="import-drop-wrap">
     <div id="picks-drop"
-      style="border:2px dashed var(--ry-line);border-radius:4px;padding:28px 16px;text-align:center;cursor:pointer;transition:all .2s;background:var(--ry-bg)"
+      class="import-drop"
       onclick="document.getElementById('picks-file').click()"
       ondragover="onDragOver(event,'picks-drop')"
       ondragleave="onDragLeave('picks-drop')"
       ondrop="onDrop(event,'picks')">
-      <div style="font-size:32px;margin-bottom:8px">⚡</div>
-      <div style="font-size:var(--fs-sm);font-weight:700;color:var(--ry-muted)">點擊或拖曳 Excel 至此</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px;font-family:var(--f-mono)">.xlsx 格式｜與 貨量揀次.xlsx 相同欄位</div>
+      <div class="import-drop-icon">⚡</div>
+      <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
+      <div class="import-drop-hint">.xlsx 格式｜與 貨量揀次.xlsx 相同欄位</div>
     </div>
     <input type="file" id="picks-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'picks')">
-    <div style="margin-top:10px;padding:10px 12px;background:var(--ry-bg);border-radius:3px;font-size:var(--fs-xs);color:var(--ry-muted);font-family:var(--f-mono);line-height:1.8">
-      必要欄位：倉別｜日期｜業務類別｜作業區｜工時區域｜揀次
     </div>
-    <div id="picks-preview" style="display:none;margin-top:12px"></div>
-    <div id="picks-btns" style="display:none;margin-top:10px;gap:8px;flex-wrap:wrap">
+    <div class="import-actions">
+      <span class="wmeta" id="picks-import-status">尚未上傳</span>
+    <div id="picks-preview" class="import-preview" style="display:none"></div>
+    <div id="picks-btns" class="import-btns" style="display:none">
       <button class="btn btn-primary" onclick="applyPicks()">✅ 套用到儀表板</button>
       <button class="btn btn-ghost" onclick="resetPicks()">↺ 重選</button>
     </div>
-  </div>
-  <div class="w s12">
-    <div class="wh">
-      <div class="wl"><div class="wdot"></div>目前儀表板資料狀態</div>
-      <span class="wmeta" id="status-time">—</span>
     </div>
-    <table class="tbl">
-      <thead><tr><th>資料類型</th><th>狀態</th><th>大溪倉</th><th>大肚倉</th><th>岡山倉</th><th style="text-align:right">合計</th></tr></thead>
-      <tbody id="status-tbody"></tbody>
-    </table>
   </div>
 </div>
 </script>
 
 <script id="tpl-org" type="text/html">
-<div class="page-head" style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;gap:12px">
+<div class="page-head org-page-head">
   <div>
     <div class="page-eyebrow">ORG SETTINGS · 組織設定</div>
     <h1 class="page-h">組織設定</h1>
     <div class="page-p">點擊任一列進行編輯</div>
   </div>
-  <button class="btn btn-primary" onclick="saveOrgSettings()" style="margin-top:8px">儲存設定</button>
+  <button class="btn btn-primary org-save-btn" onclick="saveOrgSettings()">儲存設定</button>
 </div>
 <div class="grid" id="org-grid"></div>
-</script>
-
-<script id="tpl-manual-input" type="text/html">
-<div class="page-head">
-  <div class="page-eyebrow">MANUAL INPUT · 手動輸入</div>
-  <h1 class="page-h">手動輸入資料</h1>
-  <div class="page-p">測試與 demo 時使用，直接修改儀表板數字</div>
-</div>
-<div style="background:#fff4e8;border-left:3px solid #e07855;padding:12px 16px;border-radius:3px;margin-bottom:20px;font-size:var(--fs-sm);line-height:1.7">
-  💡 <b>提示：</b>測試階段手動輸入數字。未來由「資料匯入」頁面自動同步後，此頁將被取代或隱藏。
-</div>
-<div class="grid">
-  <div class="w s6">
-    <div class="gold-band">💰 M012 預算 & 累計費用</div>
-    <div class="wh"><div class="wl"><div class="wdot"></div>預算動支率監控</div><span class="wmeta">對應 M012</span></div>
-    <div class="field"><label>月預算（$）</label><input type="number" id="mi-budget"></div>
-    <div class="field-note">來源：預算 Excel</div>
-    <div class="field"><label>累計費用（$）</label><input type="number" id="mi-actual"></div>
-    <div class="field-note">排除 SUP 後勤課</div>
-    <div class="field"><label>今天第幾天</label><input type="number" id="mi-day"></div>
-    <div class="field"><label>當月總天數</label><input type="number" id="mi-total-days"></div>
-  </div>
-  <div class="w s6">
-    <div class="gold-band" style="background:var(--ry-orange);color:white">🎚️ M015 門檻設定</div>
-    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-orange)"></div>業務單位分類門檻</div><span class="wmeta">依佔比分類</span></div>
-    <div class="field"><label>PEAK 門檻 %</label><input type="number" step="0.1" id="mi-peak"></div>
-    <div class="field-note">佔比 &gt; 此值 = PEAK</div>
-    <div class="field"><label>STABLE 門檻 %</label><input type="number" step="0.1" id="mi-stable"></div>
-    <div class="field-note">佔比 &lt; 此值 = IDLE</div>
-  </div>
-  <div class="w s12">
-    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-orange)"></div>📋 M015 各課別費用</div><span class="wmeta">6 個業務單位</span></div>
-    <table class="tbl">
-      <thead><tr><th>課別</th><th>費用（$）</th><th>工時（h）</th></tr></thead>
-      <tbody id="mi-units-tbody"></tbody>
-    </table>
-  </div>
-</div>
-<div style="margin-top:20px;display:flex;justify-content:flex-end;gap:10px">
-  <button class="btn btn-ghost" onclick="resetManualForm()">↺ 重新載入</button>
-  <button class="btn btn-primary" onclick="saveManualData()">💾 儲存並更新儀表板</button>
-</div>
 </script>
 
 <script id="tpl-picks" type="text/html">
@@ -362,6 +352,15 @@
   <div class="page-eyebrow">PICKS ANALYSIS · 揀次分析</div>
   <h1 class="page-h">揀次分析</h1>
   <div class="page-p" id="picks-meta">載入中…</div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="picks-from">
+  <span class="range-arrow">→</span>
+  <input type="date" class="filter-input" id="picks-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDashboardDateFilter('picks')">套用</button>
+  <span class="filter-meta" id="picks-date-meta"></span>
 </div>
 <div class="filter-bar">
   <span class="filter-label">倉庫</span>
@@ -396,9 +395,18 @@
 
 <script id="tpl-labor" type="text/html">
 <div class="page-head">
-  <div class="page-eyebrow">LABOR ANALYSIS · 工時結構分析</div>
-  <h1 class="page-h">工時結構分析</h1>
+  <div class="page-eyebrow">LABOR ANALYSIS · 人力工時結構</div>
+  <h1 class="page-h">人力工時結構</h1>
   <div class="page-p" id="labor-meta">載入中…</div>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="labor-from">
+  <span class="range-arrow">→</span>
+  <input type="date" class="filter-input" id="labor-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDashboardDateFilter('labor')">套用</button>
+  <span class="filter-meta" id="labor-date-meta"></span>
 </div>
 <div class="filter-bar">
   <span class="filter-label">班別</span>
@@ -409,20 +417,9 @@
     <option value="夜">夜班</option>
   </select>
   <div class="filter-divider"></div>
-  <span class="filter-label">廠商</span>
+  <span class="filter-label">課別</span>
   <select class="filter-input" id="labor-vendor" onchange="renderLaborPage()">
-    <option value="">全部廠商</option>
-    <option value="丞景">丞景</option>
-    <option value="全勤">全勤</option>
-    <option value="岓泉">岓泉</option>
-    <option value="承奕">承奕</option>
-    <option value="昊宇">昊宇</option>
-    <option value="金鑫">金鑫</option>
-    <option value="品佳">品佳</option>
-    <option value="品豐">品豐</option>
-    <option value="建豐">建豐</option>
-    <option value="高順">高順</option>
-    <option value="智遠">智遠</option>
+    <option value="">全部課別</option>
   </select>
   <div class="filter-divider"></div>
   <span class="filter-meta" id="labor-filter-meta"></span>
@@ -431,11 +428,11 @@
 </script>
 
 <!-- JS 載入順序：picks/labor data → data → utils → widgets → app -->
-<script src="js/picks_data.js?v=20260428-2"></script>
-<script src="js/labor_data.js?v=20260428-2"></script>
-<script src="js/data.js?v=20260428-2"></script>
-<script src="js/utils.js?v=20260428-2"></script>
-<script src="js/widgets.js?v=20260428-2"></script>
+<script src="js/picks_data.js?v=20260504-3"></script>
+<script src="js/labor_data.js?v=20260504-3"></script>
+<script src="js/data.js?v=20260505-2"></script>
+<script src="js/utils.js?v=20260505-1"></script>
+<script src="js/widgets.js?v=20260505-5"></script>
 <script>
 // 從 <script type="text/html"> 讀取模板
 const PAGE_TEMPLATES = {
@@ -448,9 +445,8 @@ const PAGE_TEMPLATES = {
   monthly:        document.getElementById('tpl-monthly').innerHTML,
   import:         document.getElementById('tpl-import').innerHTML,
   org:            document.getElementById('tpl-org').innerHTML,
-  'manual-input': document.getElementById('tpl-manual-input').innerHTML,
 };
 </script>
-<script src="js/app.js?v=20260428-2"></script>
+<script src="js/app.js?v=20260505-15"></script>
 </body>
 </html>

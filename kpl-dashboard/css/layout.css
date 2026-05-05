@@ -23,6 +23,12 @@
 .nav-sep { width: 1px; height: 22px; background: rgba(255,255,255,.12); margin: 0 16px; }
 .nav-module { font-size: var(--fs-sm); font-weight: 600; color: white; letter-spacing: 0.02em; }
 .nav-right { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.nav-menu-toggle { display: none; margin-right: 12px; }
+.nav-time {
+  font-size: var(--fs-xs);
+  color: rgba(255,255,255,.5);
+  font-family: var(--f-mono);
+}
 
 /* ══ Shell（左右兩欄容器） ══ */
 .shell {
@@ -56,7 +62,10 @@
 }
 
 .sb-item {
-  display: flex; align-items: center; gap: 10px;
+  display: grid;
+  grid-template-columns: 22px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
   padding: 9px 18px;
   font-size: var(--fs-sm); color: var(--ry-ink);
   cursor: pointer;
@@ -85,15 +94,17 @@
 }
 
 .sb-item-icon {
+  width: 22px;
   font-size: 14px;
   opacity: 0.65;
-  flex-shrink: 0;
+  display: inline-grid;
+  place-items: center;
 }
 .sb-item-label {
-  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  line-height: 1.4;
 }
 .sb-item-badge {
   font-size: 9px;

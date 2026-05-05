@@ -217,7 +217,7 @@ body::before {
     <div class="error-msg" id="error-msg"></div>
 
     <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--ry-line);text-align:center">
-      <div style="font-size:10px;color:var(--ry-muted);margin-bottom:8px;font-family:var(--f-mono)">⚠️ API 申請中，暫時使用測試模式</div>
+      <div style="font-size:10px;color:var(--ry-muted);margin-bottom:8px;font-family:var(--f-mono)">若 EIP 暫時無法驗證，可使用測試模式</div>
       <button onclick="devBypass()" style="background:none;border:1.5px dashed var(--ry-line);color:var(--ry-muted);padding:7px 20px;border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--f-head)">測試模式（跳過驗證）</button>
     </div>
   </div>
@@ -267,7 +267,7 @@ async function doLogin() {
   btn.innerHTML = '<span class="spinner"></span> 驗證中…';
 
   try {
-    const res = await fetch('https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId', {
+    const res = await fetch(getAuthEndpoint(), {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ USER_ID: userId, PSW: password }),
@@ -292,7 +292,7 @@ async function doLogin() {
       showError('登入失敗：' + msg);
     }
   } catch (err) {
-    showError('無法連線至驗證伺服器，請確認網路連線');
+    showError(`無法連線至驗證伺服器：${err.message}`);
   }
 
   btn.disabled = false;
@@ -303,6 +303,14 @@ function showError(msg) {
   const el = document.getElementById('error-msg');
   el.textContent = msg;
   el.classList.add('on');
+}
+
+function getAuthEndpoint() {
+  if (location.protocol === 'http:' || location.protocol === 'https:') {
+    return '/api/check-user';
+  }
+
+  return 'https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId';
 }
 
 function devBypass() {

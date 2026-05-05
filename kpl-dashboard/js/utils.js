@@ -52,6 +52,14 @@ function getMonthProgress() {
   return DATA.dayOfMonth / DATA.totalDays;
 }
 
+// 課別顯示名稱轉換（依 deptAlias 對照表；null = 該課排除）
+function deptDisplayName(name) {
+  if (!name) return name;
+  const alias = DATA.deptAlias?.[name];
+  if (alias === null) return null;
+  return alias !== undefined ? alias : name;
+}
+
 function getProjectedPct() {
   const progress = getMonthProgress();
   if (!progress) return 0;
