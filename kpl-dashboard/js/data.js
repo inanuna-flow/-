@@ -54,7 +54,7 @@ const DATA = {
     dailyByWarehouse: [],
   },
 
-  // 年度預算（來源：年度預算.xlsx · 人力預算_轉換 / 運費預算_轉換）
+  // 年度預算（來源：年度預算V2.xlsx · 人力 / 運務；仍相容舊版轉換分頁）
   // 陣列 index 0~11 對應 1月~12月
   annualBudget: {
     labor: {
@@ -67,6 +67,12 @@ const DATA = {
       '大肚倉': Array(12).fill(0),
       '岡山倉': Array(12).fill(0),
     },
+  },
+
+  // 自訂 Widget 標題
+  widgetLabels: {
+    m012: 'M012 全區預算動支率',
+    m015: 'M015 每月動支率時序列',
   },
 
   // 各資料來源最新日期標籤（套用後記錄，供狀態列顯示）

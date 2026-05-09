@@ -6,7 +6,7 @@
 <title>KPL 儀表板 · 日翊文化行銷</title>
 <link rel="stylesheet" href="css/base.css?v=20260504-3">
 <link rel="stylesheet" href="css/layout.css?v=20260505-2">
-<link rel="stylesheet" href="css/widget.css?v=20260505-11">
+<link rel="stylesheet" href="css/widget.css?v=20260505-14">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -146,9 +146,9 @@
 
 <script id="tpl-productivity" type="text/html">
 <div class="page-head">
-  <div class="page-eyebrow">PRODUCTIVITY MONITOR · 人效監控</div>
-  <h1 class="page-h">人效監控</h1>
-  <div class="page-p" id="productivity-meta">追蹤揀次 PPH、加班佔比、工時區域人效</div>
+  <div class="page-eyebrow">PICKING PRODUCTIVITY · 揀次人效分析</div>
+  <h1 class="page-h">揀次人效分析</h1>
+  <div class="page-p" id="productivity-meta">整合揀次、工時、成本與區域效率</div>
 </div>
 <div class="filter-bar">
   <span class="filter-label">日期區間</span>
@@ -210,8 +210,8 @@
       <div class="import-kicker">💰 年度預算（總費用動支率）</div>
       <div class="wl"><div class="wdot dot-budget"></div>人力預算 + 運費預算</div>
       <div class="import-note">
-        <div>人力欄位：區域｜月份｜金額</div>
-        <div>運費欄位：倉庫｜類別｜作業項目｜月份｜金額</div>
+        <div>年度預算V2：分頁「人力」「運務」，欄位含 1月～12月</div>
+        <div>仍相容舊版：人力預算_轉換、運費預算_轉換</div>
       </div>
     </div>
     <div class="import-drop-wrap">
@@ -223,7 +223,7 @@
       ondrop="onDrop(event,'budget')">
       <div class="import-drop-icon">💰</div>
       <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
-      <div class="import-drop-hint">.xlsx 格式｜需含：人力預算_轉換、運費預算_轉換</div>
+      <div class="import-drop-hint">.xlsx 格式｜建議使用：年度預算V2.xlsx</div>
     </div>
     <input type="file" id="budget-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'budget')">
     </div>
@@ -324,7 +324,7 @@
     <input type="file" id="picks-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'picks')">
     </div>
     <div class="import-actions">
-      <span class="wmeta" id="picks-import-status">尚未上傳</span>
+      <span class="wmeta" id="picks-status">尚未上傳</span>
     <div id="picks-preview" class="import-preview" style="display:none"></div>
     <div id="picks-btns" class="import-btns" style="display:none">
       <button class="btn btn-primary" onclick="applyPicks()">✅ 套用到儀表板</button>
@@ -430,16 +430,15 @@
 <!-- JS 載入順序：picks/labor data → data → utils → widgets → app -->
 <script src="js/picks_data.js?v=20260504-3"></script>
 <script src="js/labor_data.js?v=20260504-3"></script>
-<script src="js/data.js?v=20260505-2"></script>
+<script src="js/data.js?v=20260505-4"></script>
 <script src="js/utils.js?v=20260505-1"></script>
-<script src="js/widgets.js?v=20260505-5"></script>
+<script src="js/widgets.js?v=20260505-14"></script>
 <script>
 // 從 <script type="text/html"> 讀取模板
 const PAGE_TEMPLATES = {
   daily:          document.getElementById('tpl-daily').innerHTML,
   dispatch:       document.getElementById('tpl-dispatch').innerHTML,
   freight:        document.getElementById('tpl-freight').innerHTML,
-  picks:          document.getElementById('tpl-picks').innerHTML,
   labor:          document.getElementById('tpl-labor').innerHTML,
   productivity:   document.getElementById('tpl-productivity').innerHTML,
   monthly:        document.getElementById('tpl-monthly').innerHTML,
@@ -447,6 +446,6 @@ const PAGE_TEMPLATES = {
   org:            document.getElementById('tpl-org').innerHTML,
 };
 </script>
-<script src="js/app.js?v=20260505-15"></script>
+<script src="js/app.js?v=20260508-1"></script>
 </body>
 </html>

@@ -4,26 +4,49 @@
 // 元件樣式原則：固定外觀放在 widget.css 的 CSS class；
 // JS 只保留資料結構、條件 class，以及必要的動態 style。
 
-// M012 預算達成率
+// M012 預算達成率（從已匯入的人力 + 運費資料自動計算）
 function renderM012() {
-  const pct       = getActualPct();
-  const progress  = getMonthProgress();
-  const projected = getProjectedPct();
-  const curColor  = colorFor(pct);
-  const projColor = colorFor(projected);
+  const laborRaw  = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
+    .filter(r => dateInSelectedRange(r.date) && r.hours > 0 && r.opArea !== '午休時間');
+  const laborCost   = laborRaw.reduce((s, r) => s + r.cost, 0);
+  const freightCost = getFreightDailyRowsFiltered()
+    .reduce((s, r) => s + (r[1]||0) + (r[2]||0) + (r[3]||0), 0);
+  const actual = laborCost + freightCost;
+
+  const idx    = monthIndexFromDate(DATA.dateFrom);
+  const WHS    = ['大溪倉', '大肚倉', '岡山倉'];
+  const budget = WHS.reduce((s, wh) =>
+    s + (DATA.annualBudget?.labor?.[wh]?.[idx]   || 0)
+      + (DATA.annualBudget?.freight?.[wh]?.[idx] || 0), 0);
+
+  if (!budget && !actual) {
+    return `
+  <div class="w s12 table-card">
+    <div class="wh"><div class="wl"><div class="wdot"></div>${DATA.widgetLabels?.m012 || 'M012 預算達成率'}</div></div>
+    <div class="empty-state">請先匯入年度預算與費用資料</div>
+  </div>`;
+  }
+
+  const dayOfMonth = Number((DATA.dateTo  || '').slice(8, 10)) || 0;
+  const totalDays  = daysInMonthFor(DATA.dateFrom);
+  const progress   = totalDays  ? dayOfMonth / totalDays : 0;
+  const pct        = budget     ? actual / budget * 100  : 0;
+  const projected  = progress   ? pct / progress         : 0;
+  const curColor   = colorFor(pct);
+  const projColor  = colorFor(projected);
 
   return `
   <div class="w s12" style="border-top:3px solid ${projColor}">
     <div class="gold-band gold-band-dynamic" style="background:${projColor}">
-      M012 預算達成率 · 基準 = 月預算 ${fmtMoney(DATA.budget)}（來源：預算 Excel）
+      ${DATA.widgetLabels?.m012 || 'M012 預算達成率'} · 基準 = ${idx+1}月預算 ${fmtMoney(Math.round(budget))}（來源：年度預算）
     </div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:${projColor}"></div>動支率監控</div>
-      <div class="wmeta">${DATA.dayOfMonth}/${DATA.totalDays} 天 · 月進度 ${(progress*100).toFixed(1)}%</div>
+      <div class="wmeta">${dayOfMonth}/${totalDays} 天 · 月進度 ${(progress*100).toFixed(1)}%</div>
     </div>
     <div class="m012-grid">
       <div class="m012-panel m012-panel-bordered">
-        <div class="metric-label">今日動支率</div>
+        <div class="metric-label">累計動支率</div>
         <div class="metric-row">
           <div class="metric-value" style="color:${curColor}">${pct.toFixed(1)}</div>
           <div class="metric-unit" style="color:${curColor}">%</div>
@@ -34,7 +57,8 @@ function renderM012() {
           <div class="metric-limit metric-limit-90"></div>
         </div>
         <div class="metric-sub">
-          ${fmtMoney(DATA.actual)} / ${fmtMoney(DATA.budget)}
+          ${fmtMoney(Math.round(actual))} / ${fmtMoney(Math.round(budget))}
+          <span style="font-size:10px;color:var(--ry-muted);margin-left:8px">人力 ${fmtMoney(Math.round(laborCost))} ＋ 運費 ${fmtMoney(Math.round(freightCost))}</span>
         </div>
       </div>
       <div class="m012-panel">
@@ -54,59 +78,92 @@ function renderM012() {
     <div class="m012-note" style="background:${bgFor(projected)};border-left-color:${projColor}">
       ${projected>=90 ? `<b class="text-danger">⚠️ 月底預估將超過 90% 目標上限</b>，建議立即盤點未執行項目、延後可遞延支出。`
         : projected>=75 ? `<b class="text-warning">🟡 月底預估接近警戒線</b>，請留意未來兩週的費用節奏。`
-                       : `<b class="text-safe">🟢 月底預估控管良好</b>，可維持目前節奏。`}
+                        : `<b class="text-safe">🟢 月底預估控管良好</b>，可維持目前節奏。`}
     </div>
   </div>`;
 }
 
-// M015 Business Units 表格
+// M015 每月動支率時序列
 function renderM015() {
-  const normalUnits = DATA.units.filter(u => u.type !== 'sup');
-  const totalFee = normalUnits.reduce((s, u) => s + u.fee, 0);
+  const allLabor = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
+    .filter(r => r.hours > 0 && r.opArea !== '午休時間' && r.date);
+  const hasFreight = DATA.freight.dailyByWarehouse?.length > 0 ||
+                     DATA.freight.dailyTrend?.length > 0;
 
-  function statusTag(u) {
-    if (u.type === 'sup') return { label:'SUP', className:'tag-sup' };
-    const pct = totalFee ? u.fee / totalFee * 100 : 0;
-    if (pct > DATA.thresholdPeak)   return { label:'PEAK',   className:'tag-peak' };
-    if (pct >= DATA.thresholdStable) return { label:'STABLE', className:'tag-stable' };
-    return { label:'IDLE', className:'tag-idle' };
+  if (!allLabor.length && !hasFreight) {
+    return `
+  <div class="w s12 table-card">
+    <div class="wh"><div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div></div>
+    <div class="empty-state">請先匯入人力費用資料</div>
+  </div>`;
   }
 
-  const sorted = [...DATA.units].sort((a, b) => {
-    if (a.type === 'sup') return 1;
-    if (b.type === 'sup') return -1;
-    return b.fee - a.fee;
+  // 依月份彙總人力費用
+  const laborByMonth = {};
+  allLabor.forEach(r => {
+    const ym = r.date.slice(0, 7); // 'YYYY-MM'
+    if (!laborByMonth[ym]) laborByMonth[ym] = 0;
+    laborByMonth[ym] += r.cost;
   });
 
-  const rows = sorted.map(u => {
-    const pct = u.type === 'sup' ? null : (totalFee ? u.fee / totalFee * 100 : 0);
-    const tag = statusTag(u);
-    return `
-    <tr>
-      <td>${u.name}</td>
-      <td class="mono">${fmtMoney(u.fee)}</td>
-      <td class="mono">${u.hr}h</td>
-      <td class="mono">${pct === null ? '—' : pct.toFixed(1) + '%'}</td>
-      <td><span class="tag ${tag.className}">${tag.label}</span></td>
+  // 依月份彙總運費
+  const freightByMonth = {};
+  DATA.freight.dailyByWarehouse.forEach(r => {
+    const fullDate = r[4] || shortToFreightFullDate(r[0]);
+    if (!fullDate) return;
+    const ym = fullDate.slice(0, 7);
+    if (!freightByMonth[ym]) freightByMonth[ym] = 0;
+    freightByMonth[ym] += (r[1] || 0) + (r[2] || 0) + (r[3] || 0);
+  });
+
+  const months = [...new Set([...Object.keys(laborByMonth), ...Object.keys(freightByMonth)])].sort();
+
+  const rows = months.map(ym => {
+    const labor   = laborByMonth[ym]   || 0;
+    const freight = freightByMonth[ym] || 0;
+    const total   = labor + freight;
+    const mIdx    = Number(ym.slice(5, 7)) - 1;
+    const WHS     = ['大溪倉', '大肚倉', '岡山倉'];
+    const budget  = WHS.reduce((s, wh) =>
+      s + (DATA.annualBudget?.labor?.[wh]?.[mIdx]   || 0)
+        + (DATA.annualBudget?.freight?.[wh]?.[mIdx] || 0), 0);
+    const pct     = budget ? total / budget * 100 : 0;
+    const color   = budget ? colorFor(pct) : 'var(--ry-muted)';
+    const [y, m]  = ym.split('-');
+    return `<tr>
+      <td style="font-weight:700">${y}年${Number(m)}月</td>
+      <td class="mono num-right">${fmtMoney(Math.round(labor))}</td>
+      <td class="mono num-right">${fmtMoney(Math.round(freight))}</td>
+      <td class="mono num-right actual-strong">${fmtMoney(Math.round(total))}</td>
+      <td class="mono num-right">${budget ? fmtMoney(Math.round(budget)) : '—'}</td>
+      <td class="num-right">
+        ${budget
+          ? `<span class="solid-pct-badge" style="background:${color}">${pct.toFixed(1)}%</span>`
+          : '—'}
+      </td>
     </tr>`;
   }).join('');
 
   return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
-      <div class="wl"><div class="wdot dot-freight"></div>M015 Business Units 表格</div>
-      <span class="wmeta">⚠️ 門檻值待確認</span>
+      <div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div>
+      <span class="wmeta">${months.length} 個月份</span>
     </div>
     <div class="table-edge">
       <table class="tbl">
-        <thead><tr><th>作業課別</th><th>費用</th><th>工時</th><th>佔比</th><th>狀態</th></tr></thead>
+        <thead><tr>
+          <th>月份</th>
+          <th class="num-right">人力費用</th>
+          <th class="num-right">運費</th>
+          <th class="num-right">合計實際</th>
+          <th class="num-right">月預算</th>
+          <th class="num-right">動支率</th>
+        </tr></thead>
         <tbody>${rows}</tbody>
       </table>
       <div class="table-note">
-        📌 門檻：&gt; ${DATA.thresholdPeak}% = <b class="text-warning">PEAK</b> ｜
-        ${DATA.thresholdStable}–${DATA.thresholdPeak}% = <b class="text-safe">STABLE</b> ｜
-        &lt; ${DATA.thresholdStable}% = <b class="text-muted-strong">IDLE</b><br>
-        📌 佔比計算排除 SUP 後勤支援課
+        📌 動支率 = 合計實際 ÷ 月預算（需載入年度預算）· 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
       </div>
     </div>
   </div>`;
@@ -250,7 +307,7 @@ function renderF009() {
   const data = getFreightTrendFiltered();
   if (!data.length) {
     return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
       <div class="wl"><div class="wdot"></div>F009 日費用趨勢</div>
       <span class="wmeta">0 天</span>
@@ -665,7 +722,7 @@ function renderT002() {
   const keyTotal   = { b:'budget',        a:'total',   p:'pct'        };
 
   return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
       <div class="wl"><div class="wdot"></div>T002 期間動支彙總</div>
       <span class="wmeta">${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${rows.length} 天</span>
@@ -716,10 +773,10 @@ function productivityTotals(labor, picks) {
 }
 
 // M019 全區 PPH
-function renderM019(t) {
+function renderM019(t, code = 'M019', span = 's4') {
   return `
-  <div class="w s4">
-    <div class="gold-band">M019 · PPH</div>
+  <div class="w ${span} metric-card">
+    <div class="gold-band">${code} · PPH</div>
     <div class="wh">
       <div class="wl"><div class="wdot"></div>每小時揀次 PPH</div>
       <span class="wmeta">全倉期間均值</span>
@@ -733,10 +790,10 @@ function renderM019(t) {
 }
 
 // M020 單次揀貨成本
-function renderM020(t) {
+function renderM020(t, code = 'M020', span = 's4') {
   return `
-  <div class="w s4">
-    <div class="gold-band" style="background:var(--ry-gold);color:var(--ry-blue-dark)">M020 · CPP</div>
+  <div class="w ${span} metric-card">
+    <div class="gold-band" style="background:var(--ry-gold);color:var(--ry-blue-dark)">${code} · CPP</div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:var(--ry-gold)"></div>單次揀貨成本</div>
       <span class="wmeta">元 / 揀次</span>
@@ -769,7 +826,7 @@ function renderM021(t) {
 }
 
 // M023 三倉 PPH 比較（返回 3 個 s4 widget）
-function renderM023(labor, picks) {
+function renderM023(labor, picks, code = 'M023') {
   const WHS    = ['大溪倉', '大肚倉', '岡山倉'];
   const colors = { '大溪倉': '#0E7BAD', '大肚倉': '#2DA870', '岡山倉': '#E07855' };
   const stats  = WHS.map(wh => ({
@@ -783,8 +840,8 @@ function renderM023(labor, picks) {
     const barW = (s.pph / maxPph * 100).toFixed(1);
     const has  = s.hrs > 0 || s.picks > 0;
     return `
-  <div class="w s4">
-    <div class="gold-band" style="background:${c};color:white">M023 · ${s.wh}</div>
+  <div class="w s4 metric-card">
+    <div class="gold-band" style="background:${c};color:white">${code} · ${s.wh}</div>
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:${c}"></div>${s.wh} PPH</div>
     </div>
@@ -801,7 +858,7 @@ function renderM023(labor, picks) {
 }
 
 // M025 工時區域人效矩陣
-function renderM025(labor, picks) {
+function renderM025(labor, picks, code = 'M025') {
   const laborByArea = {};
   labor.forEach(r => {
     if (!laborByArea[r.opArea]) laborByArea[r.opArea] = { hrs: 0, cost: 0, normHrs: 0 };
@@ -831,8 +888,8 @@ function renderM025(labor, picks) {
 
   if (!rows.length) {
     return `
-  <div class="w s12">
-    <div class="wh"><div class="wl"><div class="wdot"></div>M025 工時區域人效矩陣</div></div>
+  <div class="w s12 table-card">
+    <div class="wh"><div class="wl"><div class="wdot"></div>${code} 工時區域人效矩陣</div></div>
     <div class="empty-state">此日期區間沒有資料</div>
   </div>`;
   }
@@ -859,9 +916,9 @@ function renderM025(labor, picks) {
   }).join('');
 
   return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
-      <div class="wl"><div class="wdot"></div>M025 工時區域人效矩陣</div>
+      <div class="wl"><div class="wdot"></div>${code} 工時區域人效矩陣</div>
       <span class="wmeta">${rows.length} 個作業區域</span>
     </div>
     <div class="table-edge">
@@ -1107,7 +1164,7 @@ function renderM011(laborByWh, freightByWh, budget) {
   const monthLabel = monthIndexFromDate(DATA.dateFrom) + 1;
 
   return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
       <div class="wl"><div class="wdot"></div>M011 本部費用彙總</div>
       <span class="wmeta">${hasBudget ? `對照 ${monthLabel} 月預算` : '⚠️ 尚未載入年度預算'}</span>
@@ -1330,7 +1387,7 @@ function renderT003() {
 
   if (!rows.length) {
     return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
       <div class="wl"><div class="wdot t003-title-dot"></div>T003 每日動支明細</div>
       <span class="wmeta">0 天 · 資料最新日期 ${getDispatchLatestUploadDate() || '尚未匯入'}</span>
@@ -1346,7 +1403,7 @@ function renderT003() {
   }).join('');
 
   return `
-  <div class="w s12">
+  <div class="w s12 table-card">
     <div class="wh">
       <div class="wl"><div class="wdot t003-title-dot"></div>T003 每日動支明細</div>
       <span class="wmeta">${rows.length} 天 · 橫向日期 · 資料最新日期 ${getDispatchLatestUploadDate()}</span>
