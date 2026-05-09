@@ -946,6 +946,225 @@ function renderM025(labor, picks, code = 'M025') {
 // 月度結算共用工具
 // ════════════════════════════════════════════
 
+// ════════════════════════════════════════════
+// 年度規劃分析
+// ════════════════════════════════════════════
+
+function getAnnualLaborActual() {
+  const result = { '大溪倉': Array(12).fill(0), '大肚倉': Array(12).fill(0), '岡山倉': Array(12).fill(0) };
+  const raw = typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [];
+  raw.filter(r => r.hours > 0 && r.opArea !== '午休時間').forEach(r => {
+    const mi = Number(r.date.slice(5, 7)) - 1;
+    if (mi >= 0 && mi < 12 && result[r.wh]) result[r.wh][mi] += r.cost;
+  });
+  return result;
+}
+
+function getAnnualFreightActual() {
+  const result = { '大溪倉': Array(12).fill(0), '大肚倉': Array(12).fill(0), '岡山倉': Array(12).fill(0) };
+  DATA.freight.dailyByWarehouse.forEach(r => {
+    const fullDate = r[4] || shortToFreightFullDate(r[0]);
+    if (!fullDate) return;
+    const mi = Number(fullDate.slice(5, 7)) - 1;
+    if (mi < 0 || mi >= 12) return;
+    result['大溪倉'][mi] += r[1] || 0;
+    result['大肚倉'][mi] += r[2] || 0;
+    result['岡山倉'][mi] += r[3] || 0;
+  });
+  return result;
+}
+
+function renderAnnualSection(type) {
+  const label  = type === 'labor' ? '人力費用' : '運務費用';
+  const dotCls = type === 'labor' ? ''         : 'dot-freight';
+  const budget = DATA.annualBudget[type];
+  const actual = type === 'labor' ? getAnnualLaborActual() : getAnnualFreightActual();
+  const WHS    = ['大溪倉', '大肚倉', '岡山倉'];
+
+  const totalBudget = Array(12).fill(0).map((_, mi) => WHS.reduce((s, wh) => s + (budget[wh]?.[mi] || 0), 0));
+  const totalActual = Array(12).fill(0).map((_, mi) => WHS.reduce((s, wh) => s + (actual[wh]?.[mi] || 0), 0));
+  const hasBudget   = totalBudget.some(v => v > 0);
+  const hasActual   = totalActual.some(v => v > 0);
+
+  if (!hasBudget && !hasActual) {
+    return `
+  <div class="w s12 table-card">
+    <div class="gold-band">${label}區</div>
+    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>${label}區</div></div>
+    <div class="empty-state">請先匯入${type === 'labor' ? '工時資料與' : '運費資料與'}年度預算</div>
+  </div>`;
+  }
+
+  return [
+    renderAnnualCharts(label, dotCls, totalBudget, totalActual, hasBudget, hasActual),
+    renderAnnualTable(label, dotCls, budget, actual, WHS, totalBudget, totalActual),
+  ].join('');
+}
+
+function renderAnnualCharts(label, dotCls, totalBudget, totalActual, hasBudget, hasActual) {
+  const W = 600, H = 200, padL = 52, padR = 16, padT = 24, padB = 36;
+  const plotW = W - padL - padR, plotH = H - padT - padB;
+  const xFor  = mi => padL + mi * (plotW / 11);
+  const xLabels = Array(12).fill(0).map((_, mi) =>
+    `<text x="${xFor(mi).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#5a6478" font-family="Courier New,monospace">${mi + 1}月</text>`
+  ).join('');
+
+  // Chart 1: 達成率折線
+  const pcts = Array(12).fill(0).map((_, mi) =>
+    totalBudget[mi] > 0 ? totalActual[mi] / totalBudget[mi] * 100 : null
+  );
+  const hasPct = pcts.some(v => v !== null);
+  const maxPct = 120;
+  const yPct   = v => padT + plotH - (v / maxPct * plotH);
+
+  const pctPath = (() => {
+    const segs = []; let penDown = false;
+    pcts.forEach((p, mi) => {
+      if (p === null) { penDown = false; return; }
+      segs.push(`${penDown ? 'L' : 'M'}${xFor(mi).toFixed(1)},${yPct(p).toFixed(1)}`);
+      penDown = true;
+    });
+    return segs.join(' ');
+  })();
+
+  const pctDots = pcts.map((p, mi) => {
+    if (p === null) return '';
+    const c = colorFor(p);
+    return `<circle cx="${xFor(mi).toFixed(1)}" cy="${yPct(p).toFixed(1)}" r="4" fill="${c}" stroke="white" stroke-width="1.5"><title>${mi + 1}月：${p.toFixed(1)}%</title></circle>`;
+  }).join('');
+
+  const pctYTicks = [0, 25, 50, 75, 90, 100].map(v => {
+    const y = yPct(v).toFixed(1);
+    const isRef = v === 75 || v === 90;
+    return `<line x1="${padL}" y1="${y}" x2="${padL + plotW}" y2="${y}" stroke="${v === 75 ? '#f59e0b' : v === 90 ? '#d9401b' : '#dde2ec'}" stroke-width="${isRef ? 1 : 0.5}" stroke-dasharray="${isRef ? '4,3' : ''}"/>
+    <text x="${padL - 4}" y="${(Number(y) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#5a6478">${v}%</text>`;
+  }).join('');
+
+  const chart1 = `
+  <div class="w s6 chart-card">
+    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>${label} · 達成率趨勢（全區合計）</div></div>
+    ${!hasPct ? '<div class="empty-state">需同時匯入預算與費用資料</div>' : `
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}">
+      ${pctYTicks}
+      ${pctPath ? `<path d="${pctPath}" fill="none" stroke="var(--ry-blue)" stroke-width="2" stroke-linejoin="round"/>` : ''}
+      ${pctDots}
+      ${xLabels}
+    </svg>
+    <div class="chart-note">📌 黃虛線 75% · 紅虛線 90% · 懸停查看月份數值</div>`}
+  </div>`;
+
+  // Chart 2: 預算 vs 實際金額折線
+  const maxAmt = Math.max(...totalBudget, ...totalActual, 1);
+  const yAmt   = v => padT + plotH - (v / maxAmt * plotH);
+
+  const buildAmtPath = vals => {
+    const segs = []; let penDown = false;
+    vals.forEach((v, mi) => {
+      if (v === 0 && totalBudget[mi] === 0 && totalActual[mi] === 0) { penDown = false; return; }
+      segs.push(`${penDown ? 'L' : 'M'}${xFor(mi).toFixed(1)},${yAmt(v).toFixed(1)}`);
+      penDown = true;
+    });
+    return segs.join(' ');
+  };
+
+  const amtYTicks = [0, maxAmt / 2, maxAmt].map(v =>
+    `<line x1="${padL}" y1="${yAmt(v).toFixed(1)}" x2="${padL + plotW}" y2="${yAmt(v).toFixed(1)}" stroke="#dde2ec" stroke-width="0.5" stroke-dasharray="3,3"/>
+     <text x="${padL - 4}" y="${(yAmt(v) + 3).toFixed(1)}" text-anchor="end" font-size="9" fill="#5a6478">${(v / 1000).toFixed(0)}K</text>`
+  ).join('');
+
+  const chart2 = `
+  <div class="w s6 chart-card">
+    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>${label} · 預算 vs 實際（全區合計）</div></div>
+    <svg class="chart-svg" viewBox="0 0 ${W} ${H}">
+      ${amtYTicks}
+      <line x1="${padL + 4}" y1="${padT - 12}" x2="${padL + 20}" y2="${padT - 12}" stroke="#1e5ca8" stroke-width="2" stroke-dasharray="5,3"/>
+      <text x="${padL + 24}" y="${padT - 8}" font-size="10" fill="#1e5ca8">預算</text>
+      <line x1="${padL + 60}" y1="${padT - 12}" x2="${padL + 76}" y2="${padT - 12}" stroke="#2ea85a" stroke-width="2"/>
+      <text x="${padL + 80}" y="${padT - 8}" font-size="10" fill="#2ea85a">實際</text>
+      ${hasBudget ? `<path d="${buildAmtPath(totalBudget)}" fill="none" stroke="#1e5ca8" stroke-width="2" stroke-dasharray="6,4" stroke-linejoin="round"/>` : ''}
+      ${hasActual ? `<path d="${buildAmtPath(totalActual)}" fill="none" stroke="#2ea85a" stroke-width="2" stroke-linejoin="round"/>` : ''}
+      ${xLabels}
+    </svg>
+    <div class="chart-note">📌 藍虛線 = 預算 · 綠實線 = 實際 · Y 軸單位：千元</div>
+  </div>`;
+
+  return chart1 + chart2;
+}
+
+function renderAnnualTable(label, dotCls, budget, actual, WHS, totalBudget, totalActual) {
+  const grandBudget = totalBudget.reduce((s, v) => s + v, 0);
+  const grandActual = totalActual.reduce((s, v) => s + v, 0);
+
+  const pctBadge = (b, a) => {
+    if (!b && !a) return '<td class="annual-empty" colspan="3">—</td>';
+    const pct   = b > 0 ? a / b * 100 : null;
+    const color = pct !== null ? colorFor(pct) : 'var(--ry-muted)';
+    const badge = pct !== null
+      ? `<span class="annual-pct-badge" style="background:${color}">${pct.toFixed(1)}%</span>`
+      : '—';
+    return `<td class="mono num-right">${b > 0 ? fmtMoney(Math.round(b)) : '—'}</td>` +
+           `<td class="mono num-right">${a > 0 ? fmtMoney(Math.round(a)) : '—'}</td>` +
+           `<td class="num-right">${badge}</td>`;
+  };
+
+  const thMonths = Array(12).fill(0).map((_, mi) =>
+    `<th colspan="3" class="annual-th-month">${mi + 1}月</th>`
+  ).join('');
+  const thSubs = Array(12).fill(0).map(() =>
+    '<th class="num-right annual-th-sub">預算</th><th class="num-right annual-th-sub">實際</th><th class="num-right annual-th-sub">達成率</th>'
+  ).join('');
+
+  const whRows = WHS.map(wh => {
+    const yearB = budget[wh].reduce((s, v) => s + v, 0);
+    const yearA = actual[wh].reduce((s, v) => s + v, 0);
+    const cells = Array(12).fill(0).map((_, mi) => pctBadge(budget[wh][mi], actual[wh][mi])).join('');
+    return `<tr>
+      <td class="annual-td-wh">${wh}</td>
+      ${cells}
+      ${pctBadge(yearB, yearA)}
+    </tr>`;
+  }).join('');
+
+  const totalCells = Array(12).fill(0).map((_, mi) => pctBadge(totalBudget[mi], totalActual[mi])).join('');
+
+  return `
+  <div class="w s12 table-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot ${dotCls}"></div>${label} · 月度明細表</div>
+      <span class="wmeta">全年合計：預算 ${fmtMoney(Math.round(grandBudget))} · 實際 ${fmtMoney(Math.round(grandActual))}</span>
+    </div>
+    <div class="table-edge annual-table-scroll">
+      <table class="tbl annual-tbl">
+        <thead>
+          <tr>
+            <th rowspan="2" class="annual-td-wh">倉別</th>
+            ${thMonths}
+            <th colspan="3" class="annual-th-month annual-th-year">全年合計</th>
+          </tr>
+          <tr>
+            ${thSubs}
+            <th class="num-right annual-th-sub">預算</th>
+            <th class="num-right annual-th-sub">實際</th>
+            <th class="num-right annual-th-sub">達成率</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${whRows}
+          <tr class="annual-row-total">
+            <td class="annual-td-wh">三倉合計</td>
+            ${totalCells}
+            ${pctBadge(grandBudget, grandActual)}
+          </tr>
+        </tbody>
+      </table>
+      <div class="table-note">
+        📌 達成率 = 實際 ÷ 預算 · 顏色：🟢 &lt; 75% · 🟡 75–90% · 🔴 &gt; 90%<br>
+        📌 人力費用來源：工時 Excel · 運務費用來源：運務 Excel · 預算來源：年度預算V2
+      </div>
+    </div>
+  </div>`;
+}
+
 function getMonthlyBudgetByWh() {
   const idx = monthIndexFromDate(DATA.dateFrom);
   return ['大溪倉', '大肚倉', '岡山倉'].reduce((acc, wh) => {

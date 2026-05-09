@@ -12,6 +12,7 @@ const PAGES = [
       { id:'labor',        icon:'⏱', label:'人力工時結構', status:'ready' },
       { id:'productivity', icon:'📊', label:'揀次人效分析', status:'ready' },
       { id:'monthly',      icon:'📆', label:'月度結算',     status:'ready' },
+      { id:'annual',       icon:'📋', label:'年度規劃分析', status:'ready' },
     ]
   },
   {
@@ -91,22 +92,16 @@ function loadPage(pageId) {
   if (pageId === 'daily')        initDailyPage();
   else if (pageId === 'dispatch') initDispatchPage();
   else if (pageId === 'freight') initFreightPage();
-  else if (pageId === 'picks')   initPicksPage();
   else if (pageId === 'labor')   initLaborPage();
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'org')     initOrgPage();
   else if (pageId === 'productivity') initProductivityPage();
   else if (pageId === 'monthly') initMonthlyPage();
+  else if (pageId === 'annual')  renderAnnualPage();
 }
 
 // ── 各頁面初始化 ──
-function initDailyPage() {
-  renderDailyPage();
-  const modal = document.getElementById('daily-modal');
-  if (modal) modal.addEventListener('click', e => {
-    if (e.target.id === 'daily-modal') closeDailyModal();
-  });
-}
+function initDailyPage() { renderDailyPage(); }
 
 function initDispatchPage() { renderDispatchPage(); }
 function initFreightPage()  { renderFreightPage(); }
@@ -158,10 +153,10 @@ function rerenderDashboardPage(pageId = currentPageId) {
   if (pageId === 'daily') renderDailyPage();
   else if (pageId === 'dispatch') renderDispatchPage();
   else if (pageId === 'freight') renderFreightPage();
-  else if (pageId === 'picks') renderPicksPage();
   else if (pageId === 'labor') renderLaborPage();
   else if (pageId === 'productivity') renderProductivityPage();
   else if (pageId === 'monthly') renderMonthlyPage();
+  else if (pageId === 'annual') renderAnnualPage();
 }
 
 function applyDashboardDateFilter(pageId = currentPageId) {
@@ -232,41 +227,6 @@ function renderDailyPage() {
 
 function applyFilter() {
   applyDashboardDateFilter('daily');
-}
-
-function openDailyModal() {
-  document.getElementById('in-budget').value     = DATA.budget;
-  document.getElementById('in-actual').value     = DATA.actual;
-  document.getElementById('in-day').value        = DATA.dayOfMonth;
-  document.getElementById('in-total-days').value = DATA.totalDays;
-  DATA.units.forEach((u, i) => {
-    document.getElementById(`in-u${i}-fee`).value = u.fee;
-    document.getElementById(`in-u${i}-hr`).value  = u.hr;
-  });
-  document.getElementById('in-peak').value   = DATA.thresholdPeak;
-  document.getElementById('in-stable').value = DATA.thresholdStable;
-  document.getElementById('daily-modal').classList.add('on');
-}
-
-function closeDailyModal() {
-  document.getElementById('daily-modal').classList.remove('on');
-}
-
-function saveDailyData() {
-  const g = id => { const v = document.getElementById(id).value; return v === '' ? null : Number(v); };
-  DATA.budget     = g('in-budget')     ?? DATA.budget;
-  DATA.actual     = g('in-actual')     ?? DATA.actual;
-  DATA.dayOfMonth = g('in-day')        ?? DATA.dayOfMonth;
-  DATA.totalDays  = g('in-total-days') ?? DATA.totalDays;
-  DATA.units.forEach((u, i) => {
-    u.fee = g(`in-u${i}-fee`) ?? u.fee;
-    u.hr  = g(`in-u${i}-hr`)  ?? u.hr;
-  });
-  DATA.thresholdPeak   = g('in-peak')   ?? DATA.thresholdPeak;
-  DATA.thresholdStable = g('in-stable') ?? DATA.thresholdStable;
-  closeDailyModal();
-  renderDailyPage();
-  toast('✓ 資料已更新');
 }
 
 // ════════════════════════════════════════════
@@ -581,10 +541,10 @@ function applyBudget() {
   DATA.annualBudget.labor = parsedBudget.labor;
   DATA.annualBudget.freight = parsedBudget.freight;
   DATA.dispatch.budget = parsedBudget.dispatchBudget;
-  DATA.budget = Object.values(parsedBudget.dispatchBudget).reduce((s, b) => s + b.labor + b.freight, 0);
   DATA.dataLatest.budget = `${parsedBudget.monthIndex + 1}月`;
   if (currentPageId === 'dispatch') renderDispatchPage();
   if (currentPageId === 'daily') renderDailyPage();
+  if (currentPageId === 'annual') renderAnnualPage();
   updateStatus();
   toast('✅ 年度預算已套用！總費用動支率預算已更新');
 }
@@ -885,6 +845,7 @@ function applyFreight() {
 
   DATA.dispatch.daily.sort((a, b) => dispatchRowFullDate(a).localeCompare(dispatchRowFullDate(b)));
   updateDispatchLatestUploadDate(parsedFreight.rows.map(r => r.fullDate));
+  if (currentPageId === 'annual') renderAnnualPage();
   updateStatus();
   toast('✅ 運務資料已套用！切換至「總費用動支率」頁查看');
 }
@@ -1131,6 +1092,7 @@ function applyLabor() {
   if (currentPageId === 'labor') renderLaborPage();
   if (currentPageId === 'dispatch') renderDispatchPage();
   if (currentPageId === 'productivity') renderProductivityPage();
+  if (currentPageId === 'annual') renderAnnualPage();
   updateStatus();
   toast('✅ 工時資料已套用！總費用動支率的人力欄位已更新');
 }
@@ -2033,4 +1995,13 @@ function renderMonthlyPage() {
     : allDates[0] || DATA.dateFrom;
   const meta = document.getElementById('monthly-meta');
   if (meta) meta.textContent = `月度結算 · ${period}`;
+}
+
+// ════════════════════════════════════════════
+// Annual Page 年度規劃分析
+// ════════════════════════════════════════════
+function renderAnnualPage() {
+  const grid = document.getElementById('annual-grid');
+  if (!grid) return;
+  grid.innerHTML = [renderAnnualSection('labor'), renderAnnualSection('freight')].join('');
 }

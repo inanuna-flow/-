@@ -6,7 +6,7 @@
 <title>KPL 儀表板 · 日翊文化行銷</title>
 <link rel="stylesheet" href="css/base.css?v=20260504-3">
 <link rel="stylesheet" href="css/layout.css?v=20260505-2">
-<link rel="stylesheet" href="css/widget.css?v=20260505-14">
+<link rel="stylesheet" href="css/widget.css?v=20260509-1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -52,60 +52,11 @@
   <input type="date" class="filter-input" id="filter-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyFilter()">套用</button>
-  <button class="btn btn-gold" onclick="openDailyModal()">📁 資料設定</button>
   <span class="filter-meta" id="filter-meta"></span>
 </div>
 
 <div class="grid" id="daily-grid"></div>
 
-<div class="modal-overlay" id="daily-modal">
-  <div class="modal">
-    <div class="modal-head">
-      <div>
-        <div class="modal-title">📁 資料設定</div>
-        <div class="modal-sub">未來由資訊部改接 API；目前可手動輸入測試數字</div>
-      </div>
-      <button class="modal-close" onclick="closeDailyModal()">✕</button>
-    </div>
-    <div class="modal-body">
-      <div class="field-group">
-        <div class="field-group-label">💰 預算 & 累計費用（M012）</div>
-        <div class="field"><label>月預算（$）</label><input type="number" id="in-budget"></div>
-        <div class="field-note">來源：預算 Excel</div>
-        <div class="field"><label>累計人力費用（$）</label><input type="number" id="in-actual"></div>
-        <div class="field-note">排除 SUP 後勤課</div>
-        <div class="field"><label>今天第幾天</label><input type="number" id="in-day"></div>
-        <div class="field"><label>當月總天數</label><input type="number" id="in-total-days"></div>
-      </div>
-      <div class="field-group">
-        <div class="field-group-label">📋 業務單位費用（M015）</div>
-        <div class="field"><label>EC理貨課 $</label><input type="number" id="in-u0-fee"></div>
-        <div class="field"><label>EC理貨課 工時</label><input type="number" id="in-u0-hr"></div>
-        <div class="field"><label>夜配裝箱課 $</label><input type="number" id="in-u1-fee"></div>
-        <div class="field"><label>夜配裝箱課 工時</label><input type="number" id="in-u1-hr"></div>
-        <div class="field"><label>夜配理貨課 $</label><input type="number" id="in-u2-fee"></div>
-        <div class="field"><label>夜配理貨課 工時</label><input type="number" id="in-u2-hr"></div>
-        <div class="field"><label>理貨外圍課 $</label><input type="number" id="in-u3-fee"></div>
-        <div class="field"><label>理貨外圍課 工時</label><input type="number" id="in-u3-hr"></div>
-        <div class="field"><label>異常作業課 $</label><input type="number" id="in-u4-fee"></div>
-        <div class="field"><label>異常作業課 工時</label><input type="number" id="in-u4-hr"></div>
-        <div class="field"><label>後勤支援課 $</label><input type="number" id="in-u5-fee"></div>
-        <div class="field"><label>後勤支援課 工時</label><input type="number" id="in-u5-hr"></div>
-      </div>
-      <div class="field-group">
-        <div class="field-group-label">🎚️ 門檻設定（M015）</div>
-        <div class="field"><label>PEAK 門檻 %</label><input type="number" step="0.1" id="in-peak"></div>
-        <div class="field-note">佔比 &gt; 此值 = PEAK</div>
-        <div class="field"><label>STABLE 門檻 %</label><input type="number" step="0.1" id="in-stable"></div>
-        <div class="field-note">佔比 &lt; 此值 = IDLE</div>
-      </div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="closeDailyModal()">取消</button>
-      <button class="btn btn-primary" onclick="saveDailyData()">儲存並更新</button>
-    </div>
-  </div>
-</div>
 </script>
 
 <script id="tpl-dispatch" type="text/html">
@@ -178,6 +129,15 @@
   <span class="filter-meta" id="monthly-date-meta"></span>
 </div>
 <div class="grid" id="monthly-grid"></div>
+</script>
+
+<script id="tpl-annual" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">ANNUAL PLAN · 年度規劃分析</div>
+  <h1 class="page-h">年度規劃分析</h1>
+  <div class="page-p">全年 12 個月預算 vs 實際費用對照（人力費用 / 運務費用）</div>
+</div>
+<div class="grid" id="annual-grid"></div>
 </script>
 
 <script id="tpl-import" type="text/html">
@@ -430,9 +390,9 @@
 <!-- JS 載入順序：picks/labor data → data → utils → widgets → app -->
 <script src="js/picks_data.js?v=20260504-3"></script>
 <script src="js/labor_data.js?v=20260504-3"></script>
-<script src="js/data.js?v=20260505-4"></script>
+<script src="js/data.js?v=20260509-1"></script>
 <script src="js/utils.js?v=20260505-1"></script>
-<script src="js/widgets.js?v=20260505-14"></script>
+<script src="js/widgets.js?v=20260509-1"></script>
 <script>
 // 從 <script type="text/html"> 讀取模板
 const PAGE_TEMPLATES = {
@@ -442,10 +402,11 @@ const PAGE_TEMPLATES = {
   labor:          document.getElementById('tpl-labor').innerHTML,
   productivity:   document.getElementById('tpl-productivity').innerHTML,
   monthly:        document.getElementById('tpl-monthly').innerHTML,
+  annual:         document.getElementById('tpl-annual').innerHTML,
   import:         document.getElementById('tpl-import').innerHTML,
   org:            document.getElementById('tpl-org').innerHTML,
 };
 </script>
-<script src="js/app.js?v=20260508-1"></script>
+<script src="js/app.js?v=20260509-1"></script>
 </body>
 </html>

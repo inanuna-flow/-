@@ -13,19 +13,8 @@
 
 const DATA = {
   // 日期相關
-  dateFrom:   '2026-03-01',
-  dateTo:     '2026-03-31',
-  dayOfMonth: 0,
-  totalDays:  31,
-
-  // 預算 & 累計費用（M012）
-  budget:     0,
-  actual:     0,
-
-  // M015 Business Units
-  units: [],
-  thresholdPeak:   30,
-  thresholdStable: 10,
+  dateFrom: '2026-03-01',
+  dateTo:   '2026-03-31',
 
   // 運費資料（F001-F009）
   freight: {
