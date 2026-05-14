@@ -17,6 +17,8 @@ Excel import flow, or authentication flow.
   - Creates `kpl_dashboard`
   - Creates all first-phase tables
   - Creates indexes, unique keys, update timestamp triggers, and default warehouse/shift mappings
+- `init_database.sql`
+  - Same first-phase schema setup, provided as a simple handoff file for IT/admin execution
 - `tests/verify_kpl_dashboard_schema.sql`
   - Inserts sample 2026-03 data in a transaction
   - Verifies upsert behavior
