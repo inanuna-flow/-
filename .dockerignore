@@ -1,0 +1,16 @@
+.git
+.claude
+.vscode
+database
+*.xlsx
+**/*.xlsx
+*.xls
+**/*.xls
+*.docx
+**/*.docx
+*.doc
+**/*.doc
+README.md
+DEVSPEC.md
+read_budget.ps1
+*.md
