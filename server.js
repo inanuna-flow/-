@@ -5,6 +5,7 @@ const { Pool } = require('pg');
 
 const PORT = Number(process.env.PORT || 4173);
 const ROOT = __dirname;
+const STATIC_ROOT = path.join(ROOT, 'kpl-dashboard');
 const EIP_CHECK_USER_URL = 'https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId';
 const PERMISSIONS_FILE = path.join(ROOT, 'page_permissions.json');
 const ADMIN_USER_ID = (process.env.ADMIN_USER_ID || 'inari').toLowerCase();
@@ -190,10 +191,13 @@ async function handleCheckUser(req, res) {
 function handleStatic(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const pathname = decodeURIComponent(url.pathname);
-  const relativePath = pathname === '/' ? 'index.html' : pathname.slice(1);
-  const filePath = path.resolve(ROOT, relativePath);
+  let relativePath = pathname === '/' ? 'login.html' : pathname.slice(1);
+  if (relativePath.startsWith('kpl-dashboard/')) {
+    relativePath = relativePath.slice('kpl-dashboard/'.length);
+  }
+  const filePath = path.resolve(STATIC_ROOT, relativePath);
 
-  if (!filePath.startsWith(ROOT)) {
+  if (!filePath.startsWith(STATIC_ROOT + path.sep) && filePath !== STATIC_ROOT) {
     res.writeHead(403);
     res.end('Forbidden');
     return;

@@ -542,9 +542,9 @@ function dailyDispatchBudget(warehouse, dateStr) {
 }
 
 function selectedDispatchBudget(warehouse) {
-  const rows = getDispatchDailyFiltered();
-  return rows.reduce((sum, row) => {
-    const daily = dailyDispatchBudget(warehouse, dispatchRowFullDate(row));
+  const dates = selectedDispatchDateRange();
+  return dates.reduce((sum, dateStr) => {
+    const daily = dailyDispatchBudget(warehouse, dateStr);
     sum.labor += daily.labor;
     sum.freight += daily.freight;
     return sum;
@@ -552,10 +552,21 @@ function selectedDispatchBudget(warehouse) {
 }
 
 function selectedDispatchDayCount() {
+  return selectedDispatchDateRange().length;
+}
+
+function selectedDispatchDateRange() {
   const from = new Date(`${DATA.dateFrom}T00:00:00`);
   const to = new Date(`${DATA.dateTo}T00:00:00`);
-  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return 0;
-  return Math.round((to - from) / 86400000) + 1;
+  if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime()) || to < from) return [];
+  const dates = [];
+  for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+    const yyyy = d.getFullYear();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    dates.push(`${yyyy}-${mm}-${dd}`);
+  }
+  return dates;
 }
 
 function getDispatchLatestUploadDate() {
@@ -725,7 +736,7 @@ function renderT002() {
   <div class="w s12 table-card">
     <div class="wh">
       <div class="wl"><div class="wdot"></div>T002 期間動支彙總</div>
-      <span class="wmeta">${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${rows.length} 天</span>
+      <span class="wmeta">${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${selectedDispatchDayCount()} 天</span>
     </div>
     <div class="table-edge">
       <div class="scroll-x">
