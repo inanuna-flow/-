@@ -21,3 +21,5 @@ steps:
       - '--quiet'
 images:
   - 'asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'
+options:
+  logging: CLOUD_LOGGING_ONLY
