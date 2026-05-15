@@ -1,0 +1,23 @@
+steps:
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'build'
+      - '-t'
+      - 'asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'
+      - '.'
+  - name: 'gcr.io/cloud-builders/docker'
+    args:
+      - 'push'
+      - 'asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'
+  - name: 'gcr.io/google.com/cloudsdktool/cloud-sdk'
+    args:
+      - 'gcloud'
+      - 'run'
+      - 'deploy'
+      - 'kpl-dashboard'
+      - '--image=asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'
+      - '--region=asia-east1'
+      - '--platform=managed'
+      - '--quiet'
+images:
+  - 'asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'
