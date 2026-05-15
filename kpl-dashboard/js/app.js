@@ -2,6 +2,26 @@
 // app.js · 頁面設定 / 導覽 / 初始化
 // ═══════════════════════════════════════════════════════
 
+// ── 超級管理員設定 ──
+const ADMIN_USER_ID = 'inari';
+let pagePermissions = {}; // 從伺服器載入
+
+function isAdmin() {
+  return (sessionStorage.getItem('kpl_user') || '').toLowerCase() === ADMIN_USER_ID;
+}
+
+async function loadPagePermissions() {
+  try {
+    const res = await fetch('/api/page-permissions');
+    if (res.ok) pagePermissions = await res.json();
+  } catch { /* 若載入失敗，管理員帳號仍可看全部 */ }
+}
+
+function isPageVisible(pageId) {
+  if (isAdmin()) return true; // 管理員永遠看得到所有頁面
+  return pagePermissions[pageId] !== false;
+}
+
 const PAGES = [
   {
     group: '📊 儀表板',
@@ -31,30 +51,54 @@ function renderSidebar() {
   const sb = document.getElementById('sidebar');
   let html = '<div class="sb-nav">';
   PAGES.forEach(group => {
+    // 過濾出此群組中有權限的頁面
+    const visibleItems = group.items.filter(item => isPageVisible(item.id));
+    if (visibleItems.length === 0) return;
+
     html += `<div class="sb-group"><div class="sb-group-label">${group.group}</div>`;
-    group.items.forEach(item => {
+    visibleItems.forEach(item => {
       const active = item.id === currentPageId ? 'active' : '';
       let badge = '';
       if (item.status === 'wip') badge = '<span class="sb-item-badge wip">WIP</span>';
       else if (item.status === 'placeholder') badge = '<span class="sb-item-badge soon">TBD</span>';
+      // 管理員可看到被關閉的頁面但顯示灰色標記
+      const hiddenMark = (isAdmin() && pagePermissions[item.id] === false)
+        ? '<span class="sb-item-badge" style="background:#aaa;color:#fff">隱藏</span>' : '';
       html += `
       <a href="#${item.id}" class="sb-item ${active}" onclick="navigate(event, '${item.id}')">
         <span class="sb-item-icon">${item.icon}</span>
         <span class="sb-item-label">${item.label}</span>
-        ${badge}
+        ${badge}${hiddenMark}
       </a>`;
     });
     html += '</div>';
   });
+
+  // 管理員專屬：權限設定入口
+  if (isAdmin()) {
+    const adminActive = currentPageId === 'admin' ? 'active' : '';
+    html += `
+    <div class="sb-group">
+      <div class="sb-group-label" style="color:#f5c400">⚙️ 超級管理員</div>
+      <a href="#admin" class="sb-item ${adminActive}" onclick="navigate(event, 'admin')" style="border-left: 3px solid #f5c400">
+        <span class="sb-item-icon">🔐</span>
+        <span class="sb-item-label">頁面權限設定</span>
+      </a>
+    </div>`;
+  }
+
   html += '</div>';
 
   // 底部使用者資訊 + 登出
   const userId = sessionStorage.getItem('kpl_user') || '使用者';
+  const adminBadge = isAdmin()
+    ? '<span style="font-size:10px;background:#f5c400;color:#123d74;padding:1px 6px;border-radius:99px;font-weight:700;margin-left:4px">管理員</span>'
+    : '';
   html += `
   <div class="sb-user">
-    <div class="sb-user-avatar">👤</div>
+    <div class="sb-user-avatar">${isAdmin() ? '👑' : '👤'}</div>
     <div class="sb-user-info">
-      <div class="sb-user-name">${userId}</div>
+      <div class="sb-user-name">${userId}${adminBadge}</div>
       <div class="sb-user-role">日翊文化行銷</div>
     </div>
     <button class="sb-logout" onclick="logout()" title="登出">⏻</button>
@@ -81,6 +125,20 @@ function navigate(event, pageId) {
 
 // ── 載入頁面 ──
 function loadPage(pageId) {
+  // 管理員頁面不需要 template
+  if (pageId === 'admin') {
+    if (!isAdmin()) { navigate(null, 'daily'); return; }
+    document.getElementById('main').innerHTML = '';
+    renderAdminPage();
+    return;
+  }
+
+  // 非管理員：檢查頁面是否有權限
+  if (!isAdmin() && pagePermissions[pageId] === false) {
+    navigate(null, 'daily');
+    return;
+  }
+
   const main = document.getElementById('main');
   const tpl = PAGE_TEMPLATES[pageId];
   if (!tpl) {
@@ -98,6 +156,7 @@ function loadPage(pageId) {
   else if (pageId === 'productivity') initProductivityPage();
   else if (pageId === 'monthly') initMonthlyPage();
   else if (pageId === 'annual')  renderAnnualPage();
+  else if (pageId === 'admin')   renderAdminPage();
 }
 
 // ── 各頁面初始化 ──
@@ -149,6 +208,142 @@ function dateInSelectedRange(dateStr) {
   return (!DATA.dateFrom || dateStr >= DATA.dateFrom) && (!DATA.dateTo || dateStr <= DATA.dateTo);
 }
 
+// ════════════════════════════════════════════
+// 🔐 管理員頁面：頁面權限設定
+// ════════════════════════════════════════════
+function renderAdminPage() {
+  if (!isAdmin()) return;
+  const main = document.getElementById('main');
+
+  const allItems = PAGES.flatMap(g => g.items);
+  const rows = allItems.map(item => {
+    const isOn = pagePermissions[item.id] !== false;
+    return `
+    <tr>
+      <td style="padding:12px 16px;font-size:15px">${item.icon} ${item.label}</td>
+      <td style="padding:12px 16px;color:#888;font-size:12px;font-family:monospace">${item.id}</td>
+      <td style="padding:12px 16px;text-align:center">
+        <label class="admin-toggle">
+          <input type="checkbox" id="perm-${item.id}" ${isOn ? 'checked' : ''}>
+          <span class="admin-toggle-slider"></span>
+        </label>
+      </td>
+    </tr>`;
+  }).join('');
+
+  main.innerHTML = `
+  <div style="max-width:680px;margin:32px auto;padding:0 16px">
+    <div style="margin-bottom:24px">
+      <div style="font-size:22px;font-weight:900;color:#1a1d24">🔐 頁面權限設定</div>
+      <div style="font-size:13px;color:#888;margin-top:4px">控制一般帳號可以看到哪些頁面。管理員帳號（inari）永遠可以看到全部頁面。</div>
+    </div>
+
+    <div style="background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden;border:1px solid #eee">
+      <table style="width:100%;border-collapse:collapse">
+        <thead>
+          <tr style="background:#f4f6fb;border-bottom:2px solid #e8eaf0">
+            <th style="padding:10px 16px;text-align:left;font-size:12px;color:#666;font-weight:700">頁面名稱</th>
+            <th style="padding:10px 16px;text-align:left;font-size:12px;color:#666;font-weight:700">頁面 ID</th>
+            <th style="padding:10px 16px;text-align:center;font-size:12px;color:#666;font-weight:700">一般帳號可見</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+    </div>
+
+    <div style="margin-top:20px;padding:16px;background:#fff8e6;border-radius:8px;border:1px solid #f5c400;font-size:13px;color:#7a6000">
+      ⚠️ 儲存前需輸入您的密碼重新驗證身份，確保安全。
+    </div>
+
+    <div id="admin-save-area" style="margin-top:20px">
+      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+        <div style="flex:1;min-width:200px">
+          <label style="display:block;font-size:11px;font-weight:700;color:#666;margin-bottom:6px;letter-spacing:.08em">確認密碼</label>
+          <input type="password" id="admin-psw" placeholder="請輸入您的登入密碼"
+            style="width:100%;padding:10px 14px;border:1.5px solid #dde2ec;border-radius:4px;font-size:13px">
+        </div>
+        <button onclick="savePermissions()"
+          style="padding:10px 28px;background:#1e5ca8;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap">
+          💾 儲存設定
+        </button>
+      </div>
+      <div id="admin-msg" style="margin-top:10px;font-size:13px;display:none"></div>
+    </div>
+  </div>
+
+  <style>
+  .admin-toggle { position:relative;display:inline-block;width:44px;height:24px; }
+  .admin-toggle input { opacity:0;width:0;height:0; }
+  .admin-toggle-slider {
+    position:absolute;inset:0;background:#ccc;border-radius:24px;cursor:pointer;transition:.2s;
+  }
+  .admin-toggle-slider:before {
+    content:'';position:absolute;width:18px;height:18px;left:3px;bottom:3px;
+    background:#fff;border-radius:50%;transition:.2s;
+  }
+  .admin-toggle input:checked + .admin-toggle-slider { background:#1e5ca8; }
+  .admin-toggle input:checked + .admin-toggle-slider:before { transform:translateX(20px); }
+  </style>`;
+}
+
+async function savePermissions() {
+  const pswEl = document.getElementById('admin-psw');
+  const msgEl = document.getElementById('admin-msg');
+  const psw = pswEl?.value || '';
+  if (!psw) {
+    showAdminMsg('❌ 請輸入密碼', 'error');
+    pswEl.focus();
+    return;
+  }
+
+  // 收集所有開關狀態
+  const allItems = PAGES.flatMap(g => g.items);
+  const permissions = {};
+  allItems.forEach(item => {
+    const cb = document.getElementById(`perm-${item.id}`);
+    permissions[item.id] = cb ? cb.checked : true;
+  });
+
+  const btn = document.querySelector('#admin-save-area button');
+  btn.disabled = true;
+  btn.textContent = '驗證中…';
+  showAdminMsg('', '');
+
+  try {
+    const res = await fetch('/api/page-permissions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        USER_ID: sessionStorage.getItem('kpl_user'),
+        PSW: psw,
+        permissions,
+      }),
+    });
+    const data = await res.json();
+    if (res.ok && data.ok) {
+      pagePermissions = data.permissions;
+      pswEl.value = '';
+      showAdminMsg('✅ 權限已儲存！其他帳號下次登入時生效。', 'ok');
+      renderSidebar(); // 重新渲染側欄（顯示隱藏標記）
+    } else {
+      showAdminMsg(`❌ ${data.MSG || '儲存失敗'}`, 'error');
+    }
+  } catch (err) {
+    showAdminMsg(`❌ 網路錯誤：${err.message}`, 'error');
+  }
+
+  btn.disabled = false;
+  btn.innerHTML = '💾 儲存設定';
+}
+
+function showAdminMsg(text, type) {
+  const el = document.getElementById('admin-msg');
+  if (!el) return;
+  el.style.display = text ? 'block' : 'none';
+  el.style.color = type === 'error' ? '#d9401b' : '#1a7a3f';
+  el.textContent = text;
+}
+
 function rerenderDashboardPage(pageId = currentPageId) {
   if (pageId === 'daily') renderDailyPage();
   else if (pageId === 'dispatch') renderDispatchPage();
@@ -184,22 +379,23 @@ function checkMobile() {
 }
 
 // ── 初始化 ──
-document.addEventListener('DOMContentLoaded', () => {
+document.addEventListener('DOMContentLoaded', async () => {
   // 驗證登入
   if (!sessionStorage.getItem('kpl_auth')) {
     location.href = 'login.html';
     return;
   }
 
+  // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
+  await loadPagePermissions();
+
   renderSidebar();
 
   const hash = location.hash.slice(1);
   if (hash) {
-    for (const group of PAGES) {
-      if (group.items.find(i => i.id === hash)) {
-        currentPageId = hash;
-        break;
-      }
+    const allItems = PAGES.flatMap(g => g.items);
+    if (allItems.find(i => i.id === hash)) {
+      currentPageId = hash;
     }
   }
   loadPage(currentPageId);
@@ -1256,57 +1452,52 @@ function resetPicks() {
 }
 
 function updateStatus() {
-  document.getElementById('status-time').textContent = '更新：' + new Date().toLocaleString('zh-TW');
-  let daxiF=0, daduF=0, gsF=0, daxiL=0, daduL=0, gsL=0;
-  DATA.dispatch.daily.forEach(r => { daxiL+=r[1]; daxiF+=r[2]; daduL+=r[3]; daduF+=r[4]; gsL+=r[5]; gsF+=r[6]; });
-  const budget = DATA.dispatch.budget || {};
-  const budgetValues = {
-    daxi: (budget['大溪倉']?.labor || 0) + (budget['大溪倉']?.freight || 0),
-    dadu: (budget['大肚倉']?.labor || 0) + (budget['大肚倉']?.freight || 0),
-    gs:   (budget['岡山倉']?.labor || 0) + (budget['岡山倉']?.freight || 0),
-  };
-
-  const src = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
-  let daxiP=0, daduP=0, gsP=0;
-  src.forEach(r => {
-    if (r.wh === '大溪倉') daxiP += r.picks;
-    else if (r.wh === '大肚倉') daduP += r.picks;
-    else if (r.wh === '岡山倉') gsP   += r.picks;
-  });
-
   const latestFreight = (() => {
     if (DATA.freight.details?.length)
       return DATA.freight.details.map(r => r.fullDate).filter(Boolean).sort().pop() || '';
     return DATA.freight.dailyTrend.map(r => r[2] || shortToFreightFullDate(r[0])).filter(Boolean).sort().pop() || '';
   })();
+  const oldestFreight = (() => {
+    if (DATA.freight.details?.length)
+      return DATA.freight.details.map(r => r.fullDate).filter(Boolean).sort()[0] || '';
+    return DATA.freight.dailyTrend.map(r => r[2] || shortToFreightFullDate(r[0])).filter(Boolean).sort()[0] || '';
+  })();
   const latestLabor = (() => {
     const raw = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort().pop() || '';
+  })();
+  const oldestLabor = (() => {
+    const raw = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
+    return raw.map(r => r.date).filter(Boolean).sort()[0] || '';
   })();
   const latestPicks = (() => {
     const raw = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort().pop() || '';
   })();
+  const oldestPicks = (() => {
+    const raw = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
+    return raw.map(r => r.date).filter(Boolean).sort()[0] || '';
+  })();
 
   const rows = [
-    { type:'💰 年度預算', real:hasDispatchBudget(), daxi:budgetValues.daxi, dadu:budgetValues.dadu, gs:budgetValues.gs, unit:'$', latest: DATA.dataLatest.budget },
-    { type:'🚚 運務費用', real:!!parsedFreight, daxi:daxiF,  dadu:daduF,  gs:gsF,  unit:'$', latest: latestFreight },
-    { type:'💵 人力費用', real:!!parsedLabor,   daxi:daxiL,  dadu:daduL,  gs:gsL,  unit:'$', latest: latestLabor  },
-    { type:'⚡ 揀次資料', real:!!parsedPicks,   daxi:daxiP,  dadu:daduP,  gs:gsP,  unit:'',  latest: latestPicks  },
+    { type:'💰 年度預算', real:hasDispatchBudget(), latest: DATA.dataLatest?.budget || '', oldest: DATA.dataOldest?.budget || '' },
+    { type:'🚚 運務費用', real:!!parsedFreight,      latest: latestFreight, oldest: oldestFreight },
+    { type:'💵 人力費用', real:!!parsedLabor,        latest: latestLabor,   oldest: oldestLabor  },
+    { type:'⚡ 揀次資料', real:!!parsedPicks,        latest: latestPicks,   oldest: oldestPicks  },
   ];
+
+  const dateCell = v => v
+    ? `<span style="font-family:monospace;font-size:13px">${v}</span>`
+    : `<span style="color:#bbb;font-size:12px">—</span>`;
+
   document.getElementById('status-tbody').innerHTML = rows.map(r => {
-    const total = r.daxi + r.dadu + r.gs;
     const c = r.real ? '#1b7c33' : '#e07855';
     const s = r.real ? '✅ 已套用' : '⚠️ 尚未上傳';
-    const fmt = v => r.unit === '$' ? '$' + v.toLocaleString() : v.toLocaleString();
-    const dateSub = r.latest ? `<div style="font-size:10px;color:var(--ry-muted);margin-top:2px">最新：${r.latest}</div>` : '';
     return `<tr>
       <td style="font-weight:700">${r.type}</td>
-      <td><span style="color:${c};font-weight:700">${s}</span>${dateSub}</td>
-      <td class="mono" style="text-align:right;color:#0E7BAD">${fmt(r.daxi)}</td>
-      <td class="mono" style="text-align:right;color:#2DA870">${fmt(r.dadu)}</td>
-      <td class="mono" style="text-align:right;color:#E07855">${fmt(r.gs)}</td>
-      <td class="mono" style="text-align:right;font-weight:800">${fmt(total)}</td>
+      <td><span style="color:${c};font-weight:700">${s}</span></td>
+      <td>${dateCell(r.latest)}</td>
+      <td>${dateCell(r.oldest)}</td>
     </tr>`;
   }).join('');
 }

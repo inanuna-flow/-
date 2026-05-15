@@ -1,0 +1,11 @@
+{
+  "daily": true,
+  "dispatch": true,
+  "freight": true,
+  "labor": true,
+  "productivity": true,
+  "monthly": true,
+  "annual": true,
+  "import": true,
+  "org": true
+}

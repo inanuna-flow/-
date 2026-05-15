@@ -216,10 +216,6 @@ body::before {
 
     <div class="error-msg" id="error-msg"></div>
 
-    <div style="margin-top:16px;padding-top:14px;border-top:1px dashed var(--ry-line);text-align:center">
-      <div style="font-size:10px;color:var(--ry-muted);margin-bottom:8px;font-family:var(--f-mono)">若 EIP 暫時無法驗證，可使用測試模式</div>
-      <button onclick="devBypass()" style="background:none;border:1.5px dashed var(--ry-line);color:var(--ry-muted);padding:7px 20px;border-radius:4px;cursor:pointer;font-size:12px;font-family:var(--f-head)">測試模式（跳過驗證）</button>
-    </div>
   </div>
 
   <div class="login-footer">
@@ -313,11 +309,7 @@ function getAuthEndpoint() {
   return 'https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId';
 }
 
-function devBypass() {
-  sessionStorage.setItem('kpl_auth', '1');
-  sessionStorage.setItem('kpl_user', 'dev');
-  location.href = 'index.html';
-}
+
 </script>
 </body>
 </html>
