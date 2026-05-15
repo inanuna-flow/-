@@ -129,6 +129,62 @@ function budgetRowsFromPayload(payload) {
   return rows;
 }
 
+function isIsoDate(value) {
+  return /^\d{4}-\d{2}-\d{2}$/.test(String(value || ''));
+}
+
+function monthStartFromDate(value) {
+  return isIsoDate(value) ? `${String(value).slice(0, 7)}-01` : '';
+}
+
+function laborRowsFromPayload(payload) {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  const rows = records
+    .map(record => ({
+      workDate: String(record.date || ''),
+      month: monthStartFromDate(record.date),
+      warehouseName: String(record.wh || '').trim(),
+      vendorName: String(record.vendor || '').trim(),
+      shiftName: String(record.shift || '').trim(),
+      employeeId: String(record.empId || '').trim(),
+      departmentName: String(record.dept || '').trim(),
+      operationArea: String(record.opArea || '').trim(),
+      hours: Number(record.hours) || 0,
+      cost: Number(record.cost) || 0,
+    }))
+    .filter(row =>
+      isIsoDate(row.workDate) &&
+      row.month &&
+      row.warehouseName &&
+      row.operationArea &&
+      (row.hours !== 0 || row.cost !== 0)
+    );
+  const grouped = new Map();
+  rows.forEach(row => {
+    const key = [
+      row.workDate,
+      row.warehouseName,
+      row.employeeId,
+      row.operationArea,
+      row.shiftName,
+    ].join('\u001f');
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.hours += row.hours;
+      existing.cost += row.cost;
+      if (!existing.vendorName && row.vendorName) existing.vendorName = row.vendorName;
+      if (!existing.departmentName && row.departmentName) existing.departmentName = row.departmentName;
+    } else {
+      grouped.set(key, { ...row });
+    }
+  });
+  return Array.from(grouped.values()).map(row => ({
+    ...row,
+    hours: Math.round(row.hours * 100) / 100,
+    cost: Math.round(row.cost * 100) / 100,
+  }));
+}
+
 async function handleCheckUser(req, res) {
   if (req.method !== 'POST') {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
@@ -448,6 +504,165 @@ async function handleBudgetData(req, res) {
   }
 }
 
+async function handleLaborImport(req, res) {
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
+    return;
+  }
+
+  const pool = getDbPool();
+  if (!pool) {
+    sendJson(res, 503, {
+      ok: false,
+      MSG: '503 Database is not configured. Set DB_INSTANCE_CONNECTION_NAME, DB_NAME, DB_USER, and DB_PASSWORD.',
+    });
+    return;
+  }
+
+  let payload;
+  try {
+    const raw = await readRequestBody(req, 25 * 1024 * 1024);
+    payload = JSON.parse(raw || '{}');
+  } catch (err) {
+    sendJson(res, err.message === 'REQUEST_TOO_LARGE' ? 413 : 400, {
+      ok: false,
+      MSG: '999 Invalid labor import payload',
+    });
+    return;
+  }
+
+  const rows = laborRowsFromPayload(payload);
+  if (!rows.length) {
+    sendJson(res, 400, { ok: false, MSG: '999 No valid labor rows to import' });
+    return;
+  }
+
+  const dates = rows.map(row => row.workDate).sort();
+  const periodMonth = monthStartFromDate(dates[0]);
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const batchResult = await client.query(
+      `INSERT INTO ${schemaTable('import_batches')}
+        (source_type, source_file, period_month, imported_by, note)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [
+        'labor',
+        String(payload.fileName || 'labor.xlsx'),
+        periodMonth || null,
+        String(payload.importedBy || ''),
+        `date_range=${dates[0]}..${dates[dates.length - 1]}; rows=${rows.length}`,
+      ],
+    );
+    const batchId = batchResult.rows[0].id;
+
+    const upsertSql = `
+      INSERT INTO ${schemaTable('labor_daily')}
+        (work_date, month, warehouse_name, vendor_name, shift_name, employee_id,
+         department_name, operation_area, hours, cost, source_file, import_batch_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
+      ON CONFLICT (work_date, warehouse_name, employee_id, operation_area, shift_name) DO UPDATE
+      SET vendor_name = EXCLUDED.vendor_name,
+          department_name = EXCLUDED.department_name,
+          hours = EXCLUDED.hours,
+          cost = EXCLUDED.cost,
+          source_file = EXCLUDED.source_file,
+          import_batch_id = EXCLUDED.import_batch_id
+    `;
+
+    for (const row of rows) {
+      await client.query(upsertSql, [
+        row.workDate,
+        row.month,
+        row.warehouseName,
+        row.vendorName,
+        row.shiftName,
+        row.employeeId,
+        row.departmentName,
+        row.operationArea,
+        row.hours,
+        row.cost,
+        String(payload.fileName || 'labor.xlsx'),
+        batchId,
+      ]);
+    }
+
+    await client.query('COMMIT');
+    sendJson(res, 200, {
+      ok: true,
+      MSG: '000 Labor imported',
+      batchId,
+      rows: rows.length,
+      dateFrom: dates[0],
+      dateTo: dates[dates.length - 1],
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    sendJson(res, 500, { ok: false, MSG: `999 Labor import failed: ${err.message}` });
+  } finally {
+    client.release();
+  }
+}
+
+async function handleLaborData(req, res) {
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
+    return;
+  }
+
+  const pool = getDbPool();
+  if (!pool) {
+    sendJson(res, 503, {
+      ok: false,
+      MSG: '503 Database is not configured. Set DB_INSTANCE_CONNECTION_NAME, DB_NAME, DB_USER, and DB_PASSWORD.',
+    });
+    return;
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const dateFrom = String(url.searchParams.get('date_from') || '').trim();
+  const dateTo = String(url.searchParams.get('date_to') || '').trim();
+  if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+    sendJson(res, 400, { ok: false, MSG: '999 Invalid labor date range' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT work_date, warehouse_name, vendor_name, shift_name, employee_id,
+              department_name, operation_area, hours, cost, source_file,
+              import_batch_id, updated_at
+       FROM ${schemaTable('labor_daily')}
+       WHERE work_date >= $1::date AND work_date <= $2::date
+       ORDER BY work_date, warehouse_name, employee_id, operation_area, shift_name`,
+      [dateFrom, dateTo],
+    );
+
+    sendJson(res, 200, {
+      ok: true,
+      dateFrom,
+      dateTo,
+      rows: result.rows.map(row => ({
+        date: row.work_date,
+        wh: row.warehouse_name,
+        vendor: row.vendor_name || '',
+        shift: row.shift_name || '',
+        empId: row.employee_id || '',
+        dept: row.department_name || '',
+        opArea: row.operation_area,
+        hours: Number(row.hours) || 0,
+        cost: Number(row.cost) || 0,
+        sourceFile: row.source_file,
+        importBatchId: row.import_batch_id,
+        updatedAt: row.updated_at,
+      })),
+    });
+  } catch (err) {
+    sendJson(res, 500, { ok: false, MSG: `999 Labor query failed: ${err.message}` });
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.url.startsWith('/api/check-user')) {
     handleCheckUser(req, res);
@@ -463,6 +678,14 @@ const server = http.createServer((req, res) => {
   }
   if (req.url.startsWith('/api/data/budget')) {
     handleBudgetData(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/import/labor')) {
+    handleLaborImport(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/data/labor')) {
+    handleLaborData(req, res);
     return;
   }
 

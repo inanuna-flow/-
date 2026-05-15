@@ -450,6 +450,73 @@ async function syncCloudBudget(parsed) {
   return data;
 }
 
+function normalizeCloudDate(value) {
+  return String(value || '').slice(0, 10);
+}
+
+function applyCloudLaborRows(rows) {
+  if (!Array.isArray(rows) || !rows.length) return false;
+  LABOR_RAW = rows.map(row => ({
+    wh: row.wh,
+    date: normalizeCloudDate(row.date),
+    vendor: row.vendor || '',
+    shift: row.shift || '',
+    empId: row.empId || '',
+    dept: row.dept || '',
+    name: '',
+    opArea: row.opArea || '',
+    hours: Number(row.hours) || 0,
+    boxHours: 0,
+    nightHrs: 0,
+    normHrs: Number(row.hours) || 0,
+    cost: Number(row.cost) || 0,
+    check: '',
+    sourceSheet: 'Cloud SQL',
+  })).filter(row => row.date && row.wh && row.opArea);
+
+  const kpiRows = getLaborKpiRecords(LABOR_RAW);
+  const daily = summarizeLaborDaily(kpiRows);
+  applyLaborToDispatch(daily);
+  updateDispatchLatestUploadDate(daily.map(row => row.date));
+  const dates = LABOR_RAW.map(row => row.date).filter(Boolean).sort();
+  DATA.dataLatest.labor = dates[dates.length - 1] || '';
+  DATA.dataOldest = DATA.dataOldest || {};
+  DATA.dataOldest.labor = dates[0] || '';
+  return true;
+}
+
+async function loadCloudLaborData() {
+  try {
+    const params = new URLSearchParams({
+      date_from: DATA.dateFrom,
+      date_to: DATA.dateTo,
+    });
+    const res = await fetch(`/api/data/labor?${params.toString()}`);
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.ok ? applyCloudLaborRows(data.rows) : false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncCloudLabor(parsed) {
+  if (!parsed?.records?.length) return false;
+  const payload = {
+    records: parsed.records,
+    fileName: parsed.fileName,
+    importedBy: sessionStorage.getItem('kpl_user') || '',
+  };
+  const res = await fetch('/api/import/labor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
+  return data;
+}
+
 // ── 初始化 ──
 document.addEventListener('DOMContentLoaded', async () => {
   // 驗證登入
@@ -461,6 +528,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
   await loadCloudBudgetData();
+  await loadCloudLaborData();
 
   renderSidebar();
 
@@ -1360,17 +1428,28 @@ function showLaborPreview(records, totalHrs, totalCost, personDays, warnings, me
   document.getElementById('labor-preview').style.display = 'block';
 }
 
-function applyLabor() {
+async function applyLabor() {
   if (!parsedLabor) return;
   LABOR_RAW = parsedLabor.records;
   applyLaborToDispatch(parsedLabor.daily);
   updateDispatchLatestUploadDate(parsedLabor.daily.map(r => r.date));
+  const dates = parsedLabor.records.map(r => r.date).filter(Boolean).sort();
+  DATA.dataLatest.labor = dates[dates.length - 1] || '';
+  DATA.dataOldest = DATA.dataOldest || {};
+  DATA.dataOldest.labor = dates[0] || '';
   if (currentPageId === 'labor') renderLaborPage();
   if (currentPageId === 'dispatch') renderDispatchPage();
   if (currentPageId === 'productivity') renderProductivityPage();
   if (currentPageId === 'annual') renderAnnualPage();
   updateStatus();
   toast('✅ 工時資料已套用！總費用動支率的人力欄位已更新');
+  try {
+    const result = await syncCloudLabor(parsedLabor);
+    toast(`✅ 人力費用已同步雲端（${result.rows} 筆）`);
+  } catch (err) {
+    console.warn('Labor cloud sync failed:', err);
+    toast(`⚠️ 人力費用已套用，但雲端同步失敗：${err.message}`);
+  }
 }
 
 function applyLaborToDispatch(dailyRows) {
@@ -1562,7 +1641,7 @@ function updateStatus() {
   const rows = [
     { type:'💰 年度預算', real:hasDispatchBudget(), latest: DATA.dataLatest?.budget || '', oldest: DATA.dataOldest?.budget || '' },
     { type:'🚚 運務費用', real:!!parsedFreight,      latest: latestFreight, oldest: oldestFreight },
-    { type:'💵 人力費用', real:!!parsedLabor,        latest: latestLabor,   oldest: oldestLabor  },
+    { type:'💵 人力費用', real:!!parsedLabor || !!((typeof LABOR_RAW !== 'undefined') && LABOR_RAW.length), latest: latestLabor, oldest: oldestLabor },
     { type:'⚡ 揀次資料', real:!!parsedPicks,        latest: latestPicks,   oldest: oldestPicks  },
   ];
 
