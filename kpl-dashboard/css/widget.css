@@ -1122,6 +1122,60 @@ td.mono { font-family: var(--f-mono); }
 }
 
 /* ══ 年度規劃分析 ══ */
+.annual-mode-panel {
+  min-height: auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+.annual-mode-title {
+  font-size: var(--fs-lg);
+  font-weight: 800;
+  color: var(--ry-ink);
+}
+.annual-mode-subtitle {
+  margin-top: 4px;
+  font-size: var(--fs-xs);
+  color: var(--ry-muted);
+}
+.annual-segment {
+  display: inline-grid;
+  grid-template-columns: repeat(2, minmax(88px, 1fr));
+  gap: 2px;
+  padding: 3px;
+  border: 1px solid var(--ry-line);
+  border-radius: 6px;
+  background: var(--ry-bg);
+}
+.annual-segment-btn {
+  min-height: 34px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--ry-muted);
+  font-size: var(--fs-sm);
+  font-weight: 800;
+  cursor: pointer;
+}
+.annual-segment-btn:hover {
+  color: var(--ry-blue-dark);
+}
+.annual-segment-btn.active {
+  background: var(--ry-blue);
+  color: white;
+  box-shadow: 0 1px 4px rgba(18,61,116,.18);
+}
+@media (max-width: 720px) {
+  .annual-mode-panel {
+    align-items: stretch;
+    flex-direction: column;
+  }
+  .annual-segment {
+    width: 100%;
+  }
+}
 .annual-table-scroll {
   overflow-x: auto;
   -webkit-overflow-scrolling: touch;

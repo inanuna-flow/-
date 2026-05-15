@@ -1053,7 +1053,7 @@ function renderAnnualCharts(label, dotCls, totalBudget, totalActual, hasBudget, 
 
   const chart1 = `
   <div class="w s6 chart-card">
-    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>${label} · 達成率趨勢（全區合計）</div></div>
+    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>達成率趨勢（全區合計）</div><span class="wmeta">${label}</span></div>
     ${!hasPct ? '<div class="empty-state">需同時匯入預算與費用資料</div>' : `
     <svg class="chart-svg" viewBox="0 0 ${W} ${H}">
       ${pctYTicks}
@@ -1085,7 +1085,7 @@ function renderAnnualCharts(label, dotCls, totalBudget, totalActual, hasBudget, 
 
   const chart2 = `
   <div class="w s6 chart-card">
-    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>${label} · 預算 vs 實際（全區合計）</div></div>
+    <div class="wh"><div class="wl"><div class="wdot ${dotCls}"></div>預算 vs 實際（全區合計）</div><span class="wmeta">${label}</span></div>
     <svg class="chart-svg" viewBox="0 0 ${W} ${H}">
       ${amtYTicks}
       <line x1="${padL + 4}" y1="${padT - 12}" x2="${padL + 20}" y2="${padT - 12}" stroke="#1e5ca8" stroke-width="2" stroke-dasharray="5,3"/>
@@ -1141,7 +1141,7 @@ function renderAnnualTable(label, dotCls, budget, actual, WHS, totalBudget, tota
   return `
   <div class="w s12 table-card">
     <div class="wh">
-      <div class="wl"><div class="wdot ${dotCls}"></div>${label} · 月度明細表</div>
+      <div class="wl"><div class="wdot ${dotCls}"></div>月度明細表</div>
       <span class="wmeta">全年合計：預算 ${fmtMoney(Math.round(grandBudget))} · 實際 ${fmtMoney(Math.round(grandActual))}</span>
     </div>
     <div class="table-edge annual-table-scroll">

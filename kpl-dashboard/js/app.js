@@ -45,6 +45,7 @@ const PAGES = [
 ];
 
 let currentPageId = 'daily';
+let annualViewMode = 'labor';
 
 // ── 渲染左側選單 ──
 function renderSidebar() {
@@ -2273,5 +2274,23 @@ function renderMonthlyPage() {
 function renderAnnualPage() {
   const grid = document.getElementById('annual-grid');
   if (!grid) return;
-  grid.innerHTML = [renderAnnualSection('labor'), renderAnnualSection('freight')].join('');
+  const isLabor = annualViewMode === 'labor';
+  grid.innerHTML = `
+    <div class="w s12 annual-mode-panel">
+      <div>
+        <div class="annual-mode-title">年度分析項目</div>
+        <div class="annual-mode-subtitle">切換檢視人力費用或運務費用，圖表與明細會同步更新。</div>
+      </div>
+      <div class="annual-segment" role="tablist" aria-label="年度分析項目切換">
+        <button class="annual-segment-btn ${isLabor ? 'active' : ''}" type="button" onclick="setAnnualViewMode('labor')" aria-selected="${isLabor}">人力</button>
+        <button class="annual-segment-btn ${!isLabor ? 'active' : ''}" type="button" onclick="setAnnualViewMode('freight')" aria-selected="${!isLabor}">運務</button>
+      </div>
+    </div>
+    ${renderAnnualSection(annualViewMode)}
+  `;
+}
+
+function setAnnualViewMode(mode) {
+  annualViewMode = mode === 'freight' ? 'freight' : 'labor';
+  renderAnnualPage();
 }
