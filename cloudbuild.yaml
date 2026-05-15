@@ -18,6 +18,8 @@ steps:
       - '--image=asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'
       - '--region=asia-east1'
       - '--platform=managed'
+      - '--add-cloudsql-instances=l000-493901:asia-east1:l000-db'
+      - '--set-env-vars=DB_INSTANCE_CONNECTION_NAME=l000-493901:asia-east1:l000-db,DB_NAME=L000-DB,DB_USER=L000LDB,DB_SCHEMA=kpl_dashboard'
       - '--quiet'
 images:
   - 'asia-east1-docker.pkg.dev/l000-493901/cloud-run-source-deploy/kpl-dashboard:$COMMIT_SHA'

@@ -378,6 +378,77 @@ function checkMobile() {
   toggle.style.display = window.innerWidth <= 768 ? 'inline-flex' : 'none';
 }
 
+function getBudgetYear() {
+  const year = Number(String(DATA.dateFrom || '').slice(0, 4));
+  return Number.isInteger(year) && year >= 2000 && year <= 2100 ? year : new Date().getFullYear();
+}
+
+function applyCloudBudgetRows(rows, year = getBudgetYear()) {
+  if (!Array.isArray(rows) || !rows.length) return false;
+  const labor = createBudgetBuckets();
+  const freight = createBudgetBuckets();
+  let latest = '';
+  let oldest = '';
+  let count = 0;
+
+  rows.forEach(row => {
+    const wh = row.warehouseName;
+    const type = row.costType;
+    const amount = Number(row.budgetAmount) || 0;
+    const monthText = String(row.month || '');
+    const monthIndex = Number(monthText.slice(5, 7)) - 1;
+    if (!wh || monthIndex < 0 || monthIndex > 11) return;
+    if (type === 'labor' && labor[wh]) labor[wh][monthIndex] = amount;
+    else if (type === 'freight' && freight[wh]) freight[wh][monthIndex] = amount;
+    else return;
+    const monthValue = `${year}-${String(monthIndex + 1).padStart(2, '0')}`;
+    latest = latest ? (monthValue > latest ? monthValue : latest) : monthValue;
+    oldest = oldest ? (monthValue < oldest ? monthValue : oldest) : monthValue;
+    count++;
+  });
+
+  if (!count) return false;
+  DATA.annualBudget.labor = labor;
+  DATA.annualBudget.freight = freight;
+  DATA.dispatch.budget = buildDispatchBudget(labor, freight, getCurrentMonthIndex());
+  DATA.dataLatest.budget = latest || `${getCurrentMonthIndex() + 1}月`;
+  DATA.dataOldest = DATA.dataOldest || {};
+  DATA.dataOldest.budget = oldest;
+  return true;
+}
+
+async function loadCloudBudgetData() {
+  try {
+    const res = await fetch(`/api/data/budget?year=${getBudgetYear()}`);
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.ok ? applyCloudBudgetRows(data.rows, data.year) : false;
+  } catch {
+    return false;
+  }
+}
+
+async function syncCloudBudget(parsed) {
+  if (!parsed) return false;
+  const payload = {
+    year: getBudgetYear(),
+    monthIndex: parsed.monthIndex,
+    labor: parsed.labor,
+    freight: parsed.freight,
+    fileName: parsed.fileName,
+    version: parsed.version,
+    importedBy: sessionStorage.getItem('kpl_user') || '',
+  };
+  const res = await fetch('/api/import/budget', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
+  return data;
+}
+
 // ── 初始化 ──
 document.addEventListener('DOMContentLoaded', async () => {
   // 驗證登入
@@ -388,6 +459,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
+  await loadCloudBudgetData();
 
   renderSidebar();
 
@@ -732,7 +804,7 @@ function showBudgetPreview(parsed) {
   document.getElementById('budget-preview').style.display = 'block';
 }
 
-function applyBudget() {
+async function applyBudget() {
   if (!parsedBudget) return;
   DATA.annualBudget.labor = parsedBudget.labor;
   DATA.annualBudget.freight = parsedBudget.freight;
@@ -743,6 +815,13 @@ function applyBudget() {
   if (currentPageId === 'annual') renderAnnualPage();
   updateStatus();
   toast('✅ 年度預算已套用！總費用動支率預算已更新');
+  try {
+    const result = await syncCloudBudget(parsedBudget);
+    toast(`✅ 年度預算已同步雲端（${result.rows} 筆）`);
+  } catch (err) {
+    console.warn('Budget cloud sync failed:', err);
+    toast(`⚠️ 年度預算已套用，但雲端同步失敗：${err.message}`);
+  }
 }
 
 function resetBudget() {

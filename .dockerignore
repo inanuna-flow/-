@@ -1,6 +1,7 @@
 .git
 .claude
 .vscode
+node_modules
 database
 *.xlsx
 **/*.xlsx
