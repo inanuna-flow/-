@@ -31,7 +31,6 @@ const PAGES = [
       { id:'freight',      icon:'🚚', label:'運費損益分析', status:'ready' },
       { id:'labor',        icon:'⏱', label:'人力工時結構', status:'ready' },
       { id:'productivity', icon:'📊', label:'揀次人效分析', status:'ready' },
-      { id:'monthly',      icon:'📆', label:'月度結算',     status:'ready' },
       { id:'annual',       icon:'📋', label:'年度規劃分析', status:'ready' },
     ]
   },
@@ -155,7 +154,6 @@ function loadPage(pageId) {
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'org')     initOrgPage();
   else if (pageId === 'productivity') initProductivityPage();
-  else if (pageId === 'monthly') initMonthlyPage();
   else if (pageId === 'annual')  renderAnnualPage();
   else if (pageId === 'admin')   renderAdminPage();
 }
@@ -174,7 +172,6 @@ const DASHBOARD_DATE_FILTERS = {
   picks:        { from:'picks-from',        to:'picks-to',        meta:'picks-date-meta' },
   labor:        { from:'labor-from',        to:'labor-to',        meta:'labor-date-meta' },
   productivity: { from:'productivity-from', to:'productivity-to', meta:'productivity-date-meta' },
-  monthly:      { from:'monthly-from',      to:'monthly-to',      meta:'monthly-date-meta' },
 };
 
 function syncDashboardDateInputs(pageId = currentPageId) {
@@ -351,7 +348,6 @@ function rerenderDashboardPage(pageId = currentPageId) {
   else if (pageId === 'freight') renderFreightPage();
   else if (pageId === 'labor') renderLaborPage();
   else if (pageId === 'productivity') renderProductivityPage();
-  else if (pageId === 'monthly') renderMonthlyPage();
   else if (pageId === 'annual') renderAnnualPage();
 }
 
