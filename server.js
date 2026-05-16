@@ -1,6 +1,7 @@
 const http = require('node:http');
 const fs = require('node:fs');
 const path = require('node:path');
+const crypto = require('node:crypto');
 const { Pool } = require('pg');
 
 const PORT = Number(process.env.PORT || 4173);
@@ -15,9 +16,31 @@ const DB_NAME = process.env.DB_NAME || process.env.PGDATABASE || '';
 const DB_USER = process.env.DB_USER || process.env.PGUSER || '';
 const DB_PASSWORD = process.env.DB_PASSWORD || process.env.PGPASSWORD || '';
 const DB_HOST = process.env.DB_HOST || (DB_INSTANCE_CONNECTION_NAME ? `/cloudsql/${DB_INSTANCE_CONNECTION_NAME}` : '');
+// K_SERVICE 是 Cloud Run 自動設定的環境變數，用來判斷是否在正式環境
+const IS_PROD = Boolean(process.env.K_SERVICE || process.env.NODE_ENV === 'production');
 
 const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','labor','productivity','monthly','annual','import','org']);
 const BUDGET_TYPES = new Set(['labor', 'freight']);
+
+// ── Session 設定 ──
+const SESSION_TTL_MS = 8 * 60 * 60 * 1000; // 8 小時
+const sessions = new Map(); // token -> { userId, expiresAt }
+
+// ── 登入頻率限制設定 ──
+const RATE_LIMIT_WINDOW_MS = 15 * 60 * 1000; // 15 分鐘
+const RATE_LIMIT_MAX = 10; // 同一 IP 在 15 分鐘內最多嘗試 10 次
+const loginAttempts = new Map(); // ip -> { count, windowStart }
+
+// 定時清理過期的 session 和登入紀錄，避免記憶體無限增長
+setInterval(() => {
+  const now = Date.now();
+  for (const [token, s] of sessions) {
+    if (s.expiresAt <= now) sessions.delete(token);
+  }
+  for (const [ip, entry] of loginAttempts) {
+    if (now - entry.windowStart > RATE_LIMIT_WINDOW_MS) loginAttempts.delete(ip);
+  }
+}, 30 * 60 * 1000);
 
 const MIME_TYPES = {
   '.html': 'text/html; charset=utf-8',
@@ -30,11 +53,25 @@ const MIME_TYPES = {
   '.svg': 'image/svg+xml',
 };
 
+// 寬鬆的 CSP：允許 inline onclick、CDN（SheetJS 等），仍擋掉 object/embed
+const CSP = [
+  "default-src 'self'",
+  "script-src 'self' 'unsafe-inline' 'unsafe-eval' https:",
+  "style-src 'self' 'unsafe-inline' https:",
+  "img-src 'self' data: https:",
+  "connect-src 'self' https:",
+  "font-src 'self' data: https:",
+  "object-src 'none'",
+  "base-uri 'self'",
+  "form-action 'self'",
+].join('; ');
+
 const SECURITY_HEADERS = {
   'X-Content-Type-Options': 'nosniff',
   'X-Frame-Options': 'DENY',
   'Referrer-Policy': 'strict-origin-when-cross-origin',
   'Permissions-Policy': 'camera=(), microphone=(), geolocation=()',
+  'Content-Security-Policy': CSP,
 };
 
 function sendJson(res, status, payload) {
@@ -66,6 +103,85 @@ function extractSupportId(text) {
   return text.match(/support ID is:\s*([^<\s]+)/i)?.[1] || '';
 }
 
+// ── Cookie 解析 ──
+function parseCookies(req) {
+  const header = req.headers.cookie || '';
+  const cookies = {};
+  for (const part of header.split(';')) {
+    const eqIdx = part.indexOf('=');
+    if (eqIdx < 0) continue;
+    const name = part.slice(0, eqIdx).trim();
+    const value = part.slice(eqIdx + 1).trim();
+    if (name) {
+      try { cookies[name] = decodeURIComponent(value); }
+      catch { cookies[name] = value; }
+    }
+  }
+  return cookies;
+}
+
+// 取得客戶端真實 IP（Cloud Run 前面有 load balancer，真實 IP 在 x-forwarded-for）
+function getClientIp(req) {
+  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
+    .split(',')[0].trim();
+}
+
+// ── 登入頻率限制 ──
+function checkRateLimit(ip) {
+  const now = Date.now();
+  const entry = loginAttempts.get(ip);
+  if (!entry || now - entry.windowStart > RATE_LIMIT_WINDOW_MS) {
+    loginAttempts.set(ip, { count: 1, windowStart: now });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+function resetRateLimit(ip) {
+  loginAttempts.delete(ip);
+}
+
+// ── Session 管理 ──
+function createSession(userId) {
+  const token = crypto.randomBytes(32).toString('hex');
+  sessions.set(token, { userId, expiresAt: Date.now() + SESSION_TTL_MS });
+  return token;
+}
+
+function getSession(req) {
+  const token = parseCookies(req)['kpl_session'];
+  if (!token) return null;
+  const session = sessions.get(token);
+  if (!session || session.expiresAt <= Date.now()) {
+    if (token) sessions.delete(token);
+    return null;
+  }
+  return session;
+}
+
+function sessionCookieHeader(token) {
+  const maxAge = Math.floor(SESSION_TTL_MS / 1000);
+  let cookie = `kpl_session=${token}; HttpOnly; SameSite=Strict; Path=/; Max-Age=${maxAge}`;
+  if (IS_PROD) cookie += '; Secure';
+  return cookie;
+}
+
+function clearSessionCookieHeader() {
+  return 'kpl_session=; HttpOnly; SameSite=Strict; Path=/; Max-Age=0';
+}
+
+// 需要登入才能使用的 API 呼叫此函式；未登入時回傳 401 並返回 null
+function requireSession(req, res) {
+  const session = getSession(req);
+  if (!session) {
+    sendJson(res, 401, { ok: false, MSG: '401 請先登入' });
+    return null;
+  }
+  return session;
+}
+
 let dbPool = null;
 
 function isDbConfigured() {
@@ -83,6 +199,9 @@ function getDbPool() {
       max: 5,
       idleTimeoutMillis: 30000,
       connectionTimeoutMillis: 10000,
+    });
+    dbPool.on('error', err => {
+      console.error('[DB] pool 發生錯誤:', err.message);
     });
   }
   return dbPool;
@@ -191,6 +310,13 @@ async function handleCheckUser(req, res) {
     return;
   }
 
+  // 頻率限制：同一 IP 15 分鐘內超過 10 次就擋掉
+  const ip = getClientIp(req);
+  if (!checkRateLimit(ip)) {
+    sendJson(res, 429, { ok: false, MSG: '999 登入嘗試次數過多，請 15 分鐘後再試' });
+    return;
+  }
+
   let credentials;
   try {
     const body = await readRequestBody(req);
@@ -235,13 +361,41 @@ async function handleCheckUser(req, res) {
       return;
     }
 
-    sendJson(res, upstream.ok ? 200 : 502, data);
+    const success = upstream.ok && String(data.MSG || '').startsWith('000');
+    if (success) {
+      // 登入成功：建立 session，寫入 HttpOnly cookie
+      resetRateLimit(ip);
+      const token = createSession(userId.toLowerCase());
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Set-Cookie': sessionCookieHeader(token),
+        ...SECURITY_HEADERS,
+      });
+      res.end(JSON.stringify(data));
+    } else {
+      sendJson(res, upstream.ok ? 200 : 502, data);
+    }
   } catch (err) {
+    console.error('[auth] EIP 連線錯誤:', err.message);
     sendJson(res, 502, {
       ok: false,
-      MSG: `999 無法連線至日翊 EIP：${err.message}`,
+      MSG: '999 無法連線至日翊 EIP，請稍後再試',
     });
   }
+}
+
+function handleLogout(req, res) {
+  const cookies = parseCookies(req);
+  const token = cookies['kpl_session'];
+  if (token) sessions.delete(token);
+  res.writeHead(200, {
+    'Content-Type': 'application/json; charset=utf-8',
+    'Cache-Control': 'no-store',
+    'Set-Cookie': clearSessionCookieHeader(),
+    ...SECURITY_HEADERS,
+  });
+  res.end(JSON.stringify({ ok: true, MSG: '000 已登出' }));
 }
 
 function handleStatic(req, res) {
@@ -278,9 +432,9 @@ function handleStatic(req, res) {
 
 // ── 讀取頁面權限 ──
 function handleGetPermissions(req, res) {
+  if (!requireSession(req, res)) return;
   fs.readFile(PERMISSIONS_FILE, 'utf8', (err, data) => {
     if (err) {
-      // 若檔案不存在，回傳全開預設值
       const defaults = {};
       VALID_PAGE_IDS.forEach(id => { defaults[id] = true; });
       sendJson(res, 200, defaults);
@@ -300,6 +454,8 @@ async function handleSavePermissions(req, res) {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
     return;
   }
+
+  if (!requireSession(req, res)) return;
 
   let body;
   try {
@@ -348,11 +504,11 @@ async function handleSavePermissions(req, res) {
       return;
     }
   } catch (err) {
-    sendJson(res, 502, { ok: false, MSG: `999 無法連線至 EIP：${err.message}` });
+    console.error('[permissions] EIP 連線錯誤:', err.message);
+    sendJson(res, 502, { ok: false, MSG: '999 無法連線至 EIP，請稍後再試' });
     return;
   }
 
-  // 過濾只保留合法的 page id，值只允許 boolean
   const sanitized = {};
   VALID_PAGE_IDS.forEach(id => {
     sanitized[id] = perms[id] !== false;
@@ -360,7 +516,8 @@ async function handleSavePermissions(req, res) {
 
   fs.writeFile(PERMISSIONS_FILE, JSON.stringify(sanitized, null, 2), 'utf8', err => {
     if (err) {
-      sendJson(res, 500, { ok: false, MSG: '999 儲存失敗' });
+      console.error('[permissions] 寫入失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 儲存失敗，請稍後再試' });
       return;
     }
     sendJson(res, 200, { ok: true, MSG: '000 權限已儲存', permissions: sanitized });
@@ -372,6 +529,8 @@ async function handleBudgetImport(req, res) {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
     return;
   }
+
+  if (!requireSession(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -449,7 +608,8 @@ async function handleBudgetImport(req, res) {
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    sendJson(res, 500, { ok: false, MSG: `999 Budget import failed: ${err.message}` });
+    console.error('[budget] 匯入失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 預算匯入失敗，請稍後再試' });
   } finally {
     client.release();
   }
@@ -460,6 +620,8 @@ async function handleBudgetData(req, res) {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
     return;
   }
+
+  if (!requireSession(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -500,7 +662,8 @@ async function handleBudgetData(req, res) {
       })),
     });
   } catch (err) {
-    sendJson(res, 500, { ok: false, MSG: `999 Budget query failed: ${err.message}` });
+    console.error('[budget] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 預算查詢失敗，請稍後再試' });
   }
 }
 
@@ -509,6 +672,8 @@ async function handleLaborImport(req, res) {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
     return;
   }
+
+  if (!requireSession(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -608,7 +773,8 @@ async function handleLaborImport(req, res) {
     });
   } catch (err) {
     await client.query('ROLLBACK').catch(() => {});
-    sendJson(res, 500, { ok: false, MSG: `999 Labor import failed: ${err.message}` });
+    console.error('[labor] 匯入失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 人力資料匯入失敗，請稍後再試' });
   } finally {
     client.release();
   }
@@ -619,6 +785,8 @@ async function handleLaborData(req, res) {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
     return;
   }
+
+  if (!requireSession(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -668,13 +836,18 @@ async function handleLaborData(req, res) {
       })),
     });
   } catch (err) {
-    sendJson(res, 500, { ok: false, MSG: `999 Labor query failed: ${err.message}` });
+    console.error('[labor] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 人力資料查詢失敗，請稍後再試' });
   }
 }
 
 const server = http.createServer((req, res) => {
   if (req.url.startsWith('/api/check-user')) {
     handleCheckUser(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/logout')) {
+    handleLogout(req, res);
     return;
   }
   if (req.url.startsWith('/api/page-permissions')) {
@@ -699,6 +872,15 @@ const server = http.createServer((req, res) => {
   }
 
   handleStatic(req, res);
+});
+
+// ── 全域錯誤保護，避免未預期的錯誤讓伺服器當掉 ──
+process.on('unhandledRejection', (reason) => {
+  console.error('[server] 未處理的 Promise 拒絕:', reason);
+});
+
+process.on('uncaughtException', (err) => {
+  console.error('[server] 未捕捉的例外:', err.message);
 });
 
 server.listen(PORT, () => {

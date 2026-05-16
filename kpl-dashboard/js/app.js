@@ -10,9 +10,18 @@ function isAdmin() {
   return (sessionStorage.getItem('kpl_user') || '').toLowerCase() === ADMIN_USER_ID;
 }
 
+function handleAuthExpired(res) {
+  if (res.status !== 401) return false;
+  sessionStorage.removeItem('kpl_auth');
+  sessionStorage.removeItem('kpl_user');
+  location.href = 'login.html';
+  return true;
+}
+
 async function loadPagePermissions() {
   try {
     const res = await fetch('/api/page-permissions');
+    if (handleAuthExpired(res)) return;
     if (res.ok) pagePermissions = await res.json();
   } catch { /* 若載入失敗，管理員帳號仍可看全部 */ }
 }
@@ -24,13 +33,28 @@ function isPageVisible(pageId) {
 
 const PAGES = [
   {
-    group: '📊 儀表板',
+    group: '📊 儀表板總覽',
     items: [
       { id:'daily',        icon:'📅', label:'每日動支監控', status:'ready' },
       { id:'dispatch',     icon:'💼', label:'總費用動支率', status:'ready' },
+    ]
+  },
+  {
+    group: '💰 成本分析',
+    items: [
       { id:'freight',      icon:'🚚', label:'運費損益分析', status:'ready' },
       { id:'labor',        icon:'⏱', label:'人力工時結構', status:'ready' },
+    ]
+  },
+  {
+    group: '⚡ 效率分析',
+    items: [
       { id:'productivity', icon:'📊', label:'揀次人效分析', status:'ready' },
+    ]
+  },
+  {
+    group: '📋 預算規劃',
+    items: [
       { id:'annual',       icon:'📋', label:'年度規劃分析', status:'ready' },
     ]
   },
@@ -38,7 +62,13 @@ const PAGES = [
     group: '📁 資料管理',
     items: [
       { id:'import',       icon:'📤', label:'資料匯入',     status:'ready' },
+    ]
+  },
+  {
+    group: '⚙️ 系統設定',
+    items: [
       { id:'org',          icon:'🏢', label:'組織設定',     status:'ready' },
+      { id:'admin',        icon:'🔐', label:'頁面權限設定', status:'ready', adminOnly: true },
     ]
   },
 ];
@@ -46,55 +76,71 @@ const PAGES = [
 let currentPageId = 'daily';
 let annualViewMode = 'labor';
 
-// ── 渲染左側選單 ──
+// ── 渲染左側 Accordion Drawer 選單 ──
 function renderSidebar() {
   const sb = document.getElementById('sidebar');
-  let html = '<div class="sb-nav">';
-  PAGES.forEach(group => {
-    // 過濾出此群組中有權限的頁面
-    const visibleItems = group.items.filter(item => isPageVisible(item.id));
-    if (visibleItems.length === 0) return;
-
-    html += `<div class="sb-group"><div class="sb-group-label">${group.group}</div>`;
-    visibleItems.forEach(item => {
-      const active = item.id === currentPageId ? 'active' : '';
-      let badge = '';
-      if (item.status === 'wip') badge = '<span class="sb-item-badge wip">WIP</span>';
-      else if (item.status === 'placeholder') badge = '<span class="sb-item-badge soon">TBD</span>';
-      // 管理員可看到被關閉的頁面但顯示灰色標記
-      const hiddenMark = (isAdmin() && pagePermissions[item.id] === false)
-        ? '<span class="sb-item-badge" style="background:#aaa;color:#fff">隱藏</span>' : '';
-      html += `
-      <a href="#${item.id}" class="sb-item ${active}" onclick="navigate(event, '${item.id}')">
-        <span class="sb-item-icon">${item.icon}</span>
-        <span class="sb-item-label">${item.label}</span>
-        ${badge}${hiddenMark}
-      </a>`;
-    });
-    html += '</div>';
-  });
-
-  // 管理員專屬：權限設定入口
-  if (isAdmin()) {
-    const adminActive = currentPageId === 'admin' ? 'active' : '';
-    html += `
-    <div class="sb-group">
-      <div class="sb-group-label" style="color:#f5c400">⚙️ 超級管理員</div>
-      <a href="#admin" class="sb-item ${adminActive}" onclick="navigate(event, 'admin')" style="border-left: 3px solid #f5c400">
-        <span class="sb-item-icon">🔐</span>
-        <span class="sb-item-label">頁面權限設定</span>
-      </a>
-    </div>`;
-  }
-
-  html += '</div>';
-
-  // 底部使用者資訊 + 登出
   const userId = sessionStorage.getItem('kpl_user') || '使用者';
   const adminBadge = isAdmin()
     ? '<span style="font-size:10px;background:#f5c400;color:#123d74;padding:1px 6px;border-radius:99px;font-weight:700;margin-left:4px">管理員</span>'
     : '';
+
+  let html = `
+  <div class="sb-header">
+    <div class="sb-header-brand">
+      <div class="topbar-brand-badge">RY</div>
+      <div>
+        <div class="sb-header-title">KPL 儀表板</div>
+        <div class="sb-header-subtitle">日翊文化行銷股份有限公司</div>
+      </div>
+    </div>
+    <button class="sb-close" onclick="closeSidebar()" aria-label="關閉選單">✕</button>
+  </div>
+  <nav class="sb-nav">`;
+
+  PAGES.forEach(group => {
+    const visibleItems = group.items.filter(item => {
+      if (item.adminOnly) return isAdmin();
+      return isPageVisible(item.id);
+    });
+    if (visibleItems.length === 0) return;
+
+    const isActiveGroup = visibleItems.some(item => item.id === currentPageId);
+    const expandedClass = isActiveGroup ? ' expanded' : '';
+    const activeCatClass = isActiveGroup ? ' active' : '';
+
+    html += `
+    <div class="sb-category${expandedClass}">
+      <button class="sb-category-btn${activeCatClass}" onclick="toggleAccordion(this.parentElement)" type="button">
+        <span class="sb-category-label">${group.group}</span>
+        <svg class="sb-category-caret" width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
+          <path d="M0 0l5 6 5-6z"/>
+        </svg>
+      </button>
+      <div class="sb-pages">`;
+
+    visibleItems.forEach(item => {
+      const active = item.id === currentPageId ? ' active' : '';
+      let badge = '';
+      if (item.status === 'wip') badge = '<span class="sb-item-badge wip">WIP</span>';
+      else if (item.status === 'placeholder') badge = '<span class="sb-item-badge soon">TBD</span>';
+      const hiddenMark = (isAdmin() && pagePermissions[item.id] === false && !item.adminOnly)
+        ? '<span class="sb-item-badge" style="background:#aaa;color:#fff">隱藏</span>' : '';
+      const itemStyle = item.adminOnly ? ' style="border-left-color:#f5c400"' : '';
+      html += `
+        <a href="#${item.id}" class="sb-item${active}" onclick="navigate(event,'${item.id}')"${itemStyle}>
+          <span class="sb-item-icon">${item.icon}</span>
+          <span class="sb-item-label">${item.label}</span>
+          ${badge}${hiddenMark}
+        </a>`;
+    });
+
+    html += `
+      </div>
+    </div>`;
+  });
+
   html += `
+  </nav>
   <div class="sb-user">
     <div class="sb-user-avatar">${isAdmin() ? '👑' : '👤'}</div>
     <div class="sb-user-info">
@@ -107,8 +153,15 @@ function renderSidebar() {
   sb.innerHTML = html;
 }
 
+function toggleAccordion(categoryEl) {
+  const isExpanded = categoryEl.classList.contains('expanded');
+  document.querySelectorAll('.sb-category.expanded').forEach(el => el.classList.remove('expanded'));
+  if (!isExpanded) categoryEl.classList.add('expanded');
+}
+
 // ── 登出 ──
 function logout() {
+  fetch('/api/logout', { method: 'POST' }).catch(() => {});
   sessionStorage.removeItem('kpl_user');
   sessionStorage.removeItem('kpl_auth');
   location.href = 'login.html';
@@ -119,12 +172,29 @@ function navigate(event, pageId) {
   if (event) event.preventDefault();
   currentPageId = pageId;
   renderSidebar();
-  document.getElementById('sidebar').classList.remove('open');
+  renderTopbarTabs();
   loadPage(pageId);
+}
+
+// ── 更新 Topbar 頁面名稱 ──
+function updateTopbarPageName(pageId) {
+  const el = document.getElementById('topbar-page-name');
+  if (!el) return;
+  const allItems = PAGES.flatMap(g => g.items);
+  const page = allItems.find(i => i.id === pageId);
+  if (page) {
+    el.textContent = `${page.icon} ${page.label}`;
+    document.title = `${page.label} · KPL 儀表板`;
+  } else {
+    el.textContent = '';
+    document.title = 'KPL 儀表板';
+  }
 }
 
 // ── 載入頁面 ──
 function loadPage(pageId) {
+  updateTopbarPageName(pageId);
+
   // 管理員頁面不需要 template
   if (pageId === 'admin') {
     if (!isAdmin()) { navigate(null, 'daily'); return; }
@@ -213,7 +283,7 @@ function renderAdminPage() {
   if (!isAdmin()) return;
   const main = document.getElementById('main');
 
-  const allItems = PAGES.flatMap(g => g.items);
+  const allItems = PAGES.flatMap(g => g.items).filter(item => !item.adminOnly);
   const rows = allItems.map(item => {
     const isOn = pagePermissions[item.id] !== false;
     return `
@@ -317,6 +387,7 @@ async function savePermissions() {
         permissions,
       }),
     });
+    if (handleAuthExpired(res)) return;
     const data = await res.json();
     if (res.ok && data.ok) {
       pagePermissions = data.permissions;
@@ -360,21 +431,137 @@ async function applyDashboardDateFilter(pageId = currentPageId) {
   toast('🔄 日期區間已更新');
 }
 
-// ── 手機側欄切換 ──
+// ── Drawer 開關（桌機與手機統一行為）──
 function toggleSidebar() {
-  document.getElementById('sidebar').classList.toggle('open');
+  const isOpen = document.getElementById('sidebar').classList.toggle('drawer-open');
+  document.body.classList.toggle('drawer-pinned', isOpen);
 }
 
-// ── 頂部時間 ──
+function closeSidebar() {
+  document.getElementById('sidebar').classList.remove('drawer-open');
+  document.body.classList.remove('drawer-pinned');
+}
+
+// ── Topbar：分類 Tab 導覽 ──
+function getCurrentGroup(pageId) {
+  return PAGES.find(g => g.items.some(i => i.id === pageId)) || null;
+}
+
+function navigateGroup(groupIdx) {
+  const group = PAGES[groupIdx];
+  if (!group) return;
+  const firstVisible = group.items.find(item => {
+    if (item.adminOnly) return isAdmin();
+    return isPageVisible(item.id);
+  });
+  if (firstVisible) navigate(null, firstVisible.id);
+}
+
+function renderTopbarTabs() {
+  const container = document.getElementById('topbar-tabs');
+  if (!container) return;
+  const currentGroup = getCurrentGroup(currentPageId);
+  let html = '';
+  PAGES.forEach((group, idx) => {
+    const visibleItems = group.items.filter(item => {
+      if (item.adminOnly) return isAdmin();
+      return isPageVisible(item.id);
+    });
+    if (visibleItems.length === 0) return;
+    const active = currentGroup && currentGroup.group === group.group ? ' active' : '';
+    let items = '';
+    visibleItems.forEach(item => {
+      const ia = item.id === currentPageId ? ' active' : '';
+      items += `<button class="topbar-dropdown-item${ia}" onclick="navigateTopbarItem(event,'${item.id}')" type="button">${item.icon} ${item.label}</button>`;
+    });
+    html += `<div class="topbar-tab-wrap" onmouseenter="ddShow(this)" onmouseleave="ddHide()"><button class="topbar-tab${active}" onclick="onTabClick(event,${idx})" type="button">${group.group}</button><div class="topbar-dropdown" onmouseenter="ddCancel()" onmouseleave="ddHide()">${items}</div></div>`;
+  });
+  container.innerHTML = html;
+}
+
+// ── Topbar Dropdown：hover 展開子選單 ──
+let _ddT = null;
+
+function ddShow(wrapEl) {
+  clearTimeout(_ddT);
+  document.querySelectorAll('.topbar-dropdown.dd-open').forEach(d => d.classList.remove('dd-open'));
+  const dd = wrapEl.querySelector('.topbar-dropdown');
+  if (!dd) return;
+  dd.classList.add('dd-open');
+}
+
+function ddHide() {
+  _ddT = setTimeout(() => {
+    document.querySelectorAll('.topbar-dropdown.dd-open').forEach(d => d.classList.remove('dd-open'));
+  }, 120);
+}
+
+function ddCancel() { clearTimeout(_ddT); }
+
+function closeTopbarDropdowns() {
+  clearTimeout(_ddT);
+  document.querySelectorAll('.topbar-dropdown.dd-open').forEach(d => d.classList.remove('dd-open'));
+}
+
+function navigateTopbarItem(event, pageId) {
+  navigate(event, pageId);
+  closeTopbarDropdowns();
+}
+
+function onTabClick(event, groupIdx) {
+  if (window.matchMedia('(hover: hover)').matches) {
+    navigateGroup(groupIdx);
+  } else {
+    event.stopPropagation();
+    const wrapEl = event.currentTarget.closest('.topbar-tab-wrap');
+    const dd = wrapEl?.querySelector('.topbar-dropdown');
+    if (!dd) return;
+    if (dd.classList.contains('dd-open')) { dd.classList.remove('dd-open'); }
+    else { ddShow(wrapEl); }
+  }
+}
+
+// ── Topbar：初始化使用者資訊 ──
+function initTopbar() {
+  const userId = sessionStorage.getItem('kpl_user') || '使用者';
+  const nameEl   = document.getElementById('topbar-user-name');
+  const avatarEl = document.getElementById('topbar-user-avatar');
+  const umName   = document.getElementById('um-name');
+  const umRole   = document.getElementById('um-role');
+  if (nameEl)   nameEl.textContent   = userId;
+  if (avatarEl) avatarEl.textContent = isAdmin() ? '👑' : '👤';
+  if (umName)   umName.textContent   = userId;
+  if (umRole)   umRole.textContent   = isAdmin() ? '管理員 · 日翊文化行銷' : '日翊文化行銷';
+}
+
+// ── Topbar：使用者選單 ──
+function toggleUserMenu() {
+  const menu = document.getElementById('user-menu');
+  if (!menu) return;
+  menu.hidden = !menu.hidden;
+}
+
+// ── 點擊外部自動關閉 User Menu 與 Topbar Dropdown ──
+document.addEventListener('click', function handleClickOutside(e) {
+  const menu    = document.getElementById('user-menu');
+  const userBtn = document.getElementById('user-btn');
+  if (menu && !menu.hidden && userBtn &&
+      !menu.contains(e.target) && !userBtn.contains(e.target)) {
+    menu.hidden = true;
+  }
+  if (!e.target.closest('.topbar-tab-wrap')) {
+    document.querySelectorAll('.topbar-dropdown.dd-open').forEach(d => d.classList.remove('dd-open'));
+  }
+});
+
+// ── 頂部時間（時鐘，保留向下相容） ──
 function updateTime() {
   const el = document.getElementById('nav-time');
   if (el) el.textContent = new Date().toLocaleString('zh-TW', { hour12:false });
 }
 
 function checkMobile() {
-  const toggle = document.getElementById('menu-toggle');
-  if (!toggle) return;
-  toggle.style.display = window.innerWidth <= 768 ? 'inline-flex' : 'none';
+  // Drawer 行為在桌機與手機一致，不需要額外處理
 }
 
 function getBudgetYear() {
@@ -419,6 +606,7 @@ function applyCloudBudgetRows(rows, year = getBudgetYear()) {
 async function loadCloudBudgetData() {
   try {
     const res = await fetch(`/api/data/budget?year=${getBudgetYear()}`);
+    if (handleAuthExpired(res)) return false;
     if (!res.ok) return false;
     const data = await res.json();
     return data.ok ? applyCloudBudgetRows(data.rows, data.year) : false;
@@ -443,6 +631,7 @@ async function syncCloudBudget(parsed) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (handleAuthExpired(res)) throw new Error('登入已逾時，請重新登入');
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
   return data;
@@ -505,6 +694,7 @@ async function loadCloudLaborData() {
       date_to: DATA.dateTo,
     });
     const res = await fetch(`/api/data/labor?${params.toString()}`);
+    if (handleAuthExpired(res)) return false;
     if (!res.ok) return false;
     const data = await res.json();
     return data.ok ? applyCloudLaborRows(data.rows) : false;
@@ -525,6 +715,7 @@ async function syncCloudLabor(parsed) {
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
   });
+  if (handleAuthExpired(res)) throw new Error('登入已逾時，請重新登入');
   const data = await res.json().catch(() => ({}));
   if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
   return data;
@@ -544,6 +735,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadCloudLaborData();
 
   renderSidebar();
+  initTopbar();
 
   const hash = location.hash.slice(1);
   if (hash) {
@@ -552,6 +744,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       currentPageId = hash;
     }
   }
+  renderTopbarTabs();
   loadPage(currentPageId);
 
   updateTime();

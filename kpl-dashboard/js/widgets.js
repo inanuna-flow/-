@@ -36,7 +36,7 @@ function renderM012() {
   const projColor  = colorFor(projected);
 
   return `
-  <div class="w s12" style="border-top:3px solid ${projColor}">
+  <div class="w s12">
     <div class="gold-band gold-band-dynamic" style="background:${projColor}">
       ${DATA.widgetLabels?.m012 || 'M012 預算達成率'} · 基準 = ${idx+1}月預算 ${fmtMoney(Math.round(budget))}（來源：年度預算）
     </div>
@@ -262,7 +262,7 @@ function renderF002() {
   const color = diff > 0 ? '#d9401b' : '#1b7c33';
   const label = diff > 0 ? '🔴 超支' : '🟢 節省';
   return `
-  <div class="w s4" style="border-top:3px solid ${color}">
+  <div class="w s4">
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:${color}"></div>F002 預計 vs 實際差異率</div>
       <span class="wmeta">${label}</span>
@@ -823,7 +823,7 @@ function renderM021(t) {
   const color = pct > 20 ? '#d9401b' : pct > 10 ? '#e07855' : '#1b7c33';
   const label = pct > 20 ? '🔴 偏高' : pct > 10 ? '🟡 注意' : '🟢 正常';
   return `
-  <div class="w s4" style="border-top:3px solid ${color}">
+  <div class="w s4">
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:${color}"></div>M021 加班佔比</div>
       <span class="wmeta">${label}</span>
@@ -1295,7 +1295,7 @@ function renderMSummaryKpi(labor, picks, freightTotal, budget) {
     const pct   = totalActual / totBudget * 100;
     const color = colorFor(pct);
     return `
-  <div class="w s3" style="border-top:3px solid ${color}">
+  <div class="w s3">
     <div class="wh">
       <div class="wl"><div class="wdot" style="background:${color}"></div>全區動支率</div>
       <span class="wmeta">${labelFor(pct)}</span>

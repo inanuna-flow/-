@@ -6,7 +6,6 @@
 .filter-bar {
   background: white;
   border: 1px solid var(--ry-line);
-  border-left: 4px solid var(--ry-blue);
   border-radius: 4px;
   padding: 14px 18px;
   margin-bottom: 18px;
@@ -157,10 +156,8 @@
 
 /* ══ 共用 Widget 工具樣式 ══ */
 .widget-border-blue {
-  border-top: 3px solid var(--ry-blue);
 }
 .widget-border-red {
-  border-top: 3px solid var(--ry-red);
 }
 .dot-red {
   background: var(--ry-red);
@@ -373,6 +370,7 @@
   overflow: hidden;
 }
 .import-accent {
+  display: none;
   position: absolute;
   left: 0;
   top: 0;
@@ -1366,7 +1364,6 @@ td.mono { font-family: var(--f-mono); }
   border-radius: 4px;
   width: 540px; max-width: 90vw;
   max-height: 86vh; overflow-y: auto;
-  border-top: 4px solid var(--ry-blue);
 }
 .modal-head {
   padding: 18px 22px;
