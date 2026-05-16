@@ -179,16 +179,23 @@ function navigate(event, pageId) {
 // ── 更新 Topbar 頁面名稱 ──
 function updateTopbarPageName(pageId) {
   const el = document.getElementById('topbar-page-name');
-  if (!el) return;
   const allItems = PAGES.flatMap(g => g.items);
   const page = allItems.find(i => i.id === pageId);
   if (page) {
-    el.textContent = `${page.icon} ${page.label}`;
+    if (el) el.textContent = `${page.icon} ${page.label}`;
     document.title = `${page.label} · KPL 儀表板`;
   } else {
-    el.textContent = '';
+    if (el) el.textContent = '';
     document.title = 'KPL 儀表板';
   }
+}
+
+function updatePageBreadcrumb(pageId) {
+  const group = getCurrentGroup(pageId);
+  const page = group?.items.find(item => item.id === pageId);
+  const el = document.querySelector('#main .page-eyebrow');
+  if (!el || !group || !page) return;
+  el.textContent = `${group.group} > ${page.label}`;
 }
 
 // ── 載入頁面 ──
@@ -216,6 +223,7 @@ function loadPage(pageId) {
     return;
   }
   main.innerHTML = tpl;
+  updatePageBreadcrumb(pageId);
 
   if (pageId === 'daily')        initDailyPage();
   else if (pageId === 'dispatch') initDispatchPage();

@@ -70,7 +70,7 @@
 
 /* ── Tabs（漢堡右側，向左對齊）── */
 .topbar-center {
-  display: flex; align-items: center; gap: 4px;
+  display: none; align-items: center; gap: 4px;
   overflow-x: clip;   /* 超出不捲動 */
   overflow-y: visible; /* 讓 dropdown 向下延伸，不裁切 */
   flex: 1; min-width: 0;
@@ -152,23 +152,6 @@
   gap: 4px;
   justify-content: flex-end;
 }
-
-.topbar-page-name {
-  font-size: 13px;
-  font-weight: 600;
-  color: rgba(255,255,255,.75);
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px;
-  padding: 0 12px 0 0;
-  margin-right: 4px;
-  border-right: 1px solid rgba(255,255,255,.2);
-}
-@media (max-width: 768px) {
-  .topbar-page-name { display: none; }
-}
-
 
 .topbar-icon-btn {
   position: relative;
@@ -330,8 +313,9 @@
   width: 100%; padding: 10px 14px 10px 18px;
   background: none; border: none; cursor: pointer;
   color: var(--ry-muted);
+  font-family: var(--f-head);
   font-size: 15px; font-weight: 800;
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
   text-align: left;
   transition: background .15s, color .15s;
 }
@@ -352,7 +336,9 @@
 .sb-item {
   display: flex; align-items: center; gap: 10px;
   padding: 9px 18px 9px 40px;
-  font-size: 14px; font-weight: 600; color: var(--ry-ink);
+  font-family: var(--f-head);
+  font-size: 14px; font-weight: 800; color: var(--ry-ink);
+  letter-spacing: -0.01em;
   cursor: pointer;
   border-left: 3px solid transparent;
   transition: all .15s;
@@ -431,12 +417,31 @@ body.drawer-pinned .main {
   body.drawer-pinned .main  { margin-left: 0; }
 }
 
-.page-head { margin-bottom: 0; }
+.page-head {
+  margin-bottom: 22px;
+}
 
-/* 大標題、英文眉批、meta 文字全部隱藏，讓資料內容往上 */
-.page-eyebrow { display: none; }
-.page-h       { display: none; }
-.page-p       { display: none; }
+/* 頁面保留子層標題；眉批改為路徑，描述/meta 文字維持隱藏 */
+.page-eyebrow {
+  display: block;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--ry-blue);
+  margin-bottom: 8px;
+}
+.page-h {
+  display: block;
+  font-size: 26px;
+  font-weight: 900;
+  color: var(--ry-ink);
+  line-height: 1.2;
+  letter-spacing: 0;
+}
+.page-p {
+  display: none;
+}
 
 /* ══ 建構中 Placeholder ══ */
 .wip-page {
@@ -475,7 +480,18 @@ body.drawer-pinned .main {
   .main { padding-top: 20px; padding-bottom: 20px; }
   .topbar { padding: 0 8px 0 2px; }
   .topbar-brand-zh { display: none; }
-  .topbar-center { display: none; }
+  .topbar-center {
+    display: flex;
+    overflow-x: auto;
+    overflow-y: visible;
+    scrollbar-width: none;
+  }
+  .topbar-center::-webkit-scrollbar { display: none; }
+  .topbar-tab {
+    height: 32px;
+    padding: 0 9px;
+    font-size: 13px;
+  }
   .topbar-user-name { display: none; }
 }
 

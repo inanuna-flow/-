@@ -6,3 +6,6 @@
 初始資料/
 read_budget.ps1
 node_modules/
+.claude/
+.vscode/
+參考圖/
