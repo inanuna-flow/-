@@ -539,6 +539,7 @@ async function handleLaborImport(req, res) {
 
   const dates = rows.map(row => row.workDate).sort();
   const periodMonth = monthStartFromDate(dates[0]);
+  const warehouses = Array.from(new Set(rows.map(row => row.warehouseName).filter(Boolean)));
   const client = await pool.connect();
   try {
     await client.query('BEGIN');
@@ -556,6 +557,14 @@ async function handleLaborImport(req, res) {
       ],
     );
     const batchId = batchResult.rows[0].id;
+
+    await client.query(
+      `DELETE FROM ${schemaTable('labor_daily')}
+       WHERE work_date >= $1::date
+         AND work_date <= $2::date
+         AND warehouse_name = ANY($3::text[])`,
+      [dates[0], dates[dates.length - 1], warehouses],
+    );
 
     const upsertSql = `
       INSERT INTO ${schemaTable('labor_daily')}

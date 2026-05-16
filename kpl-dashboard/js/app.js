@@ -351,8 +351,10 @@ function rerenderDashboardPage(pageId = currentPageId) {
   else if (pageId === 'annual') renderAnnualPage();
 }
 
-function applyDashboardDateFilter(pageId = currentPageId) {
+async function applyDashboardDateFilter(pageId = currentPageId) {
   if (!setSharedDateRangeFromInputs(pageId)) return;
+  await loadCloudBudgetData();
+  await loadCloudLaborData();
   if (pageId === 'dispatch') syncDispatchBudgetForCurrentMonth();
   rerenderDashboardPage(pageId);
   toast('🔄 日期區間已更新');
@@ -450,8 +452,23 @@ function normalizeCloudDate(value) {
   return String(value || '').slice(0, 10);
 }
 
+function resetDispatchLaborForRange(from = DATA.dateFrom, to = DATA.dateTo) {
+  DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
+    const fullDate = dispatchRowFullDate(row);
+    if (!fullDate || fullDate < from || fullDate > to) return row;
+    return [row[0], 0, row[2], 0, row[4], 0, row[6], row[7]];
+  });
+}
+
 function applyCloudLaborRows(rows) {
-  if (!Array.isArray(rows) || !rows.length) return false;
+  resetDispatchLaborForRange();
+  if (!Array.isArray(rows) || !rows.length) {
+    LABOR_RAW = [];
+    DATA.dataLatest.labor = '';
+    DATA.dataOldest = DATA.dataOldest || {};
+    DATA.dataOldest.labor = '';
+    return true;
+  }
   LABOR_RAW = rows.map(row => ({
     wh: row.wh,
     date: normalizeCloudDate(row.date),
