@@ -4,9 +4,9 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KPL 儀表板 · 日翊文化行銷</title>
-<link rel="stylesheet" href="css/base.css?v=20260504-3">
-<link rel="stylesheet" href="css/layout.css?v=20260516-1">
-<link rel="stylesheet" href="css/widget.css?v=20260516-1">
+<link rel="stylesheet" href="css/base.css?v=20260518-6">
+<link rel="stylesheet" href="css/layout.css?v=20260518-6">
+<link rel="stylesheet" href="css/widget.css?v=20260518-6">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
@@ -340,6 +340,21 @@
 <div class="grid" id="org-grid"></div>
 </script>
 
+<script id="tpl-typography" type="text/html">
+<div class="page-head org-page-head">
+  <div>
+    <div class="page-eyebrow">SYSTEM SETTINGS · 文字樣式設定</div>
+    <h1 class="page-h">文字樣式設定</h1>
+    <div class="page-p">調整全站文字層級，並即時預覽套用效果</div>
+  </div>
+  <div style="display:flex;gap:10px;align-items:center">
+    <button class="btn btn-ghost" onclick="resetTypographySettings()">重設預設值</button>
+    <button class="btn btn-primary org-save-btn" onclick="saveTypographySettings()">儲存設定</button>
+  </div>
+</div>
+<div class="grid" id="typography-grid"></div>
+</script>
+
 <script id="tpl-picks" type="text/html">
 <div class="page-head">
   <div class="page-eyebrow">PICKS ANALYSIS · 揀次分析</div>
@@ -425,7 +440,7 @@
 <script src="js/labor_data.js?v=20260504-3"></script>
 <script src="js/data.js?v=20260509-1"></script>
 <script src="js/utils.js?v=20260505-1"></script>
-<script src="js/widgets.js?v=20260516-1"></script>
+<script src="js/widgets.js?v=20260518-5"></script>
 <script>
 // 從 <script type="text/html"> 讀取模板
 const PAGE_TEMPLATES = {
@@ -438,8 +453,9 @@ const PAGE_TEMPLATES = {
   annual:         document.getElementById('tpl-annual').innerHTML,
   import:         document.getElementById('tpl-import').innerHTML,
   org:            document.getElementById('tpl-org').innerHTML,
+  typography:     document.getElementById('tpl-typography').innerHTML,
 };
 </script>
-<script src="js/app.js?v=20260516-1"></script>
+<script src="js/app.js?v=20260518-6"></script>
 </body>
 </html>

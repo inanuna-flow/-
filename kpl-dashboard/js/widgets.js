@@ -232,6 +232,669 @@ function getFreightFilteredSummary() {
 }
 
 // F001 月總運費
+const FREIGHT_WAREHOUSE_ORDER = ['大溪倉', '大肚倉', '岡山倉'];
+const FREIGHT_DEMO_BUDGET = {
+  '大溪倉': 33200602,
+  '大肚倉': 17067880,
+  '岡山倉': 21497185,
+};
+
+function getFreightWarehouseOrder() {
+  const annual = DATA.annualBudget?.freight || {};
+  const legacy = DATA.freight?.warehouseBudget || {};
+  const names = Object.keys(annual).length ? Object.keys(annual) : Object.keys(legacy);
+  const preferred = FREIGHT_WAREHOUSE_ORDER.filter(name => names.includes(name));
+  if (preferred.length === FREIGHT_WAREHOUSE_ORDER.length) return preferred;
+  return names.length ? names.slice(0, 3) : FREIGHT_WAREHOUSE_ORDER;
+}
+
+function hasRealFreightRows() {
+  return getFreightDailyRowsFiltered().length > 0 || getFreightTrendFiltered().length > 0;
+}
+
+function freightDemoFullDate(day) {
+  const base = DATA.dateFrom || '2026-03-01';
+  const year = String(base).slice(0, 4) || '2026';
+  const month = String(base).slice(5, 7) || '03';
+  return `${year}-${month}-${String(day).padStart(2, '0')}`;
+}
+
+function getFreightDemoDailyRows() {
+  const days = 18;
+  return Array.from({ length: days }, (_, index) => {
+    const day = index + 1;
+    const weekWave = [0.92, 1.08, 1.02, 1.18, 0.88, 0.76, 0.82][index % 7];
+    const campaignLift = index >= 8 && index <= 12 ? 1.28 : 1;
+    const daxi = Math.round(980000 * weekWave * campaignLift + index * 18500);
+    const dadu = Math.round(520000 * (1.06 - (index % 4) * 0.03) * campaignLift);
+    const gangshan = Math.round(690000 * (0.9 + (index % 5) * 0.06));
+    return [`${Number(String(DATA.dateFrom || '2026-03-01').slice(5, 7)) || 3}/${day}`, daxi, dadu, gangshan, freightDemoFullDate(day)];
+  });
+}
+
+function getFreightDailyRowsForPage() {
+  const rows = getFreightDailyRowsFiltered();
+  return rows.length ? rows : getFreightDemoDailyRows();
+}
+
+function getFreightTrendRowsForPage() {
+  const rows = getFreightTrendFiltered();
+  if (rows.length) return rows;
+  return getFreightDemoDailyRows().map(row => [row[0], row[1] + row[2] + row[3], row[4]]);
+}
+
+function getFreightAnalysisMode() {
+  return hasRealFreightRows() ? 'real' : 'demo';
+}
+
+function getFreightSummaryForPage() {
+  if (getFreightAnalysisMode() === 'real') return getFreightFilteredSummary();
+  const totalActual = getFreightTrendRowsForPage().reduce((sum, row) => sum + Number(row[1] || 0), 0);
+  const estimatedCost = Math.round(totalActual * 0.94);
+  const totalOrders = getFreightTrendRowsForPage().length * 326;
+  return {
+    estimatedCost,
+    actualCost: totalActual,
+    totalOrders,
+    overCount: 8,
+    saveCount: 10,
+    vendors: [],
+  };
+}
+
+function getFreightBudgetMonthIndex() {
+  if (typeof monthIndexFromDate === 'function') return monthIndexFromDate(DATA.dateFrom);
+  const month = Number(String(DATA.dateFrom || '').slice(5, 7));
+  return month >= 1 && month <= 12 ? month - 1 : 0;
+}
+
+function getFreightBudgetByWarehouse() {
+  const order = getFreightWarehouseOrder();
+  const monthIndex = getFreightBudgetMonthIndex();
+  const source = DATA.annualBudget?.freight || {};
+  const allowDbBudget = DATA.budgetSource === 'cloud';
+  return order.reduce((map, warehouse) => {
+    map[warehouse] = allowDbBudget
+      ? Number(source[warehouse]?.[monthIndex] || 0)
+      : getFreightAnalysisMode() === 'demo'
+        ? Number(FREIGHT_DEMO_BUDGET[warehouse] || 0)
+        : 0;
+    return map;
+  }, {});
+}
+
+function getFreightActualByWarehouse() {
+  const order = getFreightWarehouseOrder();
+  const totals = order.reduce((map, warehouse) => {
+    map[warehouse] = 0;
+    return map;
+  }, {});
+  getFreightDailyRowsForPage().forEach(row => {
+    order.forEach((warehouse, index) => {
+      totals[warehouse] += Number(row[index + 1] || 0);
+    });
+  });
+  return totals;
+}
+
+function getFreightAnalysisData() {
+  const order = getFreightWarehouseOrder();
+  const budget = getFreightBudgetByWarehouse();
+  const actual = getFreightActualByWarehouse();
+  const totalBudget = order.reduce((sum, warehouse) => sum + (budget[warehouse] || 0), 0);
+  const totalActual = order.reduce((sum, warehouse) => sum + (actual[warehouse] || 0), 0);
+  const rate = totalBudget ? totalActual / totalBudget * 100 : 0;
+  const variance = totalBudget ? totalActual - totalBudget : null;
+  return {
+    order,
+    budget,
+    actual,
+    totalBudget,
+    totalActual,
+    rate,
+    variance,
+    hasBudget: totalBudget > 0,
+  };
+}
+
+function freightRiskLabel(rate, hasBudget) {
+  if (!hasBudget) return '等待資料庫預算';
+  if (rate >= 90) return '高風險';
+  if (rate >= 75) return '需關注';
+  return '健康';
+}
+
+function renderFreightKpiOverview() {
+  const data = getFreightAnalysisData();
+  const summary = getFreightSummaryForPage();
+  const diff = data.variance;
+  const riskColor = data.hasBudget ? colorFor(data.rate) : 'var(--ry-muted)';
+  const isDemo = getFreightAnalysisMode() === 'demo';
+  return `
+  <div class="w s12 freight-kpi-panel">
+    <div class="freight-kpi-card freight-kpi-primary">
+      <div class="freight-kpi-label">月總運費 ${isDemo ? '<span class="freight-demo-badge">展示資料</span>' : ''}</div>
+      <div class="freight-kpi-value">${fmtMoney(Math.round(data.totalActual))}</div>
+      <div class="freight-kpi-note">${summary.totalOrders.toLocaleString()} 筆運單 · 依日期區間彙總</div>
+    </div>
+    <div class="freight-kpi-card">
+      <div class="freight-kpi-label">資料庫預算</div>
+      <div class="freight-kpi-value">${data.hasBudget ? fmtMoney(Math.round(data.totalBudget)) : '未接入'}</div>
+      <div class="freight-kpi-note">${isDemo ? '目前用展示預算預覽版型' : '運費預算只讀取資料庫年度預算'}</div>
+    </div>
+    <div class="freight-kpi-card">
+      <div class="freight-kpi-label">預算差異</div>
+      <div class="freight-kpi-value" style="color:${diff === null ? 'var(--ry-muted)' : diff > 0 ? 'var(--ry-red)' : 'var(--ry-green)'}">
+        ${diff === null ? '-' : `${diff > 0 ? '+' : ''}${fmtMoney(Math.round(diff))}`}
+      </div>
+      <div class="freight-kpi-note">${diff === null ? '需先有資料庫預算' : diff > 0 ? '實際高於預算' : '實際低於預算'}</div>
+    </div>
+    <div class="freight-kpi-card">
+      <div class="freight-kpi-label">動支率</div>
+      <div class="freight-kpi-value" style="color:${riskColor}">${data.hasBudget ? `${data.rate.toFixed(1)}%` : '-'}</div>
+      <div class="freight-kpi-note">${freightRiskLabel(data.rate, data.hasBudget)}</div>
+    </div>
+  </div>`;
+}
+
+function renderFreightWarehouseBullets() {
+  const data = getFreightAnalysisData();
+  const maxRate = Math.max(100, ...data.order.map(warehouse => {
+    const budget = data.budget[warehouse] || 0;
+    return budget ? data.actual[warehouse] / budget * 100 : 0;
+  }));
+  const rows = data.order.map(warehouse => {
+    const budget = data.budget[warehouse] || 0;
+    const actual = data.actual[warehouse] || 0;
+    const rate = budget ? actual / budget * 100 : 0;
+    const width = Math.min(100, rate / maxRate * 100);
+    const color = budget ? colorFor(rate) : 'var(--ry-muted)';
+    return `
+      <div class="freight-bullet-row">
+        <div class="freight-bullet-name">${warehouse}</div>
+        <div class="freight-bullet-track">
+          <span class="freight-bullet-limit freight-bullet-limit-75"></span>
+          <span class="freight-bullet-limit freight-bullet-limit-90"></span>
+          <span class="freight-bullet-fill" style="width:${width}%;background:${color}"></span>
+        </div>
+        <div class="freight-bullet-value">${budget ? `${rate.toFixed(1)}%` : '-'}</div>
+      </div>
+      <div class="freight-bullet-sub">${fmtMoney(Math.round(actual))} / ${budget ? fmtMoney(Math.round(budget)) : '資料庫預算未接入'}</div>`;
+  }).join('');
+
+  return `
+  <div class="w s6 freight-analysis-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot dot-freight"></div>三倉動支率子彈圖</div>
+      <span class="wmeta">75% / 90% 警戒線</span>
+    </div>
+    <div class="freight-bullet-list">${rows}</div>
+  </div>`;
+}
+
+function renderFreightWaterfall() {
+  const data = getFreightAnalysisData();
+  const maxAbs = Math.max(
+    1,
+    data.totalBudget,
+    data.totalActual,
+    ...data.order.map(warehouse => Math.abs((data.actual[warehouse] || 0) - (data.budget[warehouse] || 0)))
+  );
+  const bars = [
+    { label:'預算', value:data.totalBudget, kind:'base' },
+    ...data.order.map(warehouse => ({
+      label: warehouse,
+      value: (data.actual[warehouse] || 0) - (data.budget[warehouse] || 0),
+      kind: 'variance',
+    })),
+    { label:'實際', value:data.totalActual, kind:'actual' },
+  ];
+  const body = bars.map(bar => {
+    const isVariance = bar.kind === 'variance';
+    const isPositive = bar.value > 0;
+    const width = Math.max(2, Math.abs(bar.value) / maxAbs * 100);
+    const color = bar.kind === 'base'
+      ? 'var(--ry-blue)'
+      : bar.kind === 'actual'
+        ? 'var(--ry-blue-dark)'
+        : isPositive ? 'var(--ry-red)' : 'var(--ry-green)';
+    return `
+      <div class="freight-waterfall-item">
+        <div class="freight-waterfall-label">${bar.label}</div>
+        <div class="freight-waterfall-track">
+          <span class="freight-waterfall-bar ${isVariance && !isPositive ? 'is-saving' : ''}" style="width:${width}%;background:${color}"></span>
+        </div>
+        <div class="freight-waterfall-value">${bar.value === 0 ? '-' : `${isVariance && isPositive ? '+' : ''}${fmtMoney(Math.round(bar.value))}`}</div>
+      </div>`;
+  }).join('');
+
+  return `
+  <div class="w s6 freight-analysis-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>預算差異瀑布圖</div>
+      <span class="wmeta">${data.hasBudget ? '資料庫預算 vs 實際' : '等待資料庫預算'}</span>
+    </div>
+    <div class="freight-waterfall">${body}</div>
+  </div>`;
+}
+
+function renderFreightDailyHeatmap() {
+  const rows = getFreightTrendRowsForPage();
+  const max = Math.max(1, ...rows.map(row => Number(row[1] || 0)));
+  const cells = rows.map(row => {
+    const value = Number(row[1] || 0);
+    const level = Math.ceil(value / max * 5);
+    return `
+      <div class="freight-heat-cell level-${level}" title="${row[0]} ${fmtMoney(Math.round(value))}">
+        <span>${String(row[0]).split('/').pop()}</span>
+      </div>`;
+  }).join('');
+
+  return `
+  <div class="w s12 freight-analysis-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>每日運費熱度圖</div>
+      <span class="wmeta">${rows.length} 天 · 顏色越深代表當日運費越高</span>
+    </div>
+    ${rows.length ? `<div class="freight-heatmap">${cells}</div>` : '<div class="empty-state">此日期區間沒有運費資料</div>'}
+  </div>`;
+}
+
+function renderFreightDecisionTable() {
+  const data = getFreightAnalysisData();
+  const rows = data.order.map(warehouse => {
+    const budget = data.budget[warehouse] || 0;
+    const actual = data.actual[warehouse] || 0;
+    const diff = budget ? actual - budget : null;
+    const rate = budget ? actual / budget * 100 : 0;
+    const share = data.totalActual ? actual / data.totalActual * 100 : 0;
+    const color = budget ? colorFor(rate) : 'var(--ry-muted)';
+    return `
+      <tr>
+        <td class="date-strong">${warehouse}</td>
+        <td class="mono num-right">${budget ? fmtMoney(Math.round(budget)) : '-'}</td>
+        <td class="mono num-right actual-strong">${fmtMoney(Math.round(actual))}</td>
+        <td class="mono num-right" style="color:${diff === null ? 'var(--ry-muted)' : diff > 0 ? 'var(--ry-red)' : 'var(--ry-green)'}">${diff === null ? '-' : `${diff > 0 ? '+' : ''}${fmtMoney(Math.round(diff))}`}</td>
+        <td class="num-right"><span class="soft-pct-badge" style="background:${budget ? bgFor(rate) : '#f3f4f6'};color:${color}">${budget ? `${rate.toFixed(1)}%` : '-'}</span></td>
+        <td>
+          <div class="freight-share-bar"><span style="width:${Math.min(100, share)}%"></span></div>
+          <div class="freight-share-text">${share.toFixed(1)}%</div>
+        </td>
+      </tr>`;
+  }).join('');
+
+  return `
+  <div class="w s12 table-card freight-decision-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot dot-freight"></div>倉別損益決策表</div>
+      <span class="wmeta">排序固定為營運三倉</span>
+    </div>
+    <div class="table-edge">
+      <table class="tbl freight-decision-table">
+        <thead>
+          <tr>
+            <th>倉別</th>
+            <th class="num-right">資料庫預算</th>
+            <th class="num-right">實際運費</th>
+            <th class="num-right">差異</th>
+            <th class="num-right">動支率</th>
+            <th>占總運費</th>
+          </tr>
+        </thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="table-note">運費預算由資料庫年度預算載入；若預算為空，頁面只呈現實際運費與占比。</div>
+    </div>
+  </div>`;
+}
+
+function renderFreightBudgetActualCombo() {
+  const data = getFreightAnalysisData();
+  const maxValue = Math.max(1, ...data.order.flatMap(warehouse => [
+    data.budget[warehouse] || 0,
+    data.actual[warehouse] || 0,
+  ]));
+  const W = 760, H = 280, padL = 52, padR = 44, padT = 28, padB = 46;
+  const chartW = W - padL - padR;
+  const chartH = H - padT - padB;
+  const groupW = chartW / data.order.length;
+  const barW = Math.min(42, groupW * 0.2);
+  const yFor = value => padT + chartH - (Number(value || 0) / maxValue * chartH);
+  const rateFor = warehouse => {
+    const budget = data.budget[warehouse] || 0;
+    return budget ? data.actual[warehouse] / budget * 100 : 0;
+  };
+  const maxRate = Math.max(100, ...data.order.map(rateFor));
+  const yRate = rate => padT + chartH - (rate / maxRate * chartH);
+
+  const bars = data.order.map((warehouse, index) => {
+    const cx = padL + groupW * index + groupW / 2;
+    const budget = data.budget[warehouse] || 0;
+    const actual = data.actual[warehouse] || 0;
+    const yBudget = yFor(budget);
+    const yActual = yFor(actual);
+    const rate = rateFor(warehouse);
+    return `
+      <rect x="${cx - barW - 4}" y="${yBudget}" width="${barW}" height="${padT + chartH - yBudget}" rx="4" fill="#3b82f6"></rect>
+      <rect x="${cx + 4}" y="${yActual}" width="${barW}" height="${padT + chartH - yActual}" rx="4" fill="#fb6f92"></rect>
+      <text x="${cx - barW / 2 - 4}" y="${yBudget - 7}" text-anchor="middle" font-size="10" fill="#123d74" font-family="Courier New">${(budget / 1000000).toFixed(1)}</text>
+      <text x="${cx + barW / 2 + 4}" y="${yActual - 7}" text-anchor="middle" font-size="10" fill="#9f1239" font-family="Courier New">${(actual / 1000000).toFixed(1)}</text>
+      <text x="${cx}" y="${H - 18}" text-anchor="middle" font-size="12" fill="#1a1d24" font-weight="700">${warehouse.replace('倉', '')}</text>
+      <circle cx="${cx}" cy="${yRate(rate)}" r="4" fill="#1d4ed8" stroke="white" stroke-width="2"></circle>
+      <text x="${cx}" y="${yRate(rate) - 10}" text-anchor="middle" font-size="11" fill="#1d4ed8" font-family="Courier New" font-weight="700">${rate.toFixed(1)}%</text>`;
+  }).join('');
+
+  const ratePath = data.order.map((warehouse, index) => {
+    const cx = padL + groupW * index + groupW / 2;
+    return `${index === 0 ? 'M' : 'L'}${cx},${yRate(rateFor(warehouse))}`;
+  }).join(' ');
+
+  return `
+  <div class="w s6 freight-visual-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot"></div>倉別預算與實際動支</div>
+      <span class="wmeta">藍：預算 · 紅：實際 · 線：動支率</span>
+    </div>
+    <svg class="freight-combo-chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="倉別預算與實際動支">
+      <line x1="${padL}" y1="${padT + chartH}" x2="${padL + chartW}" y2="${padT + chartH}" stroke="#dde2ec"></line>
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#dde2ec"></line>
+      <line x1="${padL + chartW}" y1="${padT}" x2="${padL + chartW}" y2="${padT + chartH}" stroke="#dde2ec" stroke-dasharray="3 3"></line>
+      <text x="${padL - 8}" y="${padT + 4}" text-anchor="end" font-size="10" fill="#5a6478" font-family="Courier New">${(maxValue / 1000000).toFixed(0)}M</text>
+      <text x="${padL - 8}" y="${padT + chartH + 4}" text-anchor="end" font-size="10" fill="#5a6478" font-family="Courier New">0</text>
+      <path d="${ratePath}" fill="none" stroke="#1d4ed8" stroke-width="2.5"></path>
+      ${bars}
+    </svg>
+  </div>`;
+}
+
+function renderFreightStructureBars() {
+  const data = getFreightAnalysisData();
+  const maxValue = Math.max(1, ...data.order.flatMap(warehouse => [
+    data.budget[warehouse] || 0,
+    data.actual[warehouse] || 0,
+  ]));
+  const rows = data.order.map(warehouse => {
+    const budget = data.budget[warehouse] || 0;
+    const actual = data.actual[warehouse] || 0;
+    const share = data.totalActual ? actual / data.totalActual * 100 : 0;
+    return `
+      <div class="freight-structure-row">
+        <div class="freight-structure-name">${warehouse}</div>
+        <div class="freight-structure-bars">
+          <div class="freight-structure-bar budget" style="width:${budget / maxValue * 100}%"><span>${(budget / 1000000).toFixed(2)}M</span></div>
+          <div class="freight-structure-bar actual" style="width:${actual / maxValue * 100}%"><span>${(actual / 1000000).toFixed(2)}M</span></div>
+        </div>
+        <div class="freight-share-ring" style="--share:${Math.min(100, share)}"><span>${share.toFixed(1)}%</span></div>
+      </div>`;
+  }).join('');
+  return `
+  <div class="w s6 freight-visual-card">
+    <div class="wh">
+      <div class="wl"><div class="wdot dot-freight"></div>費用結構與占比</div>
+      <span class="wmeta">實際動支占總運費</span>
+    </div>
+    <div class="freight-structure">${rows}</div>
+    <div class="freight-legend-row">
+      <span><i class="legend-budget"></i>預算</span>
+      <span><i class="legend-actual"></i>實際</span>
+    </div>
+  </div>`;
+}
+
+function renderFreightMonthlyBudgetMatrix() {
+  const data = getFreightAnalysisData();
+  const months = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10];
+  const demoRatios = [0.29, 0.26, 0.27, 0.25, 0.28, 0.24, 0.31, 0.26, 0.29, 0.27];
+  const currentMonth = (getFreightBudgetMonthIndex() || 0) + 1;
+
+  function budgetFor(warehouse, month) {
+    const source = DATA.annualBudget?.freight?.[warehouse]?.[month - 1] || 0;
+    if (DATA.budgetSource === 'cloud' && source) return Number(source);
+    const demoBase = FREIGHT_DEMO_BUDGET[warehouse] || 0;
+    const drift = 1 + ((month % 3) - 1) * 0.035;
+    return Math.round(demoBase * drift);
+  }
+
+  function actualFor(warehouse, month) {
+    if (getFreightAnalysisMode() === 'real' && month === currentMonth) {
+      return data.actual[warehouse] || 0;
+    }
+    const budget = budgetFor(warehouse, month);
+    const warehouseOffset = data.order.indexOf(warehouse) * 0.018;
+    return Math.round(budget * (demoRatios[month - 1] + warehouseOffset));
+  }
+
+  function valueCell(value, isRate = false, isDiff = false) {
+    const color = isDiff && value > 0 ? 'var(--ry-red)' : isDiff && value < 0 ? 'var(--ry-green)' : '';
+    return `<td class="mono num-right" style="${color ? `color:${color};font-weight:900` : ''}">${isRate ? `${value.toFixed(1)}%` : fmtMoney(Math.round(value))}</td>`;
+  }
+
+  const warehouseRows = data.order.map(warehouse => {
+    const metricRows = [
+      {
+        label: '預算金額',
+        values: months.map(month => budgetFor(warehouse, month)),
+        type: 'money',
+      },
+      {
+        label: '實際動支',
+        values: months.map(month => actualFor(warehouse, month)),
+        type: 'money',
+      },
+      {
+        label: '預算差異',
+        values: months.map(month => actualFor(warehouse, month) - budgetFor(warehouse, month)),
+        type: 'diff',
+      },
+      {
+        label: '動支率',
+        values: months.map(month => {
+          const budget = budgetFor(warehouse, month);
+          return budget ? actualFor(warehouse, month) / budget * 100 : 0;
+        }),
+        type: 'rate',
+      },
+    ];
+    return metricRows.map((row, index) => `
+      <tr>
+        ${index === 0 ? `<td class="freight-matrix-group" rowspan="${metricRows.length}">${warehouse}</td>` : ''}
+        <td class="freight-matrix-metric">${row.label}</td>
+        ${row.values.map(value => valueCell(value, row.type === 'rate', row.type === 'diff')).join('')}
+      </tr>`).join('');
+  }).join('');
+
+  return `
+  <div class="w s12 table-card freight-matrix-card">
+    <div class="freight-matrix-title">月別預算動支明細</div>
+    <div class="freight-matrix-scroll">
+      <table class="tbl freight-matrix-table">
+        <thead>
+          <tr>
+            <th>倉別</th>
+            <th>資料指標</th>
+            ${months.map(month => `<th class="num-right">${month}月</th>`).join('')}
+          </tr>
+        </thead>
+        <tbody>${warehouseRows}</tbody>
+      </table>
+    </div>
+  </div>`;
+}
+
+function renderFreightReferenceDashboard() {
+  const demo = getFreightAnalysisMode() === 'demo';
+  const overview = getFreightAnalysisData();
+  const actualTotal = demo ? 14530000 : overview.totalActual;
+  const budgetTotal = demo ? 51710000 : overview.totalBudget;
+  const variance = actualTotal - budgetTotal;
+  const spendingRate = budgetTotal ? actualTotal / budgetTotal * 100 : 0;
+  const monthLabel = `${String(Number(String(DATA.dateFrom || '').slice(5, 7)) || 5).padStart(2, '0')}`;
+  const shipment = [
+    { month:'1月', budget:1802.9, actual:494.0, rate:27.4 },
+    { month:'2月', budget:1595.4, actual:418.0, rate:26.2 },
+    { month:'3月', budget:1802.9, actual:429.9, rate:23.9 },
+    { month:'4月', budget:1733.8, actual:411.0, rate:23.7 },
+    { month:'5月', budget:1803.0, actual:381.0, rate:21.1 },
+  ];
+  const costItems = [
+    { item:'主線', budget:33200000, actual:11560000, share:79.6 },
+    { item:'轉運', budget:11500000, actual:1450000, share:10.0 },
+    { item:'離島', budget:2740000, actual:900000, share:6.2 },
+    { item:'加派車', budget:1710000, actual:380000, share:2.6 },
+    { item:'回收車', budget:660000, actual:190000, share:1.3 },
+  ];
+  const matrixItems = [
+    { item:'主線', base:6640000, ratio:0.244 },
+    { item:'加派車', base:1070000, ratio:0.436 },
+    { item:'回收車', base:560000, ratio:0.517 },
+    { item:'其他', base:120000, ratio:0.268 },
+    { item:'違規罰款', base:80000, ratio:0.856 },
+    { item:'離島', base:610000, ratio:0.141 },
+    { item:'轉運', base:2300000, ratio:0.159 },
+    { item:'費用總計', base:11960000, ratio:0.259, total:true },
+  ];
+  const months = [1,2,3,4,5,6,7,8,9,10];
+  const maxShipment = Math.max(...shipment.flatMap(row => [row.budget, row.actual]));
+  const maxCostBudget = Math.max(...costItems.map(row => row.budget));
+
+  const shipmentBars = shipment.map((row, index) => {
+    const x = 70 + index * 128;
+    const budgetH = row.budget / maxShipment * 150;
+    const actualH = row.actual / maxShipment * 150;
+    const yBudget = 188 - budgetH;
+    const yActual = 188 - actualH;
+    const rateY = 42 + (40 - row.rate) / 40 * 132;
+    return `
+      <rect x="${x}" y="${yBudget}" width="30" height="${budgetH}" rx="4" fill="#3b82f6"></rect>
+      <rect x="${x + 36}" y="${yActual}" width="30" height="${actualH}" rx="4" fill="#fb6f92"></rect>
+      <text x="${x + 15}" y="${yBudget - 7}" text-anchor="middle" class="freight-ref-chart-label">${row.budget.toLocaleString()}</text>
+      <text x="${x + 51}" y="${yActual - 7}" text-anchor="middle" class="freight-ref-chart-label">${row.actual.toLocaleString()}</text>
+      <text x="${x + 33}" y="222" text-anchor="middle" class="freight-ref-axis">${row.month}</text>
+      <circle cx="${x + 33}" cy="${rateY}" r="4" fill="#1d4ed8"></circle>
+      <text x="${x + 33}" y="${rateY - 12}" text-anchor="middle" class="freight-ref-line-label">${row.rate}%</text>`;
+  }).join('');
+  const shipmentPath = shipment.map((row, index) => {
+    const x = 103 + index * 128;
+    const y = 42 + (40 - row.rate) / 40 * 132;
+    return `${index ? 'L' : 'M'}${x},${y}`;
+  }).join(' ');
+
+  const costRows = costItems.map(row => {
+    const budgetWidth = row.budget / maxCostBudget * 100;
+    const actualWidth = row.actual / maxCostBudget * 100;
+    return `
+      <div class="freight-ref-cost-row">
+        <div class="freight-ref-cost-name">${row.item}</div>
+        <div class="freight-ref-cost-bars">
+          <div class="freight-ref-cost-bar actual" style="width:${actualWidth}%"><span>${(row.actual / 1000000).toFixed(2)}M</span></div>
+          <div class="freight-ref-cost-bar budget" style="width:${budgetWidth}%"><span>${(row.budget / 1000000).toFixed(2)}M</span></div>
+        </div>
+        <div class="freight-ref-ring" style="--ring:${row.share}"><span>${row.share.toFixed(1)}%</span></div>
+      </div>`;
+  }).join('');
+
+  function matrixCell(value, type) {
+    if (type === 'rate') return `<td>${value.toFixed(1)}%</td>`;
+    const cls = type === 'diff' && value < 0 ? 'good' : type === 'diff' && value > 0 ? 'bad' : '';
+    return `<td class="${cls}">${Math.round(value).toLocaleString('zh-TW')}</td>`;
+  }
+
+  const matrixRows = matrixItems.map(item => {
+    const lines = [
+      { label:'預算金額', type:'budget', values:months.map(month => item.base * (month % 3 === 0 ? 1 : month % 3 === 1 ? 0.97 : 0.92)) },
+      { label:'實際動支', type:'actual', values:months.map(month => item.base * item.ratio * (month <= 5 ? 0.95 + month * 0.018 : 0)) },
+    ];
+    lines.push({ label:'預算差異', type:'diff', values:lines[1].values.map((actual, index) => actual - lines[0].values[index]) });
+    lines.push({ label:'動支率 (%)', type:'rate', values:lines[1].values.map((actual, index) => lines[0].values[index] ? actual / lines[0].values[index] * 100 : 0) });
+    return lines.map((line, index) => `
+      <tr class="${item.total ? 'total' : ''}">
+        ${index === 0 ? `<td rowspan="4" class="freight-ref-matrix-item">${item.item}</td>` : ''}
+        <td class="freight-ref-matrix-metric">${line.label}</td>
+        ${line.values.map(value => matrixCell(value, line.type)).join('')}
+      </tr>`).join('');
+  }).join('');
+
+  return `
+  <section class="freight-ref-page">
+    <div class="freight-ref-section">
+      <div class="freight-ref-section-title">核心 KPI 總覽 ${demo ? '<span>展示資料</span>' : ''}</div>
+      <div class="freight-ref-kpis">
+        <article class="freight-ref-kpi">
+          <div class="freight-ref-kpi-icon blue">$</div>
+          <div class="freight-ref-kpi-label">費用總計</div>
+          <div class="freight-ref-kpi-main">NT$${(actualTotal / 1000000).toFixed(2)}M</div>
+          <div class="freight-ref-kpi-sub">預算 NT$${(budgetTotal / 1000000).toFixed(2)}M</div>
+          <div class="freight-ref-pill good">預算差異 ${variance < 0 ? '-' : '+'}NT$${Math.abs(variance / 1000000).toFixed(2)}M</div>
+        </article>
+        <article class="freight-ref-kpi">
+          <div class="freight-ref-kpi-icon pink">◔</div>
+          <div class="freight-ref-kpi-label">動支率</div>
+          <div class="freight-ref-kpi-main">${spendingRate.toFixed(1)}%</div>
+          <div class="freight-ref-progress"><i style="width:${Math.min(100, spendingRate)}%"></i></div>
+          <div class="freight-ref-scale"><span>0%</span><span>50%</span><span>100%</span></div>
+          <div class="freight-ref-kpi-status">低於預算，使用健康</div>
+        </article>
+        <article class="freight-ref-kpi">
+          <div class="freight-ref-kpi-icon blue">▥</div>
+          <div class="freight-ref-kpi-label">出貨達成率</div>
+          <div class="freight-ref-kpi-main">21.1%</div>
+          <div class="freight-ref-kpi-sub">件數差異 <b class="good">-3.25M 件</b></div>
+          <svg class="freight-ref-mini-line" viewBox="0 0 260 62">
+            <path d="M18,20 L74,24 L130,31 L186,33 L242,42" fill="none" stroke="#1d4ed8" stroke-width="2"></path>
+            ${shipment.map((row, index) => `<circle cx="${18 + index * 56}" cy="${20 + index * 5.5}" r="3" fill="#1d4ed8"></circle><text x="${18 + index * 56}" y="58" text-anchor="middle">${index + 1}月</text>`).join('')}
+          </svg>
+        </article>
+        <article class="freight-ref-kpi gauge">
+          <div class="freight-ref-kpi-icon purple">◒</div>
+          <div class="freight-ref-kpi-label">裝載率（月平均）</div>
+          <div class="freight-ref-gauge">
+            <div class="freight-ref-gauge-value">91.8%</div>
+          </div>
+          <div class="freight-ref-kpi-status">接近滿載</div>
+        </article>
+      </div>
+    </div>
+
+    <div class="freight-ref-charts">
+      <article class="freight-ref-card">
+        <div class="freight-ref-card-title">出貨達成分析</div>
+        <svg class="freight-ref-combo" viewBox="0 0 720 252">
+          <line x1="48" y1="188" x2="688" y2="188" stroke="#cfd8e5"></line>
+          <line x1="48" y1="35" x2="48" y2="188" stroke="#cfd8e5"></line>
+          <path d="${shipmentPath}" fill="none" stroke="#1d4ed8" stroke-width="2.5"></path>
+          ${shipmentBars}
+        </svg>
+        <div class="freight-ref-summary-strip">
+          <b>累計 1-5 月</b><span>預算件數 8,738.2 萬件</span><span>實際出貨 2,133.9 萬件</span><span>達成率 24.4%</span><span class="good">件數差異 -6,604.3 萬件</span>
+        </div>
+      </article>
+      <article class="freight-ref-card">
+        <div class="freight-ref-card-title">費用結構與動支分析（2025 / ${monthLabel}）</div>
+        <div class="freight-ref-cost-list">${costRows}</div>
+        <div class="freight-ref-summary-strip">
+          <b>總計</b><span class="bad">14.48M</span><span>/</span><span class="blue">49.81M</span><span>動支率</span><span class="good">29.1%</span>
+        </div>
+      </article>
+    </div>
+
+    <article class="freight-ref-matrix-card">
+      <div class="freight-ref-matrix-title">關一概念設計｜月別預算動支明細</div>
+      <div class="freight-ref-matrix-scroll">
+        <table class="freight-ref-matrix">
+          <thead>
+            <tr>
+              <th>費用項目</th>
+              <th>資料指標</th>
+              ${months.map(month => `<th>${month}月</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>${matrixRows}</tbody>
+        </table>
+      </div>
+    </article>
+  </section>`;
+}
+
 function renderF001() {
   const f = DATA.freight;
   const daily = getFreightTrendFiltered();
@@ -304,7 +967,7 @@ function renderF003() {
 
 // F009 日費用趨勢（折線圖）
 function renderF009() {
-  const data = getFreightTrendFiltered();
+  const data = getFreightTrendRowsForPage();
   if (!data.length) {
     return `
   <div class="w s12 table-card">
@@ -371,8 +1034,8 @@ function renderF009() {
 
 // F010 三倉每日運費動支
 function renderF010() {
-  const budget = DATA.freight.warehouseBudget;
-  const daily  = getFreightDailyRowsFiltered();
+  const budget = getFreightBudgetByWarehouse();
+  const daily  = getFreightDailyRowsForPage();
   const totalDays = daily.length;
 
   if (!totalDays) {

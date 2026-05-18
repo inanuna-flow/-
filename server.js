@@ -19,7 +19,7 @@ const DB_HOST = process.env.DB_HOST || (DB_INSTANCE_CONNECTION_NAME ? `/cloudsql
 // K_SERVICE 是 Cloud Run 自動設定的環境變數，用來判斷是否在正式環境
 const IS_PROD = Boolean(process.env.K_SERVICE || process.env.NODE_ENV === 'production');
 
-const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','labor','productivity','monthly','annual','import','org']);
+const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','labor','productivity','monthly','annual','import','org','typography']);
 const BUDGET_TYPES = new Set(['labor', 'freight']);
 
 // ── Session 設定 ──
@@ -841,6 +841,37 @@ async function handleLaborData(req, res) {
   }
 }
 
+async function handleDataRange(req, res) {
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
+    return;
+  }
+  if (!requireSession(req, res)) return;
+  const pool = getDbPool();
+  if (!pool) {
+    sendJson(res, 503, { ok: false, MSG: '503 Database not configured' });
+    return;
+  }
+  try {
+    const result = await pool.query(
+      `SELECT
+         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')})  AS labor_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')})  AS labor_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_max`,
+    );
+    const row = result.rows[0] || {};
+    sendJson(res, 200, {
+      ok: true,
+      labor:   { min: row.labor_min   || '', max: row.labor_max   || '' },
+      freight: { min: row.freight_min || '', max: row.freight_max || '' },
+    });
+  } catch (err) {
+    console.error('[range] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 查詢失敗' });
+  }
+}
+
 const server = http.createServer((req, res) => {
   if (req.url.startsWith('/api/check-user')) {
     handleCheckUser(req, res);
@@ -864,6 +895,10 @@ const server = http.createServer((req, res) => {
   }
   if (req.url.startsWith('/api/import/labor')) {
     handleLaborImport(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/data/range')) {
+    handleDataRange(req, res);
     return;
   }
   if (req.url.startsWith('/api/data/labor')) {

@@ -68,6 +68,7 @@ const PAGES = [
     group: '⚙️ 系統設定',
     items: [
       { id:'org',          icon:'🏢', label:'組織設定',     status:'ready' },
+      { id:'typography',   icon:'🔤', label:'文字樣式設定', status:'ready' },
       { id:'admin',        icon:'🔐', label:'頁面權限設定', status:'ready', adminOnly: true },
     ]
   },
@@ -75,6 +76,24 @@ const PAGES = [
 
 let currentPageId = 'daily';
 let annualViewMode = 'labor';
+
+const TYPOGRAPHY_STORAGE_KEY = 'kplTypographySettings';
+const TYPOGRAPHY_FONT_MAP = {
+  ui: 'var(--font-ui)',
+  number: 'var(--font-number)',
+};
+const TYPOGRAPHY_CONTROLS = [
+  { key:'page-title', label:'頁面主標題', hint:'頁面 H1，例如「運費損益分析」', sample:'運費損益分析', font:'ui', size:26, weight:900, line:1.2 },
+  { key:'page-kicker', label:'標題上方小標籤', hint:'breadcrumb 或頁面分類', sample:'成本分析 > 運費損益分析', font:'ui', size:13, weight:700, line:1.4 },
+  { key:'nav', label:'導覽 / 側邊選單', hint:'側邊選單群組與頁面名稱', sample:'系統設定 / 文字樣式設定', font:'ui', size:14, weight:800, line:1.25 },
+  { key:'control', label:'按鈕與篩選區', hint:'select、input、button、篩選 label', sample:'倉別 三倉總覽 月份 2026年03月', font:'ui', size:13, weight:700, line:1.35 },
+  { key:'form-hint', label:'表單輔助文字', hint:'篩選列提示與表單說明', sample:'日期區間已鎖定為整個月份', font:'ui', size:12, weight:500, line:1.5 },
+  { key:'widget-title', label:'元件標題', hint:'卡片、圖表與表格區塊標題', sample:'核心 KPI 總覽', font:'ui', size:16, weight:800, line:1.3 },
+  { key:'widget-note', label:'元件說明小文字', hint:'meta、note、補充說明', sample:'依資料庫預算計算，資料每月更新', font:'ui', size:12, weight:500, line:1.5 },
+  { key:'metric', label:'元件數字', hint:'KPI 大數字、金額、百分比', sample:'NT$14.53M', font:'number', size:32, weight:900, line:1 },
+  { key:'table', label:'表格文字', hint:'表頭、儲存格與密集數值', sample:'費用項目  預算金額  實際動支', font:'ui', size:12, weight:500, line:1.35 },
+  { key:'badge', label:'狀態標籤 / 圖表文字', hint:'badge、pill、圖表小標、空狀態標題', sample:'低於預算 · 使用健康', font:'ui', size:11, weight:800, line:1.25 },
+];
 
 // ── 渲染左側 Accordion Drawer 選單 ──
 function renderSidebar() {
@@ -231,6 +250,7 @@ function loadPage(pageId) {
   else if (pageId === 'labor')   initLaborPage();
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'org')     initOrgPage();
+  else if (pageId === 'typography') initTypographyPage();
   else if (pageId === 'productivity') initProductivityPage();
   else if (pageId === 'annual')  renderAnnualPage();
   else if (pageId === 'admin')   renderAdminPage();
@@ -241,7 +261,10 @@ function initDailyPage() { renderDailyPage(); }
 
 function initDispatchPage() { renderDispatchPage(); }
 function initFreightPage()  { renderFreightPage(); }
-function initImportPage()   { if (typeof updateStatus === 'function') updateStatus(); }
+async function initImportPage() {
+  await loadCloudDataRange();
+  updateStatus();
+}
 
 const DASHBOARD_DATE_FILTERS = {
   daily:        { from:'filter-from',        to:'filter-to',        meta:'filter-meta' },
@@ -419,6 +442,169 @@ function showAdminMsg(text, type) {
   el.style.display = text ? 'block' : 'none';
   el.style.color = type === 'error' ? '#d9401b' : '#1a7a3f';
   el.textContent = text;
+}
+
+function defaultTypographySettings() {
+  return TYPOGRAPHY_CONTROLS.reduce((map, item) => {
+    map[item.key] = {
+      font: item.font,
+      size: item.size,
+      weight: item.weight,
+      line: item.line,
+    };
+    return map;
+  }, {});
+}
+
+function loadTypographySettings() {
+  const defaults = defaultTypographySettings();
+  try {
+    const saved = JSON.parse(localStorage.getItem(TYPOGRAPHY_STORAGE_KEY) || '{}');
+    TYPOGRAPHY_CONTROLS.forEach(item => {
+      const row = saved[item.key] || {};
+      defaults[item.key] = {
+        font: TYPOGRAPHY_FONT_MAP[row.font] ? row.font : defaults[item.key].font,
+        size: Number(row.size) || defaults[item.key].size,
+        weight: Number(row.weight) || defaults[item.key].weight,
+        line: Number(row.line) || defaults[item.key].line,
+      };
+    });
+  } catch {
+    return defaults;
+  }
+  return defaults;
+}
+
+function applyTypographySettings(settings = loadTypographySettings()) {
+  const root = document.documentElement;
+  TYPOGRAPHY_CONTROLS.forEach(item => {
+    const row = settings[item.key] || item;
+    root.style.setProperty(`--typo-${item.key}-font`, TYPOGRAPHY_FONT_MAP[row.font] || TYPOGRAPHY_FONT_MAP.ui);
+    root.style.setProperty(`--typo-${item.key}-size`, `${Number(row.size) || item.size}px`);
+    root.style.setProperty(`--typo-${item.key}-weight`, `${Number(row.weight) || item.weight}`);
+    root.style.setProperty(`--typo-${item.key}-line`, `${Number(row.line) || item.line}`);
+  });
+}
+
+let typographyDraft = null;
+
+function initTypographyPage() {
+  typographyDraft = loadTypographySettings();
+  applyTypographySettings(typographyDraft);
+  renderTypographyPage();
+}
+
+function renderTypographyPage() {
+  const grid = document.getElementById('typography-grid');
+  if (!grid) return;
+  const rows = TYPOGRAPHY_CONTROLS.map(item => {
+    const row = typographyDraft[item.key];
+    return `
+      <div class="typo-row">
+        <div class="typo-row-info">
+          <div class="typo-row-title">${item.label}</div>
+          <div class="typo-row-hint">${item.hint}</div>
+          <div class="typo-row-sample" id="typo-sample-${item.key}" style="font-family:${TYPOGRAPHY_FONT_MAP[row.font]};font-size:${row.size}px;font-weight:${row.weight};line-height:${row.line}">${item.sample}</div>
+        </div>
+        <label class="typo-field">
+          <span>字體</span>
+          <select class="filter-input" onchange="updateTypographyDraft('${item.key}','font',this.value)">
+            <option value="ui" ${row.font === 'ui' ? 'selected' : ''}>中文介面</option>
+            <option value="number" ${row.font === 'number' ? 'selected' : ''}>數字字體</option>
+          </select>
+        </label>
+        <label class="typo-field">
+          <span>字級</span>
+          <input class="filter-input" type="number" min="9" max="56" step="1" value="${row.size}" oninput="updateTypographyDraft('${item.key}','size',this.value)">
+        </label>
+        <label class="typo-field">
+          <span>字重</span>
+          <select class="filter-input" onchange="updateTypographyDraft('${item.key}','weight',this.value)">
+            ${[400,500,600,700,800,900].map(w => `<option value="${w}" ${Number(row.weight) === w ? 'selected' : ''}>${w}</option>`).join('')}
+          </select>
+        </label>
+        <label class="typo-field">
+          <span>行高</span>
+          <input class="filter-input" type="number" min="1" max="2" step="0.05" value="${row.line}" oninput="updateTypographyDraft('${item.key}','line',this.value)">
+        </label>
+      </div>`;
+  }).join('');
+
+  grid.innerHTML = `
+    <section class="w s7 typography-panel">
+      <div class="wh">
+        <div class="wl"><div class="wdot"></div>文字層級設定</div>
+        <span class="wmeta">localStorage 保存</span>
+      </div>
+      <div class="typo-list">${rows}</div>
+    </section>
+    <section class="w s5 typography-preview-panel">
+      <div class="wh">
+        <div class="wl"><div class="wdot dot-picks"></div>即時預覽</div>
+        <span class="wmeta">全站 token</span>
+      </div>
+      <div id="typography-preview">${renderTypographyPreview()}</div>
+    </section>`;
+}
+
+function renderTypographyPreview() {
+  return `
+    <div class="typo-preview-page-kicker">成本分析 &gt; 運費損益分析</div>
+    <div class="typo-preview-page-title">運費損益分析</div>
+    <div class="typo-preview-nav">系統設定 / 文字樣式設定</div>
+    <div class="typo-preview-filter">
+      <span>倉別</span>
+      <button type="button">三倉總覽</button>
+      <span>月份</span>
+      <button type="button">2026年03月</button>
+      <button type="button" class="primary">套用</button>
+    </div>
+    <div class="typo-preview-hint">日期區間已鎖定為整個月份</div>
+    <div class="typo-preview-card">
+      <div class="typo-preview-widget-title">核心 KPI 總覽</div>
+      <div class="typo-preview-widget-note">依資料庫預算計算，資料每月更新</div>
+      <div class="typo-preview-metric">NT$14.53M</div>
+      <span class="typo-preview-badge">低於預算 · 使用健康</span>
+    </div>
+    <table class="typo-preview-table">
+      <thead><tr><th>費用項目</th><th>預算金額</th><th>實際動支</th></tr></thead>
+      <tbody><tr><td>主線</td><td>33.20M</td><td>11.56M</td></tr></tbody>
+    </table>
+    <div class="typo-preview-empty">
+      <div class="typo-preview-widget-title">尚未匯入資料</div>
+      <div class="typo-preview-widget-note">請先到資料匯入上傳資料，套用後此頁會自動產生指標。</div>
+    </div>`;
+}
+
+function updateTypographyDraft(key, prop, value) {
+  if (!typographyDraft?.[key]) return;
+  typographyDraft[key][prop] = prop === 'font' ? value : Number(value);
+  applyTypographySettings(typographyDraft);
+  const sample = document.getElementById(`typo-sample-${key}`);
+  if (sample) {
+    const row = typographyDraft[key];
+    sample.style.fontFamily = TYPOGRAPHY_FONT_MAP[row.font] || TYPOGRAPHY_FONT_MAP.ui;
+    sample.style.fontSize = `${row.size}px`;
+    sample.style.fontWeight = row.weight;
+    sample.style.lineHeight = row.line;
+  }
+  const preview = document.getElementById('typography-preview');
+  if (preview) preview.innerHTML = renderTypographyPreview();
+}
+
+function saveTypographySettings() {
+  const settings = typographyDraft || loadTypographySettings();
+  localStorage.setItem(TYPOGRAPHY_STORAGE_KEY, JSON.stringify(settings));
+  applyTypographySettings(settings);
+  toast('✅ 文字樣式設定已儲存');
+}
+
+function resetTypographySettings() {
+  typographyDraft = defaultTypographySettings();
+  localStorage.removeItem(TYPOGRAPHY_STORAGE_KEY);
+  applyTypographySettings(typographyDraft);
+  renderTypographyPage();
+  toast('↺ 已恢復文字樣式預設值');
 }
 
 function rerenderDashboardPage(pageId = currentPageId) {
@@ -604,6 +790,7 @@ function applyCloudBudgetRows(rows, year = getBudgetYear()) {
   if (!count) return false;
   DATA.annualBudget.labor = labor;
   DATA.annualBudget.freight = freight;
+  DATA.budgetSource = 'cloud';
   DATA.dispatch.budget = buildDispatchBudget(labor, freight, getCurrentMonthIndex());
   DATA.dataLatest.budget = latest || `${getCurrentMonthIndex() + 1}月`;
   DATA.dataOldest = DATA.dataOldest || {};
@@ -695,6 +882,20 @@ function applyCloudLaborRows(rows) {
   return true;
 }
 
+async function loadCloudDataRange() {
+  try {
+    const res = await fetch('/api/data/range');
+    if (handleAuthExpired(res)) return;
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.ok) {
+      DATA.cloudRange = DATA.cloudRange || {};
+      DATA.cloudRange.labor   = data.labor   || { min: '', max: '' };
+      DATA.cloudRange.freight = data.freight || { min: '', max: '' };
+    }
+  } catch {}
+}
+
 async function loadCloudLaborData() {
   try {
     const params = new URLSearchParams({
@@ -741,6 +942,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadPagePermissions();
   await loadCloudBudgetData();
   await loadCloudLaborData();
+  applyTypographySettings();
 
   renderSidebar();
   initTopbar();
@@ -821,30 +1023,101 @@ function applyDispatchFilter() {
 // ════════════════════════════════════════════
 // Freight Page 邏輯
 // ════════════════════════════════════════════
+function getFreightMonthValue() {
+  const monthInput = document.getElementById('freight-month')?.value;
+  if (/^\d{4}-\d{2}$/.test(monthInput || '')) return monthInput;
+  const base = DATA.dateFrom || new Date().toISOString().slice(0, 10);
+  return String(base).slice(0, 7);
+}
+
+function lockFreightToMonth(monthValue) {
+  const safeValue = /^\d{4}-\d{2}$/.test(monthValue || '')
+    ? monthValue
+    : new Date().toISOString().slice(0, 7);
+  const [year, month] = safeValue.split('-').map(Number);
+  const lastDate = new Date(year, month, 0).getDate();
+  DATA.dateFrom = `${safeValue}-01`;
+  DATA.dateTo = `${safeValue}-${String(lastDate).padStart(2, '0')}`;
+  const monthEl = document.getElementById('freight-month');
+  const fromEl = document.getElementById('freight-from');
+  const toEl = document.getElementById('freight-to');
+  if (monthEl) monthEl.value = safeValue;
+  if (fromEl) fromEl.value = DATA.dateFrom;
+  if (toEl) toEl.value = DATA.dateTo;
+}
+
+function setupFreightMonthShell() {
+  const pageHead = document.querySelector('#main .page-head');
+  const filterBar = document.querySelector('#main .filter-bar');
+  if (pageHead) {
+    pageHead.style.display = '';
+    const eyebrow = pageHead.querySelector('.page-eyebrow');
+    const title = pageHead.querySelector('.page-h');
+    if (eyebrow) eyebrow.textContent = '💰 成本分析 > 運費損益分析';
+    if (title) title.textContent = '運費損益分析';
+  }
+  if (filterBar) {
+    filterBar.style.display = '';
+    filterBar.className = 'filter-bar freight-month-filter';
+    filterBar.innerHTML = `
+      <span class="filter-label">倉別</span>
+      <select class="filter-input" id="freight-warehouse" onchange="applyFreightFilter()">
+        <option value="all">三倉總覽</option>
+        <option value="大溪倉">大溪倉</option>
+        <option value="大肚倉">大肚倉</option>
+        <option value="岡山倉">岡山倉</option>
+      </select>
+      <span class="filter-label">月份</span>
+      <input type="month" class="filter-input" id="freight-month" onchange="applyFreightFilter()">
+      <span class="filter-label">日期區間</span>
+      <input type="date" class="filter-input freight-locked-date" id="freight-from" readonly>
+      <span class="range-arrow">→</span>
+      <input type="date" class="filter-input freight-locked-date" id="freight-to" readonly>
+      <span class="filter-label">檢視方式</span>
+      <select class="filter-input" id="freight-view-mode" onchange="applyFreightFilter()">
+        <option value="month">月度</option>
+      </select>
+      <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
+      <button class="btn btn-ghost" onclick="downloadFreight()">下載報表</button>
+      <span class="filter-meta">日期區間已鎖定為整個月份</span>
+    `;
+  }
+  lockFreightToMonth(getFreightMonthValue());
+  const warehouseEl = document.getElementById('freight-warehouse');
+  const viewModeEl = document.getElementById('freight-view-mode');
+  if (warehouseEl) warehouseEl.value = DATA.freightSelectedWarehouse || 'all';
+  if (viewModeEl) viewModeEl.value = DATA.freightViewMode || 'month';
+}
+
 function renderFreightPage() {
   const grid = document.getElementById('freight-grid');
-  grid.innerHTML = [
-    renderF001(),
-    renderF002(),
-    renderF003(),
-    renderF009(),
-    renderF010(),
-  ].join('');
+  grid.innerHTML = renderFreightReferenceDashboard();
+  const pageHead = document.querySelector('#main .page-head');
+  const filterBar = document.querySelector('#main .filter-bar');
+  if (pageHead) pageHead.style.display = 'none';
+  if (filterBar) filterBar.style.display = 'none';
+  setupFreightMonthShell();
 
   document.getElementById('freight-from').value = DATA.dateFrom;
   document.getElementById('freight-to').value   = DATA.dateTo;
-  const summary = typeof getFreightFilteredSummary === 'function'
-    ? getFreightFilteredSummary()
+  const summary = typeof getFreightSummaryForPage === 'function'
+    ? getFreightSummaryForPage()
     : { totalOrders: DATA.freight.totalOrders };
-  const days = typeof getFreightTrendFiltered === 'function'
-    ? getFreightTrendFiltered().length
+  const days = typeof getFreightTrendRowsForPage === 'function'
+    ? getFreightTrendRowsForPage().length
     : DATA.freight.dailyTrend.length;
+  const modeLabel = typeof getFreightAnalysisMode === 'function' && getFreightAnalysisMode() === 'demo'
+    ? '展示資料 · '
+    : '';
   document.getElementById('freight-meta').textContent =
     `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · ${days} 天 · 共 ${summary.totalOrders.toLocaleString()} 筆配送`;
 }
 
 function applyFreightFilter() {
-  applyDashboardDateFilter('freight');
+  DATA.freightSelectedWarehouse = document.getElementById('freight-warehouse')?.value || 'all';
+  DATA.freightViewMode = document.getElementById('freight-view-mode')?.value || 'month';
+  lockFreightToMonth(getFreightMonthValue());
+  renderFreightPage();
 }
 
 // ════════════════════════════════════════════
@@ -1091,6 +1364,7 @@ async function applyBudget() {
   if (!parsedBudget) return;
   DATA.annualBudget.labor = parsedBudget.labor;
   DATA.annualBudget.freight = parsedBudget.freight;
+  DATA.budgetSource = 'excel-pending';
   DATA.dispatch.budget = parsedBudget.dispatchBudget;
   DATA.dataLatest.budget = `${parsedBudget.monthIndex + 1}月`;
   if (currentPageId === 'dispatch') renderDispatchPage();
@@ -1100,6 +1374,8 @@ async function applyBudget() {
   toast('✅ 年度預算已套用！總費用動支率預算已更新');
   try {
     const result = await syncCloudBudget(parsedBudget);
+    await loadCloudBudgetData();
+    rerenderDashboardPage(currentPageId);
     toast(`✅ 年度預算已同步雲端（${result.rows} 筆）`);
   } catch (err) {
     console.warn('Budget cloud sync failed:', err);
@@ -1660,6 +1936,8 @@ async function applyLabor() {
   try {
     const result = await syncCloudLabor(parsedLabor);
     toast(`✅ 人力費用已同步雲端（${result.rows} 筆）`);
+    await loadCloudDataRange();
+    updateStatus();
   } catch (err) {
     console.warn('Labor cloud sync failed:', err);
     toast(`⚠️ 人力費用已套用，但雲端同步失敗：${err.message}`);
@@ -1825,21 +2103,21 @@ function resetPicks() {
 }
 
 function updateStatus() {
-  const latestFreight = (() => {
+  const latestFreight = DATA.cloudRange?.freight?.max || (() => {
     if (DATA.freight.details?.length)
       return DATA.freight.details.map(r => r.fullDate).filter(Boolean).sort().pop() || '';
     return DATA.freight.dailyTrend.map(r => r[2] || shortToFreightFullDate(r[0])).filter(Boolean).sort().pop() || '';
   })();
-  const oldestFreight = (() => {
+  const oldestFreight = DATA.cloudRange?.freight?.min || (() => {
     if (DATA.freight.details?.length)
       return DATA.freight.details.map(r => r.fullDate).filter(Boolean).sort()[0] || '';
     return DATA.freight.dailyTrend.map(r => r[2] || shortToFreightFullDate(r[0])).filter(Boolean).sort()[0] || '';
   })();
-  const latestLabor = (() => {
+  const latestLabor = DATA.cloudRange?.labor?.max || (() => {
     const raw = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort().pop() || '';
   })();
-  const oldestLabor = (() => {
+  const oldestLabor = DATA.cloudRange?.labor?.min || (() => {
     const raw = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort()[0] || '';
   })();
