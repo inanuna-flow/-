@@ -892,6 +892,7 @@ async function loadCloudDataRange() {
       DATA.cloudRange = DATA.cloudRange || {};
       DATA.cloudRange.labor   = data.labor   || { min: '', max: '' };
       DATA.cloudRange.freight = data.freight || { min: '', max: '' };
+      DATA.cloudRange.picks   = data.picks   || { min: '', max: '' };
     }
   } catch {}
 }
@@ -920,6 +921,24 @@ async function syncCloudLabor(parsed) {
     importedBy: sessionStorage.getItem('kpl_user') || '',
   };
   const res = await fetch('/api/import/labor', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
+  if (handleAuthExpired(res)) throw new Error('登入已逾時，請重新登入');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
+  return data;
+}
+
+async function syncCloudPicks(parsed) {
+  if (!parsed?.records?.length) return false;
+  const payload = {
+    records: parsed.records,
+    fileName: parsed.fileName,
+    importedBy: sessionStorage.getItem('kpl_user') || '',
+  };
+  const res = await fetch('/api/import/picks', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(payload),
@@ -2081,13 +2100,22 @@ function showPicksPreview(records, totals, totalPicks) {
   document.getElementById('picks-preview').style.display = 'block';
 }
 
-function applyPicks() {
+async function applyPicks() {
   if (!parsedPicks) return;
   PICKS_RAW = parsedPicks.records;
   if (currentPageId === 'picks') renderPicksPage();
   if (currentPageId === 'productivity') renderProductivityPage();
   updateStatus();
   toast('✅ 揀次資料已套用！切換至「揀次分析」頁查看');
+  try {
+    const result = await syncCloudPicks(parsedPicks);
+    toast(`✅ 揀次資料已同步雲端（${result.rows} 筆）`);
+    await loadCloudDataRange();
+    updateStatus();
+  } catch (err) {
+    console.warn('Picks cloud sync failed:', err);
+    toast(`⚠️ 揀次已套用，但雲端同步失敗：${err.message}`);
+  }
 }
 
 function resetPicks() {
@@ -2121,11 +2149,11 @@ function updateStatus() {
     const raw = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort()[0] || '';
   })();
-  const latestPicks = (() => {
+  const latestPicks = DATA.cloudRange?.picks?.max || (() => {
     const raw = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort().pop() || '';
   })();
-  const oldestPicks = (() => {
+  const oldestPicks = DATA.cloudRange?.picks?.min || (() => {
     const raw = (typeof PICKS_RAW !== 'undefined') ? PICKS_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort()[0] || '';
   })();

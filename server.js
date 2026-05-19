@@ -304,6 +304,150 @@ function laborRowsFromPayload(payload) {
   }));
 }
 
+function picksRowsFromPayload(payload) {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  const rows = records
+    .map(record => ({
+      workDate:      String(record.date  || '').trim(),
+      month:         monthStartFromDate(record.date),
+      warehouseName: String(record.wh    || '').trim(),
+      businessType:  String(record.biz   || '').trim(),
+      areaName:      String(record.area  || '').trim(),
+      operationArea: String(record.op    || '').trim(),
+      picksCount:    Number(record.picks) || 0,
+    }))
+    .filter(row =>
+      isIsoDate(row.workDate) &&
+      row.month &&
+      row.warehouseName &&
+      row.picksCount > 0
+    );
+  const grouped = new Map();
+  rows.forEach(row => {
+    const key = [
+      row.workDate,
+      row.warehouseName,
+      row.businessType,
+      row.areaName,
+      row.operationArea,
+    ].join('');
+    const existing = grouped.get(key);
+    if (existing) {
+      existing.picksCount += row.picksCount;
+    } else {
+      grouped.set(key, { ...row });
+    }
+  });
+  return Array.from(grouped.values());
+}
+
+async function handlePicksImport(req, res) {
+  if (req.method !== 'POST') {
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
+    return;
+  }
+
+  if (!requireSession(req, res)) return;
+
+  const pool = getDbPool();
+  if (!pool) {
+    sendJson(res, 503, {
+      ok: false,
+      MSG: '503 Database is not configured. Set DB_INSTANCE_CONNECTION_NAME, DB_NAME, DB_USER, and DB_PASSWORD.',
+    });
+    return;
+  }
+
+  let payload;
+  try {
+    const raw = await readRequestBody(req, 25 * 1024 * 1024);
+    payload = JSON.parse(raw || '{}');
+  } catch (err) {
+    sendJson(res, err.message === 'REQUEST_TOO_LARGE' ? 413 : 400, {
+      ok: false,
+      MSG: '999 Invalid picks import payload',
+    });
+    return;
+  }
+
+  const rows = picksRowsFromPayload(payload);
+  if (!rows.length) {
+    sendJson(res, 400, { ok: false, MSG: '999 No valid picks rows to import' });
+    return;
+  }
+
+  const dates = rows.map(row => row.workDate).sort();
+  const periodMonth = monthStartFromDate(dates[0]);
+  const warehouses = Array.from(new Set(rows.map(row => row.warehouseName).filter(Boolean)));
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const batchResult = await client.query(
+      `INSERT INTO ${schemaTable('import_batches')}
+        (source_type, source_file, period_month, imported_by, note)
+       VALUES ($1, $2, $3, $4, $5)
+       RETURNING id`,
+      [
+        'picks',
+        String(payload.fileName || 'picks.xlsx'),
+        periodMonth || null,
+        String(payload.importedBy || ''),
+        `date_range=${dates[0]}..${dates[dates.length - 1]}; rows=${rows.length}`,
+      ],
+    );
+    const batchId = batchResult.rows[0].id;
+
+    await client.query(
+      `DELETE FROM ${schemaTable('picks_daily')}
+       WHERE work_date >= $1::date
+         AND work_date <= $2::date
+         AND warehouse_name = ANY($3::text[])`,
+      [dates[0], dates[dates.length - 1], warehouses],
+    );
+
+    const upsertSql = `
+      INSERT INTO ${schemaTable('picks_daily')}
+        (work_date, month, warehouse_name, business_type, area_name, operation_area,
+         picks_count, source_file, import_batch_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+      ON CONFLICT (work_date, warehouse_name, business_type, area_name, operation_area) DO UPDATE
+      SET picks_count     = EXCLUDED.picks_count,
+          source_file     = EXCLUDED.source_file,
+          import_batch_id = EXCLUDED.import_batch_id
+    `;
+
+    for (const row of rows) {
+      await client.query(upsertSql, [
+        row.workDate,
+        row.month,
+        row.warehouseName,
+        row.businessType,
+        row.areaName,
+        row.operationArea,
+        row.picksCount,
+        String(payload.fileName || 'picks.xlsx'),
+        batchId,
+      ]);
+    }
+
+    await client.query('COMMIT');
+    sendJson(res, 200, {
+      ok: true,
+      MSG: '000 Picks imported',
+      batchId,
+      rows: rows.length,
+      dateFrom: dates[0],
+      dateTo: dates[dates.length - 1],
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[picks] 匯入失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 揀次資料匯入失敗，請稍後再試' });
+  } finally {
+    client.release();
+  }
+}
+
 async function handleCheckUser(req, res) {
   if (req.method !== 'POST') {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
@@ -855,16 +999,19 @@ async function handleDataRange(req, res) {
   try {
     const result = await pool.query(
       `SELECT
-         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')})  AS labor_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')})  AS labor_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')})   AS labor_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')})   AS labor_max,
          (SELECT MIN(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_max`,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('picks_daily')})   AS picks_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('picks_daily')})   AS picks_max`,
     );
     const row = result.rows[0] || {};
     sendJson(res, 200, {
       ok: true,
       labor:   { min: row.labor_min   || '', max: row.labor_max   || '' },
       freight: { min: row.freight_min || '', max: row.freight_max || '' },
+      picks:   { min: row.picks_min   || '', max: row.picks_max   || '' },
     });
   } catch (err) {
     console.error('[range] 查詢失敗:', err.message);
@@ -895,6 +1042,10 @@ const server = http.createServer((req, res) => {
   }
   if (req.url.startsWith('/api/import/labor')) {
     handleLaborImport(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/import/picks')) {
+    handlePicksImport(req, res);
     return;
   }
   if (req.url.startsWith('/api/data/range')) {

@@ -161,7 +161,7 @@
   animation: fadeUp .4s ease both;
 }
 .w:has(> .gold-band) {
-  margin-top: 32px;
+  margin-top: 0;
 }
 .metric-card {
   --widget-padding: 10px 12px;
@@ -186,8 +186,7 @@
 .w.s12 { grid-column: span 12; }
 
 .wh {
-  display: flex; justify-content: space-between;
-  align-items: center; margin-bottom: 12px;
+  display: none;
 }
 .wl {
   display: flex; align-items: center; gap: 10px;
@@ -211,16 +210,7 @@
 
 /* ══ 金色標題帶 ══ */
 .gold-band {
-  background: var(--ry-gold);
-  color: var(--ry-blue-dark);
-  padding: 6px 14px;
-  font-family: var(--typo-badge-font);
-  font-size: var(--typo-badge-size); font-weight: var(--typo-badge-weight);
-  line-height: var(--typo-badge-line);
-  letter-spacing: 0;
-  margin: -42px -12px 14px;
-  border-radius: 4px;
-  box-shadow: 0 1px 2px rgba(18,61,116,.12);
+  display: none;
 }
 .gold-band-dynamic {
   color: white;
