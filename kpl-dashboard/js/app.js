@@ -49,6 +49,7 @@ const PAGES = [
   {
     group: '⚡ 效率分析',
     items: [
+      { id:'picks',        icon:'⚡', label:'揀次分析', status:'ready' },
       { id:'productivity', icon:'📊', label:'揀次人效分析', status:'ready' },
     ]
   },
@@ -247,6 +248,7 @@ function loadPage(pageId) {
   if (pageId === 'daily')        initDailyPage();
   else if (pageId === 'dispatch') initDispatchPage();
   else if (pageId === 'freight') initFreightPage();
+  else if (pageId === 'picks')   initPicksPage();
   else if (pageId === 'labor')   initLaborPage();
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'org')     initOrgPage();
@@ -611,6 +613,7 @@ function rerenderDashboardPage(pageId = currentPageId) {
   if (pageId === 'daily') renderDailyPage();
   else if (pageId === 'dispatch') renderDispatchPage();
   else if (pageId === 'freight') renderFreightPage();
+  else if (pageId === 'picks') renderPicksPage();
   else if (pageId === 'labor') renderLaborPage();
   else if (pageId === 'productivity') renderProductivityPage();
   else if (pageId === 'annual') renderAnnualPage();
@@ -620,6 +623,7 @@ async function applyDashboardDateFilter(pageId = currentPageId) {
   if (!setSharedDateRangeFromInputs(pageId)) return;
   await loadCloudBudgetData();
   await loadCloudLaborData();
+  await loadCloudPicksData();
   if (pageId === 'dispatch') syncDispatchBudgetForCurrentMonth();
   rerenderDashboardPage(pageId);
   toast('🔄 日期區間已更新');
@@ -882,6 +886,32 @@ function applyCloudLaborRows(rows) {
   return true;
 }
 
+function applyCloudPicksRows(rows) {
+  if (!Array.isArray(rows) || !rows.length) {
+    PICKS_RAW = [];
+    DATA.dataLatest.picks = '';
+    DATA.dataOldest = DATA.dataOldest || {};
+    DATA.dataOldest.picks = '';
+    return true;
+  }
+
+  PICKS_RAW = rows.map(row => ({
+    wh: row.wh || '',
+    date: normalizeCloudDate(row.date),
+    biz: row.biz || '',
+    area: row.area || '',
+    op: row.op || '',
+    picks: Number(row.picks) || 0,
+    sourceSheet: 'Cloud SQL',
+  })).filter(row => row.date && row.wh && row.picks > 0);
+
+  const dates = PICKS_RAW.map(row => row.date).filter(Boolean).sort();
+  DATA.dataLatest.picks = dates[dates.length - 1] || '';
+  DATA.dataOldest = DATA.dataOldest || {};
+  DATA.dataOldest.picks = dates[0] || '';
+  return true;
+}
+
 async function loadCloudDataRange() {
   try {
     const res = await fetch('/api/data/range');
@@ -908,6 +938,22 @@ async function loadCloudLaborData() {
     if (!res.ok) return false;
     const data = await res.json();
     return data.ok ? applyCloudLaborRows(data.rows) : false;
+  } catch {
+    return false;
+  }
+}
+
+async function loadCloudPicksData() {
+  try {
+    const params = new URLSearchParams({
+      date_from: DATA.dateFrom,
+      date_to: DATA.dateTo,
+    });
+    const res = await fetch(`/api/data/picks?${params.toString()}`);
+    if (handleAuthExpired(res)) return false;
+    if (!res.ok) return false;
+    const data = await res.json();
+    return data.ok ? applyCloudPicksRows(data.rows) : false;
   } catch {
     return false;
   }
@@ -961,6 +1007,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadPagePermissions();
   await loadCloudBudgetData();
   await loadCloudLaborData();
+  await loadCloudPicksData();
   applyTypographySettings();
 
   renderSidebar();
@@ -2162,7 +2209,7 @@ function updateStatus() {
     { type:'💰 年度預算', real:hasDispatchBudget(), latest: DATA.dataLatest?.budget || '', oldest: DATA.dataOldest?.budget || '' },
     { type:'🚚 運務費用', real:!!parsedFreight,      latest: latestFreight, oldest: oldestFreight },
     { type:'💵 人力費用', real:!!parsedLabor || !!((typeof LABOR_RAW !== 'undefined') && LABOR_RAW.length), latest: latestLabor, oldest: oldestLabor },
-    { type:'⚡ 揀次資料', real:!!parsedPicks,        latest: latestPicks,   oldest: oldestPicks  },
+    { type:'⚡ 揀次資料', real:!!parsedPicks || !!((typeof PICKS_RAW !== 'undefined') && PICKS_RAW.length) || !!latestPicks, latest: latestPicks, oldest: oldestPicks },
   ];
 
   const dateCell = v => v

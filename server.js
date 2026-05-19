@@ -19,7 +19,7 @@ const DB_HOST = process.env.DB_HOST || (DB_INSTANCE_CONNECTION_NAME ? `/cloudsql
 // K_SERVICE 是 Cloud Run 自動設定的環境變數，用來判斷是否在正式環境
 const IS_PROD = Boolean(process.env.K_SERVICE || process.env.NODE_ENV === 'production');
 
-const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','labor','productivity','monthly','annual','import','org','typography']);
+const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','picks','labor','productivity','monthly','annual','import','org','typography']);
 const BUDGET_TYPES = new Set(['labor', 'freight']);
 
 // ── Session 設定 ──
@@ -985,6 +985,63 @@ async function handleLaborData(req, res) {
   }
 }
 
+async function handlePicksData(req, res) {
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
+    return;
+  }
+
+  if (!requireSession(req, res)) return;
+
+  const pool = getDbPool();
+  if (!pool) {
+    sendJson(res, 503, {
+      ok: false,
+      MSG: '503 Database is not configured. Set DB_INSTANCE_CONNECTION_NAME, DB_NAME, DB_USER, and DB_PASSWORD.',
+    });
+    return;
+  }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const dateFrom = String(url.searchParams.get('date_from') || '').trim();
+  const dateTo = String(url.searchParams.get('date_to') || '').trim();
+  if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+    sendJson(res, 400, { ok: false, MSG: '999 Invalid picks date range' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT work_date, warehouse_name, business_type, area_name, operation_area,
+              picks_count, source_file, import_batch_id, updated_at
+       FROM ${schemaTable('picks_daily')}
+       WHERE work_date >= $1::date AND work_date <= $2::date
+       ORDER BY work_date, warehouse_name, business_type, area_name, operation_area`,
+      [dateFrom, dateTo],
+    );
+
+    sendJson(res, 200, {
+      ok: true,
+      dateFrom,
+      dateTo,
+      rows: result.rows.map(row => ({
+        date: row.work_date,
+        wh: row.warehouse_name,
+        biz: row.business_type || '',
+        area: row.area_name || '',
+        op: row.operation_area || '',
+        picks: Number(row.picks_count) || 0,
+        sourceFile: row.source_file,
+        importBatchId: row.import_batch_id,
+        updatedAt: row.updated_at,
+      })),
+    });
+  } catch (err) {
+    console.error('[picks] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 揀次資料查詢失敗，請稍後再試' });
+  }
+}
+
 async function handleDataRange(req, res) {
   if (req.method !== 'GET') {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
@@ -1054,6 +1111,10 @@ const server = http.createServer((req, res) => {
   }
   if (req.url.startsWith('/api/data/labor')) {
     handleLaborData(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/data/picks')) {
+    handlePicksData(req, res);
     return;
   }
 
