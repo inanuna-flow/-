@@ -182,6 +182,20 @@ function requireSession(req, res) {
   return session;
 }
 
+function handleSession(req, res) {
+  if (req.method !== 'GET') {
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
+    return;
+  }
+  const session = requireSession(req, res);
+  if (!session) return;
+  sendJson(res, 200, {
+    ok: true,
+    userId: session.userId,
+    isAdmin: session.userId === ADMIN_USER_ID,
+  });
+}
+
 let dbPool = null;
 
 function isDbConfigured() {
@@ -549,6 +563,17 @@ function handleStatic(req, res) {
   if (relativePath.startsWith('kpl-dashboard/')) {
     relativePath = relativePath.slice('kpl-dashboard/'.length);
   }
+
+  if (relativePath === 'index.html' && !getSession(req)) {
+    res.writeHead(302, {
+      'Location': 'login.html',
+      'Cache-Control': 'no-store',
+      ...SECURITY_HEADERS,
+    });
+    res.end();
+    return;
+  }
+
   const filePath = path.resolve(STATIC_ROOT, relativePath);
 
   if (!filePath.startsWith(STATIC_ROOT + path.sep) && filePath !== STATIC_ROOT) {
@@ -1079,6 +1104,10 @@ async function handleDataRange(req, res) {
 const server = http.createServer((req, res) => {
   if (req.url.startsWith('/api/check-user')) {
     handleCheckUser(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/session')) {
+    handleSession(req, res);
     return;
   }
   if (req.url.startsWith('/api/logout')) {

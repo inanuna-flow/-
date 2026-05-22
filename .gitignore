@@ -9,3 +9,12 @@ node_modules/
 .claude/
 .vscode/
 參考圖/
+
+# 機密與本機設定（絕不可推上 GitHub）
+.env
+.env.*
+!.env.example
+*.key
+*.pem
+credentials.json
+secrets.json

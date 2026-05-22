@@ -4,10 +4,11 @@
 
 // ── 超級管理員設定 ──
 const ADMIN_USER_ID = 'inari';
+let currentUserId = '';
 let pagePermissions = {}; // 從伺服器載入
 
 function isAdmin() {
-  return (sessionStorage.getItem('kpl_user') || '').toLowerCase() === ADMIN_USER_ID;
+  return (currentUserId || sessionStorage.getItem('kpl_user') || '').toLowerCase() === ADMIN_USER_ID;
 }
 
 function handleAuthExpired(res) {
@@ -15,6 +16,20 @@ function handleAuthExpired(res) {
   sessionStorage.removeItem('kpl_auth');
   sessionStorage.removeItem('kpl_user');
   location.href = 'login.html';
+  return true;
+}
+
+async function loadSession() {
+  const res = await fetch('/api/session', { cache: 'no-store' });
+  if (handleAuthExpired(res)) return false;
+  if (!res.ok) {
+    location.href = 'login.html';
+    return false;
+  }
+  const data = await res.json();
+  currentUserId = String(data.userId || '');
+  sessionStorage.setItem('kpl_user', currentUserId);
+  sessionStorage.setItem('kpl_auth', '1');
   return true;
 }
 
@@ -998,10 +1013,7 @@ async function syncCloudPicks(parsed) {
 // ── 初始化 ──
 document.addEventListener('DOMContentLoaded', async () => {
   // 驗證登入
-  if (!sessionStorage.getItem('kpl_auth')) {
-    location.href = 'login.html';
-    return;
-  }
+  if (!await loadSession()) return;
 
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
@@ -1027,6 +1039,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   setInterval(updateTime, 60000);
   checkMobile();
   window.addEventListener('resize', checkMobile);
+
+  // 初始化完成，淡出開機載入畫面
+  if (typeof window.hideBootLoader === 'function') {
+    window.hideBootLoader();
+  }
 });
 
 // ════════════════════════════════════════════

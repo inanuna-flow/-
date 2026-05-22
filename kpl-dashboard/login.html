@@ -224,10 +224,12 @@ body::before {
 </div>
 
 <script>
-// 如果已登入就直接跳轉
-if (sessionStorage.getItem('kpl_auth')) {
-  location.href = 'index.html';
-}
+// 如果後端 session 仍有效就直接跳轉
+fetch('/api/session', { cache: 'no-store' })
+  .then(res => {
+    if (res.ok) location.href = 'index.html';
+  })
+  .catch(() => {});
 
 // Enter 鍵觸發登入
 document.addEventListener('keydown', e => {
@@ -302,11 +304,7 @@ function showError(msg) {
 }
 
 function getAuthEndpoint() {
-  if (location.protocol === 'http:' || location.protocol === 'https:') {
-    return '/api/check-user';
-  }
-
-  return 'https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId';
+  return '/api/check-user';
 }
 
 

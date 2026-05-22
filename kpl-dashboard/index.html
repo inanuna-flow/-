@@ -8,8 +8,106 @@
 <link rel="stylesheet" href="css/layout.css?v=20260518-6">
 <link rel="stylesheet" href="css/widget.css?v=20260519-1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+
+<!-- 開機載入畫面：在 CSS/JS 還沒下載完前就顯示，避免空白頁 -->
+<style>
+  #boot-loader {
+    position: fixed;
+    inset: 0;
+    background: linear-gradient(135deg, #f8fafc 0%, #eef2f7 100%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    z-index: 99999;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang TC", "Noto Sans TC", sans-serif;
+    transition: opacity 0.5s ease-out, visibility 0.5s ease-out;
+  }
+  #boot-loader.boot-fade-out {
+    opacity: 0;
+    visibility: hidden;
+    pointer-events: none;
+  }
+  .boot-spinner {
+    width: 56px;
+    height: 56px;
+    border: 4px solid rgba(11, 31, 70, 0.08);
+    border-top-color: #c9a44d;
+    border-radius: 50%;
+    animation: boot-spin 0.9s linear infinite;
+    margin-bottom: 32px;
+  }
+  @keyframes boot-spin {
+    to { transform: rotate(360deg); }
+  }
+  .boot-brand {
+    font-size: 26px;
+    font-weight: 700;
+    color: #0b1f46;
+    letter-spacing: 3px;
+    margin-bottom: 6px;
+  }
+  .boot-eyebrow {
+    font-size: 11px;
+    color: #94a3b8;
+    letter-spacing: 5px;
+    margin-bottom: 4px;
+  }
+  .boot-divider {
+    width: 40px;
+    height: 2px;
+    background: #c9a44d;
+    margin: 18px 0 22px;
+    border-radius: 2px;
+  }
+  .boot-status {
+    font-size: 13px;
+    color: #64748b;
+    letter-spacing: 1px;
+  }
+  .boot-status::after {
+    content: '';
+    display: inline-block;
+    width: 18px;
+    text-align: left;
+    animation: boot-dots 1.4s steps(4, end) infinite;
+  }
+  @keyframes boot-dots {
+    0%   { content: ''; }
+    25%  { content: '.'; }
+    50%  { content: '..'; }
+    75%  { content: '...'; }
+  }
+  .boot-footer {
+    position: absolute;
+    bottom: 32px;
+    font-size: 11px;
+    color: #cbd5e1;
+    letter-spacing: 2px;
+  }
+</style>
 </head>
 <body>
+
+<div id="boot-loader" role="status" aria-label="載入中">
+  <div class="boot-eyebrow">LOGISTICS PERFORMANCE</div>
+  <div class="boot-brand">KPL 績效儀表板</div>
+  <div class="boot-divider"></div>
+  <div class="boot-spinner"></div>
+  <div class="boot-status">資料載入中</div>
+  <div class="boot-footer">日翊文化行銷</div>
+</div>
+<script>
+  // 提供給 app.js 呼叫，當初始化完成時淡出 loader
+  window.hideBootLoader = function() {
+    const el = document.getElementById('boot-loader');
+    if (!el) return;
+    el.classList.add('boot-fade-out');
+    setTimeout(() => el.remove(), 600);
+  };
+  // 保險機制：5 秒後強制隱藏（避免 app.js 出錯卡住）
+  setTimeout(() => window.hideBootLoader(), 5000);
+</script>
 
 <!-- Top App Bar -->
 <header class="topbar">
