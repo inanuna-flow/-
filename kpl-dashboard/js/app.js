@@ -938,6 +938,8 @@ async function loadCloudDataRange() {
       DATA.cloudRange.labor   = data.labor   || { min: '', max: '' };
       DATA.cloudRange.freight = data.freight || { min: '', max: '' };
       DATA.cloudRange.picks   = data.picks   || { min: '', max: '' };
+
+      // cloudRange 僅供 UI 參考用，日期區間由 DOMContentLoaded 統一設定
     }
   } catch {}
 }
@@ -1017,6 +1019,16 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
+  // 預設區間：本月 1 日 ～ 今天（不依賴 API 回傳值）
+  (function () {
+    const t = new Date();
+    const y = t.getFullYear();
+    const m = String(t.getMonth() + 1).padStart(2, '0');
+    const d = String(t.getDate()).padStart(2, '0');
+    DATA.dateFrom = `${y}-${m}-01`;
+    DATA.dateTo   = `${y}-${m}-${d}`;
+  })();
+  await loadCloudDataRange();   // 取 cloudRange 供 UI 參考，不覆寫日期
   await loadCloudBudgetData();
   await loadCloudLaborData();
   await loadCloudPicksData();
