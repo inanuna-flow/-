@@ -743,17 +743,21 @@ function renderFreightReferenceDashboard() {
     { item:'加派車', budget:1710000, actual:380000, share:2.6 },
     { item:'回收車', budget:660000, actual:190000, share:1.3 },
   ];
-  const matrixItems = [
-    { item:'主線', base:6640000, ratio:0.244 },
-    { item:'加派車', base:1070000, ratio:0.436 },
-    { item:'回收車', base:560000, ratio:0.517 },
-    { item:'其他', base:120000, ratio:0.268 },
-    { item:'違規罰款', base:80000, ratio:0.856 },
-    { item:'離島', base:610000, ratio:0.141 },
-    { item:'轉運', base:2300000, ratio:0.159 },
-    { item:'費用總計', base:11960000, ratio:0.259, total:true },
-  ];
-  const months = [1,2,3,4,5,6,7,8,9,10];
+  const WH_TOTAL = 33200602 + 17067880 + 21497185;
+  const WH_SCALE_MAP = { 'all': 1, '大溪倉': 33200602 / WH_TOTAL, '大肚倉': 17067880 / WH_TOTAL, '岡山倉': 21497185 / WH_TOTAL };
+  const selectedWH = DATA.freightSelectedWarehouse || 'all';
+  const whScale = WH_SCALE_MAP[selectedWH] != null ? WH_SCALE_MAP[selectedWH] : 1;
+  const WHLabel = { 'all': '三倉總覽', '大溪倉': '大溪倉', '大肚倉': '大肚倉', '岡山倉': '岡山倉' }[selectedWH] || '三倉總覽';
+  const freightMonthStr = typeof getFreightMonthValue === 'function' ? getFreightMonthValue() : (DATA.dateFrom || '').slice(0, 7);
+  const [fmYear, fmMon] = freightMonthStr.split('-').map(Number);
+  const daysInMonth = new Date(fmYear, fmMon, 0).getDate() || 30;
+  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
+  const dailyCats = [
+    { item: '主線', base: 6640000, ratio: 0.244 },
+    { item: '加派',  base: 1070000, ratio: 0.436 },
+    { item: '其他',  base: 120000,  ratio: 0.268 },
+    { item: '專車',  base: 2300000, ratio: 0.159 },
+  ].map(c => ({ ...c, base: Math.round(c.base * whScale) }));
   const maxShipment = Math.max(...shipment.flatMap(row => [row.budget, row.actual]));
   const maxCostBudget = Math.max(...costItems.map(row => row.budget));
 
@@ -799,16 +803,25 @@ function renderFreightReferenceDashboard() {
     return `<td class="${cls}">${Math.round(value).toLocaleString('zh-TW')}</td>`;
   }
 
-  const matrixRows = matrixItems.map(item => {
+  function dBudget(cat, day) { return Math.round(cat.base / daysInMonth); }
+  function dActual(cat, catIdx, day) {
+    const seed = (day * 13 + catIdx * 7) % 20;
+    return Math.round(dBudget(cat, day) * cat.ratio * (0.80 + seed * 0.018));
+  }
+  const allDailyCats = [...dailyCats, { item: '合計', total: true }];
+  const matrixRows = allDailyCats.map((cat, catIdx) => {
+    const isTotal = !!cat.total;
+    const bVals = days.map(d => isTotal ? dailyCats.reduce((s, c) => s + dBudget(c, d), 0) : dBudget(cat, d));
+    const aVals = days.map(d => isTotal ? dailyCats.reduce((s, c, ci) => s + dActual(c, ci, d), 0) : dActual(cat, catIdx, d));
     const lines = [
-      { label:'預算金額', type:'budget', values:months.map(month => item.base * (month % 3 === 0 ? 1 : month % 3 === 1 ? 0.97 : 0.92)) },
-      { label:'實際動支', type:'actual', values:months.map(month => item.base * item.ratio * (month <= 5 ? 0.95 + month * 0.018 : 0)) },
+      { label: '預算金額', type: 'budget', values: bVals },
+      { label: '實際動支', type: 'actual', values: aVals },
     ];
-    lines.push({ label:'預算差異', type:'diff', values:lines[1].values.map((actual, index) => actual - lines[0].values[index]) });
-    lines.push({ label:'動支率 (%)', type:'rate', values:lines[1].values.map((actual, index) => lines[0].values[index] ? actual / lines[0].values[index] * 100 : 0) });
+    lines.push({ label: '預算差異', type: 'diff', values: lines[1].values.map((v, i) => v - lines[0].values[i]) });
+    lines.push({ label: '動支率 (%)', type: 'rate', values: lines[1].values.map((v, i) => lines[0].values[i] ? v / lines[0].values[i] * 100 : 0) });
     return lines.map((line, index) => `
-      <tr class="${item.total ? 'total' : ''}">
-        ${index === 0 ? `<td rowspan="4" class="freight-ref-matrix-item">${item.item}</td>` : ''}
+      <tr class="${isTotal ? 'total' : ''}">
+        ${index === 0 ? `<td rowspan="4" class="freight-ref-matrix-item">${cat.item}</td>` : ''}
         <td class="freight-ref-matrix-metric">${line.label}</td>
         ${line.values.map(value => matrixCell(value, line.type)).join('')}
       </tr>`).join('');
@@ -878,14 +891,14 @@ function renderFreightReferenceDashboard() {
     </div>
 
     <article class="freight-ref-matrix-card">
-      <div class="freight-ref-matrix-title">關一概念設計｜月別預算動支明細</div>
+      <div class="freight-ref-matrix-title">${WHLabel}｜日別預算明細</div>
       <div class="freight-ref-matrix-scroll">
-        <table class="freight-ref-matrix">
+        <table class="freight-ref-matrix freight-ref-matrix--daily">
           <thead>
             <tr>
-              <th>費用項目</th>
-              <th>資料指標</th>
-              ${months.map(month => `<th>${month}月</th>`).join('')}
+              <th class="freight-ref-matrix-sticky1">費用項目</th>
+              <th class="freight-ref-matrix-sticky2">資料指標</th>
+              ${days.map(day => `<th class="num-right">${day}日</th>`).join('')}
             </tr>
           </thead>
           <tbody>${matrixRows}</tbody>

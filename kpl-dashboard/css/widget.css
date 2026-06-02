@@ -1379,6 +1379,33 @@ td.mono { font-family: var(--f-mono); }
   text-align: center !important;
   font-weight: 700;
 }
+/* 日別矩陣 — 凍結前兩欄 */
+.freight-ref-matrix--daily {
+  min-width: 1320px;
+}
+.freight-ref-matrix--daily .freight-ref-matrix-item,
+.freight-ref-matrix--daily .freight-ref-matrix-sticky1 {
+  position: sticky;
+  left: 0;
+  z-index: 3;
+  min-width: 56px;
+  max-width: 56px;
+  background: #eef5ff;
+}
+.freight-ref-matrix--daily .freight-ref-matrix-metric,
+.freight-ref-matrix--daily .freight-ref-matrix-sticky2 {
+  position: sticky;
+  left: 56px;
+  z-index: 3;
+  min-width: 76px;
+  max-width: 76px;
+  background: var(--ry-paper, #f8f9fb);
+}
+.freight-ref-matrix--daily thead th.freight-ref-matrix-sticky1,
+.freight-ref-matrix--daily thead th.freight-ref-matrix-sticky2 {
+  z-index: 5;
+  background: #ffd7e2;
+}
 .freight-ref-matrix tr.total td {
   background: #eaf3ff;
   font-weight: 900;
