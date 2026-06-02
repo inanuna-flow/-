@@ -1388,23 +1388,23 @@ td.mono { font-family: var(--f-mono); }
   position: sticky;
   left: 0;
   z-index: 3;
-  min-width: 56px;
-  max-width: 56px;
-  background: #eef5ff;
+  min-width: 68px;
+  width: 68px;
+  background: #eef5ff !important;
 }
 .freight-ref-matrix--daily .freight-ref-matrix-metric,
 .freight-ref-matrix--daily .freight-ref-matrix-sticky2 {
   position: sticky;
-  left: 56px;
+  left: 68px;
   z-index: 3;
-  min-width: 76px;
-  max-width: 76px;
-  background: var(--ry-paper, #f8f9fb);
+  min-width: 80px;
+  width: 80px;
+  background: #f8f9fb !important;
 }
 .freight-ref-matrix--daily thead th.freight-ref-matrix-sticky1,
 .freight-ref-matrix--daily thead th.freight-ref-matrix-sticky2 {
   z-index: 5;
-  background: #ffd7e2;
+  background: #ffd7e2 !important;
 }
 .freight-ref-matrix tr.total td {
   background: #eaf3ff;
