@@ -1485,7 +1485,10 @@ async function handleFreightMainlineImport(req, res) {
     }
   } catch (err) {
     console.error('[freight-mainline] dry-run 失敗:', err.message);
-    sendJson(res, 500, { ok: false, MSG: '999 主線運費檢查失敗，請稍後再試' });
+    const msg = err.code === '42P01'
+      ? '503 資料表尚未建立，請先執行 migration 002（002_split_freight_tables.sql）'
+      : '999 主線運費檢查失敗，請稍後再試';
+    sendJson(res, err.code === '42P01' ? 503 : 500, { ok: false, MSG: msg });
     return;
   }
 
@@ -1604,7 +1607,10 @@ async function handleFreightNonMainlineImport(req, res) {
     }
   } catch (err) {
     console.error('[freight-non-mainline] dry-run 失敗:', err.message);
-    sendJson(res, 500, { ok: false, MSG: '999 非主線運費檢查失敗，請稍後再試' });
+    const msg = err.code === '42P01'
+      ? '503 資料表尚未建立，請先執行 migration 002（002_split_freight_tables.sql）'
+      : '999 非主線運費檢查失敗，請稍後再試';
+    sendJson(res, err.code === '42P01' ? 503 : 500, { ok: false, MSG: msg });
     return;
   }
 
