@@ -827,6 +827,7 @@ async function applyDashboardDateFilter(pageId = currentPageId) {
   await loadCloudBudgetData();
   await loadCloudLaborData();
   await loadCloudPicksData();
+  await loadCloudFreightData();
   if (pageId === 'dispatch') syncDispatchBudgetForCurrentMonth();
   rerenderDashboardPage(pageId);
   toast('🔄 日期區間已更新');
@@ -1229,6 +1230,58 @@ async function loadCloudPicksData() {
   }
 }
 
+async function loadCloudFreightData() {
+  try {
+    const params = new URLSearchParams({ date_from: DATA.dateFrom, date_to: DATA.dateTo });
+    const res = await fetch(`/api/data/freight?${params.toString()}`);
+    if (handleAuthExpired(res)) return false;
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (!data.ok) return false;
+    applyCloudFreightData(data);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function applyCloudFreightData(data) {
+  const dailyCosts = data.dailyCosts || [];
+  const details    = data.details    || [];
+  const threshold  = DATA.freight.diffThreshold || 90;
+
+  // dailyByWarehouse: [mm/dd, 大溪, 大肚, 岡山, fullDate]
+  DATA.freight.dailyByWarehouse = dailyCosts.map(r => {
+    const mmdd = `${r.date.slice(5, 7)}/${r.date.slice(8, 10)}`;
+    return [mmdd, r.daxi || 0, r.dadu || 0, r.gangshan || 0, r.date];
+  });
+
+  // dailyTrend: [mm/dd, 合計, fullDate]
+  DATA.freight.dailyTrend = dailyCosts.map(r => {
+    const mmdd = `${r.date.slice(5, 7)}/${r.date.slice(8, 10)}`;
+    return [mmdd, (r.daxi || 0) + (r.dadu || 0) + (r.gangshan || 0), r.date];
+  });
+
+  // 主線明細（用於 F002/F003）
+  DATA.freight.details = details.map(r => ({
+    fullDate:  r.date,
+    vendor:    r.vendor,
+    estimated: r.estimated || 0,
+    actual:    r.actual    || 0,
+    point:     0,
+    rate:      r.estimated > 0 ? (r.actual / r.estimated) * 100 : 100,
+  }));
+
+  const allActual = dailyCosts.reduce((s, r) => s + (r.daxi || 0) + (r.dadu || 0) + (r.gangshan || 0), 0);
+  DATA.freight.actualCost    = allActual;
+  DATA.freight.totalCost     = allActual;
+  DATA.freight.estimatedCost = details.reduce((s, r) => s + (r.estimated || 0), 0);
+  DATA.freight.totalOrders   = details.length;
+  DATA.freight.overCount     = DATA.freight.details.filter(r => r.rate > threshold).length;
+  DATA.freight.saveCount     = DATA.freight.details.filter(r => r.rate <= threshold).length;
+  DATA.freight.lastMonthCost = data.lastMonthTotal || 0;
+}
+
 async function syncCloudLabor(parsed) {
   if (!parsed?.records?.length) return false;
   const payload = {
@@ -1490,6 +1543,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   await loadCloudBudgetData();
   await loadCloudLaborData();
   await loadCloudPicksData();
+  await loadCloudFreightData();
 
   // 預設日期：本月 1 日 → 今天
   const _now = new Date();

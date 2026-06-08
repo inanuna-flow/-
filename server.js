@@ -1067,6 +1067,94 @@ async function handlePicksData(req, res) {
   }
 }
 
+async function handleFreightData(req, res) {
+  if (req.method !== 'GET') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
+  if (!requireSession(req, res)) return;
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database not configured' }); return; }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const dateFrom = String(url.searchParams.get('date_from') || '').trim();
+  const dateTo   = String(url.searchParams.get('date_to')   || '').trim();
+  if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+    sendJson(res, 400, { ok: false, MSG: '400 date_from / date_to 格式錯誤' }); return;
+  }
+
+  try {
+    // 每日各倉費用（主線 + 非主線合計）
+    const dailyResult = await pool.query(
+      `WITH mainline AS (
+         SELECT work_date,
+                warehouse_name,
+                COALESCE(pricing_result, 0) AS cost
+         FROM ${schemaTable('freight_mainline_daily')}
+         WHERE work_date BETWEEN $1 AND $2
+       ),
+       nonmain AS (
+         SELECT work_date,
+                COALESCE(budget_warehouse, '大溪倉') AS warehouse_name,
+                COALESCE(amount, 0) AS cost
+         FROM ${schemaTable('freight_non_mainline_daily')}
+         WHERE work_date BETWEEN $1 AND $2
+       ),
+       combined AS (
+         SELECT work_date, warehouse_name, cost FROM mainline
+         UNION ALL
+         SELECT work_date, warehouse_name, cost FROM nonmain
+       )
+       SELECT
+         work_date::text AS date,
+         SUM(CASE WHEN warehouse_name = '大溪倉' THEN cost ELSE 0 END)::float AS daxi,
+         SUM(CASE WHEN warehouse_name = '大肚倉' THEN cost ELSE 0 END)::float AS dadu,
+         SUM(CASE WHEN warehouse_name = '岡山倉' THEN cost ELSE 0 END)::float AS gangshan
+       FROM combined
+       GROUP BY work_date
+       ORDER BY work_date`,
+      [dateFrom, dateTo],
+    );
+
+    // 主線明細（供 F002 預計 vs 實際、F003 超支筆數）
+    const detailResult = await pool.query(
+      `SELECT
+         work_date::text AS date,
+         COALESCE(carrier, '未知') AS vendor,
+         COALESCE(est_pricing_result, 0)::float AS estimated,
+         COALESCE(pricing_result, 0)::float AS actual
+       FROM ${schemaTable('freight_mainline_daily')}
+       WHERE work_date BETWEEN $1 AND $2
+       ORDER BY work_date`,
+      [dateFrom, dateTo],
+    );
+
+    // 上月總費用（供 F001 月趨勢比較）
+    const lastMonthResult = await pool.query(
+      `SELECT (
+         COALESCE((
+           SELECT SUM(COALESCE(pricing_result, 0))
+           FROM ${schemaTable('freight_mainline_daily')}
+           WHERE date_trunc('month', work_date) = date_trunc('month', $1::date) - INTERVAL '1 month'
+         ), 0) +
+         COALESCE((
+           SELECT SUM(COALESCE(amount, 0))
+           FROM ${schemaTable('freight_non_mainline_daily')}
+           WHERE date_trunc('month', work_date) = date_trunc('month', $1::date) - INTERVAL '1 month'
+         ), 0)
+       )::float AS total`,
+      [dateFrom],
+    );
+
+    sendJson(res, 200, {
+      ok: true,
+      dailyCosts:     dailyResult.rows,
+      details:        detailResult.rows,
+      lastMonthTotal: lastMonthResult.rows[0]?.total || 0,
+    });
+  } catch (err) {
+    console.error('[freight-data] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 運費資料查詢失敗' });
+  }
+}
+
 async function handleDataRange(req, res) {
   if (req.method !== 'GET') {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
@@ -1747,6 +1835,10 @@ const server = http.createServer((req, res) => {
   }
   if (req.url.startsWith('/api/data/picks')) {
     handlePicksData(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/data/freight')) {
+    handleFreightData(req, res);
     return;
   }
 
