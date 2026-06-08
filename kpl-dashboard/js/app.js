@@ -1188,9 +1188,11 @@ async function loadCloudDataRange() {
     const data = await res.json();
     if (data.ok) {
       DATA.cloudRange = DATA.cloudRange || {};
-      DATA.cloudRange.labor   = data.labor   || { min: '', max: '' };
-      DATA.cloudRange.freight = data.freight || { min: '', max: '' };
-      DATA.cloudRange.picks   = data.picks   || { min: '', max: '' };
+      DATA.cloudRange.labor              = data.labor              || { min: '', max: '' };
+      DATA.cloudRange.freight            = data.freight            || { min: '', max: '' };
+      DATA.cloudRange.freightMainline    = data.freightMainline    || { min: '', max: '' };
+      DATA.cloudRange.freightNonMainline = data.freightNonMainline || { min: '', max: '' };
+      DATA.cloudRange.picks              = data.picks              || { min: '', max: '' };
     }
   } catch {}
 }
@@ -1310,13 +1312,14 @@ function parseFreightMainline(wb, fileName) {
     document.getElementById('freight-mainline-status').textContent = '❌ 欄位不足';
     return;
   }
-  const validCount = raw.filter(r => valueByHeader(r, '進貨日') !== '').length;
+  const validRows = raw.filter(r => valueByHeader(r, '進貨日') !== '');
+  const validCount = validRows.length;
   if (!validCount) { toast('❌ 主線運費沒有有效資料列'); return; }
 
-  parsedFreightMainline = { records: raw, fileName, rowCount: validCount, sheetName };
+  parsedFreightMainline = { records: validRows, fileName, rowCount: validCount, sheetName };
   document.getElementById('freight-mainline-status').textContent = `✅ ${validCount} 筆 · ${sheetName}`;
   const prev = document.getElementById('freight-mainline-preview');
-  prev.innerHTML = `<div class="import-alert import-alert-info"><b>工作表：</b>${sheetName}　<b>有效列：</b>${validCount} 筆<br><small>確認後直接上傳至雲端資料庫</small></div>`;
+  prev.innerHTML = `<div class="import-alert import-alert-info"><b>工作表：</b>${escapeReleaseText(sheetName)}　<b>有效列：</b>${validCount} 筆<br><small>確認後直接上傳至雲端資料庫</small></div>`;
   prev.style.display = 'block';
   document.getElementById('freight-mainline-btns').style.display = 'flex';
   toast(`✅ 主線運費解析完成：${validCount} 筆`);
@@ -1341,13 +1344,14 @@ function parseFreightNonMainline(wb, fileName) {
     document.getElementById('freight-non-mainline-status').textContent = '❌ 欄位不足';
     return;
   }
-  const validCount = raw.filter(r => valueByHeader(r, '進貨日') !== '').length;
+  const validRows = raw.filter(r => valueByHeader(r, '進貨日') !== '');
+  const validCount = validRows.length;
   if (!validCount) { toast('❌ 非主線運費沒有有效資料列'); return; }
 
-  parsedFreightNonMainline = { records: raw, fileName, rowCount: validCount, sheetName };
+  parsedFreightNonMainline = { records: validRows, fileName, rowCount: validCount, sheetName };
   document.getElementById('freight-non-mainline-status').textContent = `✅ ${validCount} 筆 · ${sheetName}`;
   const prev = document.getElementById('freight-non-mainline-preview');
-  prev.innerHTML = `<div class="import-alert import-alert-info"><b>工作表：</b>${sheetName}　<b>有效列：</b>${validCount} 筆<br><small>伺服器將自動分類後寫入雲端</small></div>`;
+  prev.innerHTML = `<div class="import-alert import-alert-info"><b>工作表：</b>${escapeReleaseText(sheetName)}　<b>有效列：</b>${validCount} 筆<br><small>伺服器將自動分類後寫入雲端</small></div>`;
   prev.style.display = 'block';
   document.getElementById('freight-non-mainline-btns').style.display = 'flex';
   toast(`✅ 非主線運費解析完成：${validCount} 筆`);
@@ -1432,9 +1436,9 @@ async function applyFreightNonMainline() {
         <thead><tr><th>大分類</th><th>細分類</th><th style="text-align:right">筆數</th></tr></thead>
         <tbody>${classification.map(c => `
           <tr>
-            <td>${c.l1}</td>
-            <td>${c.l2 || '—'}</td>
-            <td class="mono" style="text-align:right">${c.count}</td>
+            <td>${escapeReleaseText(c.l1)}</td>
+            <td>${c.l2 ? escapeReleaseText(c.l2) : '—'}</td>
+            <td class="mono" style="text-align:right">${Number(c.count)}</td>
           </tr>`).join('')}
         </tbody>
       </table>`;
@@ -1651,8 +1655,6 @@ function setupFreightMonthShell() {
         <select class="filter-input" id="freight-view-mode" onchange="applyFreightFilter()">
           <option value="month">月度</option>
         </select>
-        <div class="filter-divider"></div>
-        <button class="btn btn-ghost" onclick="downloadFreight()">下載報表</button>
       </div>
     `);
   }
@@ -1754,6 +1756,9 @@ function clearImportPreview(type) {
 
   const buttons = document.getElementById(type + '-btns');
   if (buttons) buttons.style.display = 'none';
+
+  const fileInput = document.getElementById(type + '-file');
+  if (fileInput) fileInput.value = '';
 
   setImportResultVisible(type, false);
 }
@@ -2043,96 +2048,6 @@ function resetBudget() {
   document.getElementById('budget-preview').style.display = 'none';
   document.getElementById('budget-btns').style.display = 'none';
   document.getElementById('budget-file').value = '';
-}
-
-// parseFreight / applyFreight / downloadFreight / resetFreight removed — replaced by mainline/non-mainline split
-function _parseFreightLegacy_unused(wb, fileName) {
-  const SUMMARY_SHEET = '進貨日與計價費用';
-  const DETAIL_SHEET = '貨運費用明細總表';
-  if (!wb.SheetNames.includes(SUMMARY_SHEET)) {
-    toast('❌ 找不到「' + SUMMARY_SHEET + '」分頁');
-    document.getElementById('freight-status').textContent = '❌ 分頁不存在';
-    return;
-  }
-  if (!wb.SheetNames.includes(DETAIL_SHEET)) {
-    toast('❌ 找不到「' + DETAIL_SHEET + '」分頁');
-    document.getElementById('freight-status').textContent = '❌ 明細分頁不存在';
-    return;
-  }
-
-  const errors = [];
-  const raw = XLSX.utils.sheet_to_json(wb.Sheets[SUMMARY_SHEET], { defval:0 });
-  const rows = [];
-  const seenDates = {};
-  raw.forEach((r, i) => {
-    const d = String(r['列標籤'] || '');
-    if (!d || d.includes('總計')) return;
-    const dateInfo = parseFreightDate(d);
-    if (!dateInfo) {
-      errors.push(`彙總分頁第 ${i + 2} 列日期無法辨識：${d}`);
-      return;
-    }
-    const row = {
-      date: dateInfo.short,
-      fullDate: dateInfo.full,
-      daxi: Number(r['大溪倉'] || 0),
-      dadu: Number(r['大肚倉'] || 0),
-      gangshan: Number(r['岡山倉'] || 0),
-    };
-    if ([row.daxi, row.dadu, row.gangshan].some(v => Number.isNaN(v))) {
-      errors.push(`彙總分頁第 ${i + 2} 列金額不是數字`);
-      return;
-    }
-    if ([row.daxi, row.dadu, row.gangshan].some(v => v < 0)) {
-      errors.push(`彙總分頁第 ${i + 2} 列出現負數，依規則不可匯入`);
-      return;
-    }
-    if (seenDates[row.fullDate]) {
-      errors.push(`彙總分頁日期 ${row.fullDate} 重複出現，請先回 Excel 彙總成每日一列`);
-      return;
-    }
-    seenDates[row.fullDate] = true;
-    rows.push(row);
-  });
-
-  const detailResult = parseFreightDetails(wb.Sheets[DETAIL_SHEET]);
-  errors.push(...detailResult.errors);
-
-  if (errors.length) {
-    document.getElementById('freight-status').textContent = '❌ 驗證失敗';
-    document.getElementById('freight-preview').innerHTML = `
-      <div class="import-alert import-alert-error">
-        <b class="text-red">匯入已擋下</b><br>
-        ${errors.slice(0, 8).map(e => `• ${e}`).join('<br>')}
-        ${errors.length > 8 ? `<br>• 其餘 ${errors.length - 8} 項錯誤省略` : ''}
-      </div>`;
-    document.getElementById('freight-preview').style.display = 'block';
-    document.getElementById('freight-btns').style.display = 'none';
-    toast(`❌ 運費匯入驗證失敗：${errors.length} 項`);
-    return;
-  }
-
-  if (!rows.length) { toast('❌ 找不到有效彙總資料'); return; }
-  if (!detailResult.records.length) { toast('❌ 找不到有效明細資料'); return; }
-
-  const totals = {
-    daxi:     rows.reduce((s,r)=>s+r.daxi,0),
-    dadu:     rows.reduce((s,r)=>s+r.dadu,0),
-    gangshan: rows.reduce((s,r)=>s+r.gangshan,0),
-  };
-  parsedFreight = {
-    rows,
-    fileName,
-    totals,
-    detailRecords: detailResult.records,
-    detailSummary: summarizeFreightDetails(detailResult.records),
-    at: new Date(),
-  };
-  document.getElementById('freight-status').textContent = `✅ ${rows.length} 天 · ${detailResult.records.length} 筆`;
-  showFreightPreview(parsedFreight);
-  const btns = document.getElementById('freight-btns');
-  btns.style.display = 'flex';
-  toast(`✅ 解析完成：${rows.length} 天 / ${detailResult.records.length} 筆明細`);
 }
 
 function parseFreightDate(value) {

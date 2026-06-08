@@ -1079,28 +1079,40 @@ async function handleDataRange(req, res) {
     return;
   }
   try {
-    const result = await pool.query(
+    const baseResult = await pool.query(
       `SELECT
-         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')})                  AS labor_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')})                  AS labor_max,
-         (SELECT MIN(work_date)::text FROM ${schemaTable('freight_mainline_daily')})       AS freight_main_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_mainline_daily')})       AS freight_main_max,
-         (SELECT MIN(work_date)::text FROM ${schemaTable('freight_non_mainline_daily')})   AS freight_nonmain_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_non_mainline_daily')})   AS freight_nonmain_max,
-         (SELECT MIN(work_date)::text FROM ${schemaTable('picks_daily')})                  AS picks_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('picks_daily')})                  AS picks_max`,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')}) AS labor_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')}) AS labor_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('picks_daily')}) AS picks_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('picks_daily')}) AS picks_max`,
     );
-    const row = result.rows[0] || {};
-    const mins = [row.freight_main_min, row.freight_nonmain_min].filter(Boolean).sort();
-    const maxs = [row.freight_main_max, row.freight_nonmain_max].filter(Boolean).sort();
+    const base = baseResult.rows[0] || {};
+
+    // migration 002 可能尚未執行，freight 表不存在時不應拖累整個 range API
+    let freightRow = { freight_main_min: null, freight_main_max: null, freight_nonmain_min: null, freight_nonmain_max: null };
+    try {
+      const frResult = await pool.query(
+        `SELECT
+           (SELECT MIN(work_date)::text FROM ${schemaTable('freight_mainline_daily')})     AS freight_main_min,
+           (SELECT MAX(work_date)::text FROM ${schemaTable('freight_mainline_daily')})     AS freight_main_max,
+           (SELECT MIN(work_date)::text FROM ${schemaTable('freight_non_mainline_daily')}) AS freight_nonmain_min,
+           (SELECT MAX(work_date)::text FROM ${schemaTable('freight_non_mainline_daily')}) AS freight_nonmain_max`,
+      );
+      freightRow = frResult.rows[0] || freightRow;
+    } catch (frErr) {
+      console.warn('[range] freight 表尚未建立（migration 002 未執行）:', frErr.message);
+    }
+
+    const mins = [freightRow.freight_main_min, freightRow.freight_nonmain_min].filter(Boolean).sort();
+    const maxs = [freightRow.freight_main_max, freightRow.freight_nonmain_max].filter(Boolean).sort();
     sendJson(res, 200, {
       ok: true,
-      labor:   { min: row.labor_min   || '', max: row.labor_max   || '' },
+      labor:   { min: base.labor_min || '', max: base.labor_max || '' },
       // 為了向下相容，保留 freight 欄位（取兩表的聯集範圍）
       freight: { min: mins[0] || '', max: maxs[maxs.length - 1] || '' },
-      freightMainline:    { min: row.freight_main_min    || '', max: row.freight_main_max    || '' },
-      freightNonMainline: { min: row.freight_nonmain_min || '', max: row.freight_nonmain_max || '' },
-      picks:   { min: row.picks_min   || '', max: row.picks_max   || '' },
+      freightMainline:    { min: freightRow.freight_main_min    || '', max: freightRow.freight_main_max    || '' },
+      freightNonMainline: { min: freightRow.freight_nonmain_min || '', max: freightRow.freight_nonmain_max || '' },
+      picks:   { min: base.picks_min || '', max: base.picks_max || '' },
     });
   } catch (err) {
     console.error('[range] 查詢失敗:', err.message);
@@ -1288,7 +1300,7 @@ function freightMainlineRowsFromPayload(payload) {
       pricing_unit:          toTextOrNull(r['計價單位']         ?? r.pricing_unit),
       tier_rate:             toNumOrNull (r['計價\r\n級距費率'] ?? r['計價級距費率'] ?? r.tier_rate),
       dispatch_price:        toNumOrNull (r['出車價']           ?? r.dispatch_price),
-      pricing_result:        toNumOrZero (r['計價結果']         ?? r.pricing_result),
+      pricing_result:        toNumOrNull (r['計價結果']         ?? r.pricing_result),
       with_tax:              toTextOrNull(r['計價\r\n是否含稅'] ?? r['計價是否含稅'] ?? r.with_tax),
 
       adjust_reason:         toTextOrNull(r['調整原因']         ?? r.adjust_reason),
@@ -1310,9 +1322,10 @@ function freightNonMainlineRowsFromPayload(payload) {
   return records.map(r => {
     const workDate = normalizeWorkDate(r['進貨日'] ?? r.work_date);
     const month = monthStartFromDate(workDate);
-    const unit = toNumOrZero(r['單價'] ?? r.unit_price);
-    const trip = toIntOrZero(r['趟數'] ?? r.trip_count);
-    const amt  = toNumOrZero(r['費用小計'] ?? r.amount);
+    const unit    = toNumOrZero(r['單價'] ?? r.unit_price);
+    const trip    = toIntOrZero(r['趟數'] ?? r.trip_count);
+    const rawAmt  = r['費用小計'] ?? r.amount;
+    const amt     = toNumOrZero(rawAmt);
     return {
       work_date:       workDate,
       month,
@@ -1326,7 +1339,8 @@ function freightNonMainlineRowsFromPayload(payload) {
       pricing_method:  toTextOrNull(r['計價方式'] ?? r.pricing_method),
       unit_price:      unit,
       trip_count:      trip,
-      amount:          amt || (unit * trip),
+      // rawAmt 為空/undefined → 回退計算值；rawAmt 明確填 0 → 保留 0
+      amount:          (rawAmt !== '' && rawAmt != null) ? amt : (unit * trip),
       note:            toTextOrNull(r['備註']     ?? r.note),
       category_l1:     null,   // 由 classifyNonMainline() 於寫入前填寫
       category_l2:     null,
