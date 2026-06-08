@@ -151,7 +151,7 @@ function renderM015() {
       <span class="wmeta">${months.length} 個月份</span>
     </div>
     <div class="table-edge">
-      <table class="tbl">
+      <table class="tbl ops-compact-table">
         <thead><tr>
           <th>月份</th>
           <th class="num-right">人力費用</th>
@@ -722,190 +722,285 @@ function renderFreightMonthlyBudgetMatrix() {
 }
 
 function renderFreightReferenceDashboard() {
-  const demo = getFreightAnalysisMode() === 'demo';
   const overview = getFreightAnalysisData();
-  const actualTotal = demo ? 14530000 : overview.totalActual;
-  const budgetTotal = demo ? 51710000 : overview.totalBudget;
+  const summary = getFreightSummaryForPage();
+  const actualTotal = overview.totalActual;
+  const budgetTotal = overview.totalBudget;
   const variance = actualTotal - budgetTotal;
+  const rangeStart = new Date(`${DATA.dateFrom || new Date().toISOString().slice(0, 10)}T00:00:00`);
+  const previousMonthDate = new Date(rangeStart.getFullYear(), rangeStart.getMonth() - 1, 1);
+  const previousMonthKey = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`;
+  const previousMonthDays = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth() + 1, 0).getDate();
+  const previousMonthTotal = (DATA.freight?.dailyByWarehouse || []).reduce((sum, row) => {
+    const fullDate = row[4] || shortToFreightFullDate(row[0]);
+    return fullDate?.startsWith(previousMonthKey)
+      ? sum + Number(row[1] || 0) + Number(row[2] || 0) + Number(row[3] || 0)
+      : sum;
+  }, 0);
+  const fullMonthDifference = actualTotal - previousMonthTotal;
+  const previousMonthOrders = (DATA.freight?.details || []).filter(row => row.fullDate?.startsWith(previousMonthKey)).length;
+  const orderDifference = summary.totalOrders - previousMonthOrders;
+  const selectedDetails = getFreightDetailsFiltered() || [];
+  const nonMainlineDetails = selectedDetails.filter(row => String(row.vendor || '').includes('非主線') || String(row.reason || '').trim());
+  const mainlineDetails = selectedDetails.filter(row => !nonMainlineDetails.includes(row));
+  const specialTruckCount = nonMainlineDetails.filter(row => String(row.vendor || '').includes('專車')).length;
+  const nonMainlineRatio = nonMainlineDetails.length ? specialTruckCount / nonMainlineDetails.length * 100 : 0;
   const spendingRate = budgetTotal ? actualTotal / budgetTotal * 100 : 0;
-  const monthLabel = `${String(Number(String(DATA.dateFrom || '').slice(5, 7)) || 5).padStart(2, '0')}`;
-  const shipment = [
-    { month:'1月', budget:1802.9, actual:494.0, rate:27.4 },
-    { month:'2月', budget:1595.4, actual:418.0, rate:26.2 },
-    { month:'3月', budget:1802.9, actual:429.9, rate:23.9 },
-    { month:'4月', budget:1733.8, actual:411.0, rate:23.7 },
-    { month:'5月', budget:1803.0, actual:381.0, rate:21.1 },
-  ];
-  const costItems = [
-    { item:'主線', budget:33200000, actual:11560000, share:79.6 },
-    { item:'轉運', budget:11500000, actual:1450000, share:10.0 },
-    { item:'離島', budget:2740000, actual:900000, share:6.2 },
-    { item:'加派車', budget:1710000, actual:380000, share:2.6 },
-    { item:'回收車', budget:660000, actual:190000, share:1.3 },
-  ];
-  const WH_TOTAL = 33200602 + 17067880 + 21497185;
-  const WH_SCALE_MAP = { 'all': 1, '大溪倉': 33200602 / WH_TOTAL, '大肚倉': 17067880 / WH_TOTAL, '岡山倉': 21497185 / WH_TOTAL };
-  const selectedWH = DATA.freightSelectedWarehouse || 'all';
-  const whScale = WH_SCALE_MAP[selectedWH] != null ? WH_SCALE_MAP[selectedWH] : 1;
-  const WHLabel = { 'all': '三倉總覽', '大溪倉': '大溪倉', '大肚倉': '大肚倉', '岡山倉': '岡山倉' }[selectedWH] || '三倉總覽';
-  const freightMonthStr = typeof getFreightMonthValue === 'function' ? getFreightMonthValue() : (DATA.dateFrom || '').slice(0, 7);
-  const [fmYear, fmMon] = freightMonthStr.split('-').map(Number);
-  const daysInMonth = new Date(fmYear, fmMon, 0).getDate() || 30;
-  const days = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const dailyCats = [
-    { item: '主線', base: 6640000, ratio: 0.244 },
-    { item: '加派',  base: 1070000, ratio: 0.436 },
-    { item: '其他',  base: 120000,  ratio: 0.268 },
-    { item: '專車',  base: 2300000, ratio: 0.159 },
-  ].map(c => ({ ...c, base: Math.round(c.base * whScale) }));
-  const maxShipment = Math.max(...shipment.flatMap(row => [row.budget, row.actual]));
-  const maxCostBudget = Math.max(...costItems.map(row => row.budget));
-
-  const shipmentBars = shipment.map((row, index) => {
-    const x = 70 + index * 128;
-    const budgetH = row.budget / maxShipment * 150;
-    const actualH = row.actual / maxShipment * 150;
-    const yBudget = 188 - budgetH;
-    const yActual = 188 - actualH;
-    const rateY = 42 + (40 - row.rate) / 40 * 132;
-    return `
-      <rect x="${x}" y="${yBudget}" width="30" height="${budgetH}" rx="4" fill="#3b82f6"></rect>
-      <rect x="${x + 36}" y="${yActual}" width="30" height="${actualH}" rx="4" fill="#fb6f92"></rect>
-      <text x="${x + 15}" y="${yBudget - 7}" text-anchor="middle" class="freight-ref-chart-label">${row.budget.toLocaleString()}</text>
-      <text x="${x + 51}" y="${yActual - 7}" text-anchor="middle" class="freight-ref-chart-label">${row.actual.toLocaleString()}</text>
-      <text x="${x + 33}" y="222" text-anchor="middle" class="freight-ref-axis">${row.month}</text>
-      <circle cx="${x + 33}" cy="${rateY}" r="4" fill="#1d4ed8"></circle>
-      <text x="${x + 33}" y="${rateY - 12}" text-anchor="middle" class="freight-ref-line-label">${row.rate}%</text>`;
-  }).join('');
-  const shipmentPath = shipment.map((row, index) => {
-    const x = 103 + index * 128;
-    const y = 42 + (40 - row.rate) / 40 * 132;
-    return `${index ? 'L' : 'M'}${x},${y}`;
-  }).join(' ');
-
-  const costRows = costItems.map(row => {
-    const budgetWidth = row.budget / maxCostBudget * 100;
-    const actualWidth = row.actual / maxCostBudget * 100;
-    return `
-      <div class="freight-ref-cost-row">
-        <div class="freight-ref-cost-name">${row.item}</div>
-        <div class="freight-ref-cost-bars">
-          <div class="freight-ref-cost-bar actual" style="width:${actualWidth}%"><span>${(row.actual / 1000000).toFixed(2)}M</span></div>
-          <div class="freight-ref-cost-bar budget" style="width:${budgetWidth}%"><span>${(row.budget / 1000000).toFixed(2)}M</span></div>
-        </div>
-        <div class="freight-ref-ring" style="--ring:${row.share}"><span>${row.share.toFixed(1)}%</span></div>
-      </div>`;
-  }).join('');
-
-  function matrixCell(value, type) {
-    if (type === 'rate') return `<td>${value.toFixed(1)}%</td>`;
-    const cls = type === 'diff' && value < 0 ? 'good' : type === 'diff' && value > 0 ? 'bad' : '';
-    return `<td class="${cls}">${Math.round(value).toLocaleString('zh-TW')}</td>`;
+  const spendingState = !budgetTotal ? 'muted' : spendingRate < 75 ? 'safe' : spendingRate <= 90 ? 'warning' : 'danger';
+  const actualReasonRows = Object.values(nonMainlineDetails.reduce((map, row) => {
+    const reason = String(row.reason || '').trim();
+    if (!reason) return map;
+    if (!map[reason]) map[reason] = { reason, cost:0, count:0 };
+    map[reason].cost += Number(row.actual || 0);
+    map[reason].count += 1;
+    return map;
+  }, {}));
+  const reasonRows = actualReasonRows
+    .map(row => ({ ...row, average: row.count ? row.cost / row.count : 0 }))
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 5);
+  const actualRouteRows = Object.values(mainlineDetails.reduce((map, row) => {
+    const route = String(row.route || row.vendor || '').trim();
+    if (!route) return map;
+    if (!map[route]) map[route] = { reason:route, cost:0, count:0 };
+    map[route].cost += Number(row.actual || 0);
+    map[route].count += 1;
+    return map;
+  }, {}));
+  const routeRows = actualRouteRows
+    .map(row => ({ ...row, average: row.count ? row.cost / row.count : 0 }))
+    .sort((a, b) => b.cost - a.cost)
+    .slice(0, 5);
+  function buildFreightRankChart(rows) {
+    if (!rows.length) {
+      return {
+        bars: '<text x="350" y="120" text-anchor="middle" class="freight-ref-axis">尚無資料</text>',
+        path: '',
+      };
+    }
+    const maxCost = Math.max(1, ...rows.map(row => row.cost));
+    const maxAverage = Math.max(1, ...rows.map(row => row.average));
+    const bars = rows.map((row, index) => {
+      const y = 32 + index * 43;
+      const width = row.cost / maxCost * 420;
+      const pointX = 176 + row.average / maxAverage * 420;
+      const reason = escapeReleaseText(row.reason);
+      return `
+      <text x="160" y="${y + 12}" text-anchor="end" class="freight-ref-axis freight-ref-reason-name">${reason}</text>
+      <rect x="176" y="${y}" width="${width}" height="16" rx="2" fill="var(--freight-kpi-blue)" class="freight-ref-chart-hit">
+        <title>${reason}｜費用 $${(row.cost / 10000).toFixed(1)}W</title>
+      </rect>
+      <circle cx="${pointX}" cy="${y + 8}" r="12" fill="transparent" class="freight-ref-chart-hit">
+        <title>${reason}｜平均單價 $${Math.round(row.average).toLocaleString()}</title>
+      </circle>
+      <circle cx="${pointX}" cy="${y + 8}" r="3.5" fill="var(--freight-kpi-pink)" pointer-events="none"></circle>`;
+    }).join('');
+    const path = rows.map((row, index) => {
+      const x = 176 + row.average / maxAverage * 420;
+      const y = 40 + index * 43;
+      return `${index ? 'L' : 'M'}${x},${y}`;
+    }).join(' ');
+    return { bars, path };
   }
+  const reasonChart = buildFreightRankChart(reasonRows);
+  const routeChart = buildFreightRankChart(routeRows);
+  const topReasonCost = reasonRows.reduce((sum, row) => sum + row.cost, 0);
+  const topReasonCount = reasonRows.reduce((sum, row) => sum + row.count, 0);
+  const topReasonAverage = topReasonCount ? topReasonCost / topReasonCount : 0;
+  const topRouteCost = routeRows.reduce((sum, row) => sum + row.cost, 0);
+  const topRouteCount = routeRows.reduce((sum, row) => sum + row.count, 0);
+  const topRouteAverage = topRouteCount ? topRouteCost / topRouteCount : 0;
 
-  function dBudget(cat, day) { return Math.round(cat.base / daysInMonth); }
-  function dActual(cat, catIdx, day) {
-    const seed = (day * 13 + catIdx * 7) % 20;
-    return Math.round(dBudget(cat, day) * cat.ratio * (0.80 + seed * 0.018));
+  const workGroups = [
+    { category:'主線', items:['夜配'] },
+    { category:'加派', items:['正物流', '逆物流'] },
+    { category:'其他', items:['專車', '違規罰款', '離島海陸空運(馬祖)', '離島運費(澎湖、金門)', '全台共配費'] },
+    { category:'轉運', items:['花蓮轉運費', '跨區轉運費'] },
+  ];
+  const workItems = workGroups.flatMap(group => group.items.map(item => ({ category:group.category, item })));
+  const matrixDates = [];
+  const matrixStart = new Date(`${DATA.dateFrom}T00:00:00`);
+  const matrixEnd = new Date(`${DATA.dateTo}T00:00:00`);
+  for (let date = new Date(matrixStart); date <= matrixEnd; date.setDate(date.getDate() + 1)) {
+    matrixDates.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
   }
-  const allDailyCats = [...dailyCats, { item: '合計', total: true }];
-  const matrixRows = allDailyCats.map((cat, catIdx) => {
-    const isTotal = !!cat.total;
-    const bVals = days.map(d => isTotal ? dailyCats.reduce((s, c) => s + dBudget(c, d), 0) : dBudget(cat, d));
-    const aVals = days.map(d => isTotal ? dailyCats.reduce((s, c, ci) => s + dActual(c, ci, d), 0) : dActual(cat, catIdx, d));
+  function classifyFreightWorkItem(row) {
+    const text = `${row.route || ''} ${row.vendor || ''} ${row.reason || ''}`;
+    if (/花蓮/.test(text)) return '花蓮轉運費';
+    if (/跨區/.test(text)) return '跨區轉運費';
+    if (/違規|罰款/.test(text)) return '違規罰款';
+    if (/馬祖/.test(text)) return '離島海陸空運(馬祖)';
+    if (/澎湖|金門/.test(text)) return '離島運費(澎湖、金門)';
+    if (/共配/.test(text)) return '全台共配費';
+    if (/逆物流/.test(text)) return '逆物流';
+    if (/正物流/.test(text)) return '正物流';
+    if (/專車|非主線/.test(text) || String(row.reason || '').trim()) return '專車';
+    return '夜配';
+  }
+  const workActualByDate = Object.fromEntries(workItems.map(({ item }) => [item, Object.fromEntries(matrixDates.map(date => [date, 0]))]));
+  selectedDetails.forEach(row => {
+    const item = classifyFreightWorkItem(row);
+    if (workActualByDate[item] && workActualByDate[item][row.fullDate] !== undefined) {
+      workActualByDate[item][row.fullDate] += Number(row.actual || 0);
+    }
+  });
+  const workActualTotals = Object.fromEntries(workItems.map(({ item }) => [item, matrixDates.reduce((sum, date) => sum + workActualByDate[item][date], 0)]));
+  const classifiedActualTotal = Object.values(workActualTotals).reduce((sum, value) => sum + value, 0);
+  const workShares = Object.fromEntries(workItems.map(({ item }) => [item, classifiedActualTotal ? workActualTotals[item] / classifiedActualTotal : 1 / workItems.length]));
+  const dailyBudgetTotal = Object.fromEntries(matrixDates.map(date => [date, budgetTotal / daysInMonthFor(date)]));
+  const workBudgetByDate = Object.fromEntries(workItems.map(({ item }) => [
+    item,
+    Object.fromEntries(matrixDates.map(date => [date, dailyBudgetTotal[date] * workShares[item]])),
+  ]));
+  const matrixValue = (value, type) => {
+    if (type === 'rate') {
+      const state = value > 90 ? 'danger' : value >= 75 ? 'warning' : 'safe';
+      return `<td class="freight-ref-matrix-number rate ${state}">${value ? `${value.toFixed(1)}%` : '—'}</td>`;
+    }
+    return `<td class="freight-ref-matrix-number">${value ? Math.round(value).toLocaleString('zh-TW') : '—'}</td>`;
+  };
+  const matrixRows = workGroups.map(group => group.items.map((item, itemIndex) => {
+    const budgetValues = matrixDates.map(date => workBudgetByDate[item][date]);
+    const actualValues = matrixDates.map(date => workActualByDate[item][date]);
+    const rateValues = actualValues.map((actual, index) => budgetValues[index] ? actual / budgetValues[index] * 100 : 0);
+    const budgetTotalForItem = budgetValues.reduce((sum, value) => sum + value, 0);
+    const actualTotalForItem = actualValues.reduce((sum, value) => sum + value, 0);
     const lines = [
-      { label: '預算金額', type: 'budget', values: bVals },
-      { label: '實際動支', type: 'actual', values: aVals },
+      { label:'預算', type:'budget', values:budgetValues, total:budgetTotalForItem },
+      { label:'實際', type:'actual', values:actualValues, total:actualTotalForItem },
+      { label:'動支', type:'rate', values:rateValues, total:budgetTotalForItem ? actualTotalForItem / budgetTotalForItem * 100 : 0 },
     ];
-    lines.push({ label: '預算差異', type: 'diff', values: lines[1].values.map((v, i) => v - lines[0].values[i]) });
-    lines.push({ label: '動支率 (%)', type: 'rate', values: lines[1].values.map((v, i) => lines[0].values[i] ? v / lines[0].values[i] * 100 : 0) });
-    return lines.map((line, index) => `
-      <tr class="${isTotal ? 'total' : ''}">
-        ${index === 0 ? `<td rowspan="4" class="freight-ref-matrix-item">${cat.item}</td>` : ''}
+    return lines.map((line, lineIndex) => `
+      <tr class="matrix-${line.type} ${lineIndex === 0 ? 'work-start' : ''} ${itemIndex === 0 && lineIndex === 0 ? 'group-start' : ''}" data-work-category="${group.category}">
+        ${itemIndex === 0 && lineIndex === 0 ? `<td rowspan="${group.items.length * 3}" class="freight-ref-matrix-category">${group.category}</td>` : ''}
+        ${lineIndex === 0 ? `<td rowspan="3" class="freight-ref-matrix-item">${item}</td>` : ''}
         <td class="freight-ref-matrix-metric">${line.label}</td>
-        ${line.values.map(value => matrixCell(value, line.type)).join('')}
+        ${line.values.map(value => matrixValue(value, line.type)).join('')}
+        ${matrixValue(line.total, line.type)}
       </tr>`).join('');
-  }).join('');
+  }).join('')).join('');
+  const totalBudgetValues = matrixDates.map(date => dailyBudgetTotal[date]);
+  const totalActualValues = matrixDates.map(date => workItems.reduce((sum, { item }) => sum + workActualByDate[item][date], 0));
+  const totalRateValues = totalActualValues.map((actual, index) => totalBudgetValues[index] ? actual / totalBudgetValues[index] * 100 : 0);
+  const totalBudgetAmount = totalBudgetValues.reduce((sum, value) => sum + value, 0);
+  const totalActualAmount = totalActualValues.reduce((sum, value) => sum + value, 0);
+  const totalRows = [
+    { label:'預算', type:'budget', values:totalBudgetValues, total:totalBudgetAmount },
+    { label:'實際', type:'actual', values:totalActualValues, total:totalActualAmount },
+    { label:'動支', type:'rate', values:totalRateValues, total:totalBudgetAmount ? totalActualAmount / totalBudgetAmount * 100 : 0 },
+  ].map((line, index) => `
+    <tr class="total matrix-${line.type} ${index === 0 ? 'work-start' : ''}">
+      ${index === 0 ? '<td rowspan="3" colspan="2" class="freight-ref-matrix-item">總計</td>' : ''}
+      <td class="freight-ref-matrix-metric">${line.label}</td>
+      ${line.values.map(value => matrixValue(value, line.type)).join('')}
+      ${matrixValue(line.total, line.type)}
+    </tr>`).join('');
 
   return `
   <section class="freight-ref-page">
     <div class="freight-ref-section">
-      <div class="freight-ref-section-title">核心 KPI 總覽 ${demo ? '<span>展示資料</span>' : ''}</div>
       <div class="freight-ref-kpis">
         <article class="freight-ref-kpi">
-          <div class="freight-ref-kpi-icon blue">$</div>
+          <div class="freight-ref-kpi-icon" aria-hidden="true">💰</div>
           <div class="freight-ref-kpi-label">費用總計</div>
-          <div class="freight-ref-kpi-main">NT$${(actualTotal / 1000000).toFixed(2)}M</div>
-          <div class="freight-ref-kpi-sub">預算 NT$${(budgetTotal / 1000000).toFixed(2)}M</div>
-          <div class="freight-ref-pill good">預算差異 ${variance < 0 ? '-' : '+'}NT$${Math.abs(variance / 1000000).toFixed(2)}M</div>
+          <div class="freight-ref-kpi-main">$${(actualTotal / 10000).toFixed(2)}W</div>
+          <div class="freight-ref-kpi-sub">前月費用（${previousMonthDays} 天） ${previousMonthTotal ? `$${(previousMonthTotal / 10000).toFixed(2)}W` : '尚無資料'}</div>
+          <div class="freight-ref-pill good">前月差 ${previousMonthTotal ? `${fullMonthDifference < 0 ? '-' : '+'}$${Math.abs(fullMonthDifference / 10000).toFixed(2)}W` : '尚無資料'}</div>
         </article>
         <article class="freight-ref-kpi">
-          <div class="freight-ref-kpi-icon pink">◔</div>
+          <div class="freight-ref-kpi-icon" aria-hidden="true">📊</div>
           <div class="freight-ref-kpi-label">動支率</div>
           <div class="freight-ref-kpi-main">${spendingRate.toFixed(1)}%</div>
-          <div class="freight-ref-progress"><i style="width:${Math.min(100, spendingRate)}%"></i></div>
+          <div class="freight-ref-progress state-${spendingState}" data-tooltip="綠色：低於 75% 安全｜黃色：75–90% 注意｜紅色：高於 90% 危險"><i style="width:${Math.min(100, spendingRate)}%"></i></div>
           <div class="freight-ref-scale"><span>0%</span><span>50%</span><span>100%</span></div>
-          <div class="freight-ref-kpi-status">低於預算，使用健康</div>
         </article>
         <article class="freight-ref-kpi">
-          <div class="freight-ref-kpi-icon blue">▥</div>
-          <div class="freight-ref-kpi-label">出貨達成率</div>
-          <div class="freight-ref-kpi-main">21.1%</div>
-          <div class="freight-ref-kpi-sub">件數差異 <b class="good">-3.25M 件</b></div>
-          <svg class="freight-ref-mini-line" viewBox="0 0 260 62">
-            <path d="M18,20 L74,24 L130,31 L186,33 L242,42" fill="none" stroke="#1d4ed8" stroke-width="2"></path>
-            ${shipment.map((row, index) => `<circle cx="${18 + index * 56}" cy="${20 + index * 5.5}" r="3" fill="#1d4ed8"></circle><text x="${18 + index * 56}" y="58" text-anchor="middle">${index + 1}月</text>`).join('')}
-          </svg>
+          <div class="freight-ref-kpi-icon" aria-hidden="true">📦</div>
+          <div class="freight-ref-kpi-label">配送筆數</div>
+          <div class="freight-ref-kpi-main">${summary.totalOrders.toLocaleString()}</div>
+          <div class="freight-ref-kpi-sub">前月配送（${previousMonthDays} 天） ${previousMonthOrders ? `${previousMonthOrders.toLocaleString()} 筆` : '尚無資料'}</div>
+          <div class="freight-ref-pill good">前月差 ${previousMonthOrders ? `${orderDifference < 0 ? '-' : '+'}${Math.abs(orderDifference).toLocaleString()} 筆` : '尚無資料'}</div>
         </article>
         <article class="freight-ref-kpi gauge">
-          <div class="freight-ref-kpi-icon purple">◒</div>
-          <div class="freight-ref-kpi-label">裝載率（月平均）</div>
-          <div class="freight-ref-gauge">
-            <div class="freight-ref-gauge-value">91.8%</div>
+          <div class="freight-ref-kpi-icon" aria-hidden="true">🚚</div>
+          <div class="freight-ref-kpi-label">非主線占比</div>
+          <div class="freight-ref-gauge" style="--gauge-deg:${Math.min(180, nonMainlineRatio * 1.8)}deg">
+            <div class="freight-ref-gauge-value">${nonMainlineRatio.toFixed(1)}%</div>
           </div>
-          <div class="freight-ref-kpi-status">接近滿載</div>
+          <div class="freight-ref-kpi-status freight-ref-kpi-status-neutral">專車 ${specialTruckCount.toLocaleString()} / 非主線 ${nonMainlineDetails.length.toLocaleString()} 筆</div>
         </article>
       </div>
     </div>
 
     <div class="freight-ref-charts">
-      <article class="freight-ref-card">
-        <div class="freight-ref-card-title">出貨達成分析</div>
-        <svg class="freight-ref-combo" viewBox="0 0 720 252">
-          <line x1="48" y1="188" x2="688" y2="188" stroke="#cfd8e5"></line>
-          <line x1="48" y1="35" x2="48" y2="188" stroke="#cfd8e5"></line>
-          <path d="${shipmentPath}" fill="none" stroke="#1d4ed8" stroke-width="2.5"></path>
-          ${shipmentBars}
+      <section class="freight-ref-chart-section">
+        <div class="freight-ref-card-title">非主線派車原因</div>
+        <article class="freight-ref-card freight-ref-reason-card">
+        <svg class="freight-ref-combo freight-ref-reason-chart" viewBox="0 12 700 220">
+          <path d="${reasonChart.path}" fill="none" stroke="var(--freight-kpi-pink)" stroke-width="1.5"></path>
+          ${reasonChart.bars}
         </svg>
-        <div class="freight-ref-summary-strip">
-          <b>累計 1-5 月</b><span>預算件數 8,738.2 萬件</span><span>實際出貨 2,133.9 萬件</span><span>達成率 24.4%</span><span class="good">件數差異 -6,604.3 萬件</span>
+        <div class="freight-ref-summary-strip freight-ref-reason-summary">
+          <span><small>前五名費用</small><strong>$${(topReasonCost / 10000).toFixed(1)}W</strong></span>
+          <span><small>派車筆數</small><strong>${topReasonCount.toLocaleString()} 筆</strong></span>
+          <span><small>平均單價</small><strong>$${Math.round(topReasonAverage).toLocaleString()}</strong></span>
         </div>
-      </article>
-      <article class="freight-ref-card">
-        <div class="freight-ref-card-title">費用結構與動支分析（2025 / ${monthLabel}）</div>
-        <div class="freight-ref-cost-list">${costRows}</div>
-        <div class="freight-ref-summary-strip">
-          <b>總計</b><span class="bad">14.48M</span><span>/</span><span class="blue">49.81M</span><span>動支率</span><span class="good">29.1%</span>
+        </article>
+      </section>
+      <section class="freight-ref-chart-section">
+        <div class="freight-ref-card-title">主線派車路線前五</div>
+        <article class="freight-ref-card freight-ref-reason-card">
+        <svg class="freight-ref-combo freight-ref-reason-chart" viewBox="0 12 700 220">
+          <path d="${routeChart.path}" fill="none" stroke="var(--freight-kpi-pink)" stroke-width="1.5"></path>
+          ${routeChart.bars}
+        </svg>
+        <div class="freight-ref-summary-strip freight-ref-reason-summary">
+          <span><small>前五名費用</small><strong>$${(topRouteCost / 10000).toFixed(1)}W</strong></span>
+          <span><small>派車筆數</small><strong>${topRouteCount.toLocaleString()} 筆</strong></span>
+          <span><small>平均單價</small><strong>$${Math.round(topRouteAverage).toLocaleString()}</strong></span>
         </div>
-      </article>
+        </article>
+      </section>
     </div>
 
-    <article class="freight-ref-matrix-card">
-      <div class="freight-ref-matrix-title">${WHLabel}｜日別預算明細</div>
+    <section class="freight-ref-matrix-section">
+      <div class="freight-ref-matrix-heading">
+        <div class="freight-ref-card-title freight-ref-matrix-title">每日作業項目預算動支明細</div>
+        <label class="freight-ref-matrix-view">
+          <span>查看</span>
+          <select class="filter-input" id="freight-work-category-filter" onchange="filterFreightWorkMatrix(this.value)">
+            <option value="all">全部</option>
+            <option value="主線">主線</option>
+            <option value="加派">加派</option>
+            <option value="其他">其他</option>
+            <option value="轉運">轉運</option>
+          </select>
+        </label>
+      </div>
+      <article class="freight-ref-matrix-card">
       <div class="freight-ref-matrix-scroll">
-        <table class="freight-ref-matrix freight-ref-matrix--daily">
+        <table class="freight-ref-matrix">
           <thead>
             <tr>
-              <th class="freight-ref-matrix-sticky1">費用項目</th>
-              <th class="freight-ref-matrix-sticky2">資料指標</th>
-              ${days.map(day => `<th class="num-right">${day}日</th>`).join('')}
+              <th>類別</th>
+              <th>作業項目</th>
+              <th>項目</th>
+              ${matrixDates.map(date => `<th>${Number(date.slice(5, 7))}月${Number(date.slice(8, 10))}日</th>`).join('')}
+              <th>合計</th>
             </tr>
           </thead>
-          <tbody>${matrixRows}</tbody>
+          <tbody>${matrixRows}${totalRows}</tbody>
         </table>
       </div>
-    </article>
+      </article>
+    </section>
   </section>`;
+}
+
+function filterFreightWorkMatrix(category = 'all') {
+  document.querySelectorAll('.freight-ref-matrix tbody tr[data-work-category]').forEach(row => {
+    row.hidden = category !== 'all' && row.dataset.workCategory !== category;
+  });
 }
 
 function renderF001() {
@@ -1314,30 +1409,26 @@ function renderT001() {
     <div class="w s3">
       <div class="wh">
         <div class="wl"><div class="wdot" style="background:${color}"></div>${isAll ? '🌐 全區' : stats.name}</div>
-        <span class="wmeta">${labelFor(stats.pct)}</span>
       </div>
+      <span class="t001-status">${labelFor(stats.pct)}</span>
       <div class="t001-rate-row">
         <div class="kv kv-xl" style="color:${rateColor}">${stats.pct.toFixed(1)}</div>
         <div class="t001-rate-unit" style="color:${rateColor}">%</div>
       </div>
-      <div class="metric-track metric-track-sm">
-        <div class="metric-fill" style="width:${Math.min(stats.pct, 100)}%;background:${rateColor}"></div>
-        <div class="metric-limit metric-limit-90 subtle"></div>
-      </div>
       <div class="t001-cost-grid">
-        <div>
+        <div class="t001-detail-row">
           <div class="mini-label">人力費用</div>
           <div class="mono mini-value">${fmtMoney(stats.labor)}</div>
         </div>
-        <div>
+        <div class="t001-detail-row">
           <div class="mini-label">運務費用</div>
           <div class="mono mini-value">${fmtMoney(stats.freight)}</div>
         </div>
       </div>
       <div class="t001-card-note">
-        <div>本期總計 ----------</div>
-        <div>總實際 ${fmtMoney(stats.total)}</div>
-        <div>總預算 ${fmtMoney(Math.round(stats.budget))}</div>
+        <div class="t001-summary-label">本期總計</div>
+        <div class="t001-summary-row"><span>總實際</span><span>${fmtMoney(stats.total)}</span></div>
+        <div class="t001-summary-row"><span>總預算</span><span>${fmtMoney(Math.round(stats.budget))}</span></div>
       </div>
     </div>`;
   }
@@ -1363,42 +1454,50 @@ function renderT002() {
 
   const warehouseHeader = warehouses.map(w => {
     const isAll = w.name === '全區';
-    return `<th class="t002-wh-head" style="background:${whColor[w.name]}">${isAll ? '🌐 ' : ''}${w.name}</th>`;
+    return `<th class="t002-wh-head ${isAll ? 't002-wh-total' : ''}">${isAll ? '🌐 ' : ''}${w.name}</th>`;
   }).join('');
 
-  function domainRows(domainLabel, domainIcon, domainBg, keyMap) {
+  function rateCell(pct, isTotal) {
+    const state = pct >= 100 ? 'danger' : pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'safe';
+    const width = Math.max(2, Math.min(100, pct || 0));
+    return `<td class="num-right ${isTotal ? 'total-cell' : ''}">
+      <span class="t002-rate t002-rate-${state}">
+        <span class="t002-rate-top">
+          <span class="t002-rate-value">${pct.toFixed(1)}%</span>
+        </span>
+      </span>
+    </td>`;
+  }
+
+  function domainRows(domainLabel, domainIcon, domainKey, keyMap) {
     const budgetCells = warehouses.map(w => {
       return `<td class="mono num-right ${w.name === '全區' ? 'total-cell' : ''}">${fmtMoney(Math.round(w[keyMap.b]))}</td>`;
     }).join('');
 
     const actualCells = warehouses.map(w => {
-      const color = colorFor(w[keyMap.p]);
-      return `<td class="mono num-right actual-strong ${w.name === '全區' ? 'total-cell' : ''}" style="color:${color}">${fmtMoney(w[keyMap.a])}</td>`;
+      return `<td class="mono num-right actual-strong ${w.name === '全區' ? 'total-cell' : ''}">${fmtMoney(w[keyMap.a])}</td>`;
     }).join('');
 
     const pctCells = warehouses.map(w => {
-      const color = colorFor(w[keyMap.p]);
-      return `<td class="num-right ${w.name === '全區' ? 'total-cell' : ''}">
-        <span class="solid-pct-badge solid-pct-badge-wide" style="background:${color}">${w[keyMap.p].toFixed(1)}%</span>
-      </td>`;
+      return rateCell(w[keyMap.p], w.name === '全區');
     }).join('');
 
-    const domainCell = `<td rowspan="3" class="t002-domain-cell" style="background:${domainBg}">
+    const domainCell = `<td rowspan="3" class="t002-domain-cell t002-domain-${domainKey}">
       <div class="domain-icon">${domainIcon}</div>
-      ${domainLabel}
+      <div class="domain-label">${domainLabel}</div>
     </td>`;
 
     return `
-      <tr class="t002-domain-start">
+      <tr class="t002-domain-start t002-domain-row-${domainKey}">
         ${domainCell}
         <td class="t002-item-cell">預算</td>
         ${budgetCells}
       </tr>
-      <tr>
+      <tr class="t002-domain-row-${domainKey}">
         <td class="t002-item-cell">實際</td>
         ${actualCells}
       </tr>
-      <tr>
+      <tr class="t002-domain-row-${domainKey}">
         <td class="t002-item-cell t002-item-strong">動支</td>
         ${pctCells}
       </tr>`;
@@ -1409,7 +1508,9 @@ function renderT002() {
   const keyTotal   = { b:'budget',        a:'total',   p:'pct'        };
 
   return `
-  <div class="w s12 table-card">
+  <section class="t002-section">
+  <div class="t002-section-title">區間動支彙總</div>
+  <div class="w table-card">
     <div class="wh">
       <div class="wl"><div class="wdot"></div>T002 期間動支彙總</div>
       <span class="wmeta">${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${selectedDispatchDayCount()} 天</span>
@@ -1425,19 +1526,23 @@ function renderT002() {
             </tr>
           </thead>
           <tbody>
-            ${domainRows('人力', '💰', '#0E7BAD', keyLabor)}
-            ${domainRows('運務', '🚚', '#E07855', keyFreight)}
-            ${domainRows('合計', '📊', 'var(--ry-blue-dark)', keyTotal)}
+            ${domainRows('人力', '💰', 'labor', keyLabor)}
+            ${domainRows('運務', '🚚', 'freight', keyFreight)}
+            ${domainRows('合計', '📊', 'total', keyTotal)}
           </tbody>
         </table>
       </div>
-      <div class="table-note">
-        📌 動支% = 實際 ÷ 期間預算 · 期間預算 = 每月預算依篩選日期比例加總<br>
-        📌 預算來源：${hasAnnualDispatchBudget() ? '年度預算（支援跨月加總）' : `${dispatchBudgetMonthLabel()}預算`}<br>
-        📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
-      </div>
+      <details class="table-note t002-note">
+        <summary>說明</summary>
+        <div class="t002-note-content">
+          <div>📌 動支% = 實際 ÷ 期間預算 · 期間預算 = 每月預算依篩選日期比例加總</div>
+          <div>📌 預算來源：${hasAnnualDispatchBudget() ? '年度預算（支援跨月加總）' : `${dispatchBudgetMonthLabel()}預算`}</div>
+          <div>📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險</div>
+        </div>
+      </details>
     </div>
-  </div>`;
+  </div>
+  </section>`;
 }
 
 // ════════════════════════════════════════════
@@ -1609,7 +1714,7 @@ function renderM025(labor, picks, code = 'M025') {
       <span class="wmeta">${rows.length} 個作業區域</span>
     </div>
     <div class="table-edge">
-      <table class="tbl">
+      <table class="tbl ops-compact-table">
         <thead><tr>
           <th>作業區域</th>
           <th class="num-right">揀次</th>

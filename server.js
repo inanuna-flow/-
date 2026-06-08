@@ -1081,24 +1081,591 @@ async function handleDataRange(req, res) {
   try {
     const result = await pool.query(
       `SELECT
-         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')})   AS labor_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')})   AS labor_max,
-         (SELECT MIN(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_daily')}) AS freight_max,
-         (SELECT MIN(work_date)::text FROM ${schemaTable('picks_daily')})   AS picks_min,
-         (SELECT MAX(work_date)::text FROM ${schemaTable('picks_daily')})   AS picks_max`,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('labor_daily')})                  AS labor_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('labor_daily')})                  AS labor_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('freight_mainline_daily')})       AS freight_main_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_mainline_daily')})       AS freight_main_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('freight_non_mainline_daily')})   AS freight_nonmain_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('freight_non_mainline_daily')})   AS freight_nonmain_max,
+         (SELECT MIN(work_date)::text FROM ${schemaTable('picks_daily')})                  AS picks_min,
+         (SELECT MAX(work_date)::text FROM ${schemaTable('picks_daily')})                  AS picks_max`,
     );
     const row = result.rows[0] || {};
+    const mins = [row.freight_main_min, row.freight_nonmain_min].filter(Boolean).sort();
+    const maxs = [row.freight_main_max, row.freight_nonmain_max].filter(Boolean).sort();
     sendJson(res, 200, {
       ok: true,
       labor:   { min: row.labor_min   || '', max: row.labor_max   || '' },
-      freight: { min: row.freight_min || '', max: row.freight_max || '' },
+      // 為了向下相容，保留 freight 欄位（取兩表的聯集範圍）
+      freight: { min: mins[0] || '', max: maxs[maxs.length - 1] || '' },
+      freightMainline:    { min: row.freight_main_min    || '', max: row.freight_main_max    || '' },
+      freightNonMainline: { min: row.freight_nonmain_min || '', max: row.freight_nonmain_max || '' },
       picks:   { min: row.picks_min   || '', max: row.picks_max   || '' },
     });
   } catch (err) {
     console.error('[range] 查詢失敗:', err.message);
     sendJson(res, 500, { ok: false, MSG: '999 查詢失敗' });
   }
+}
+
+// ════════════════════════════════════════════════════════════════
+// 運費（主線 / 非主線）匯入與查詢
+// ════════════════════════════════════════════════════════════════
+
+// 民國年日期字串轉西元 ISO：'115/05/01' → '2026-05-01'
+function minguoToIso(value) {
+  const s = String(value || '').trim();
+  const m = s.match(/^(\d{2,3})[/.\-](\d{1,2})[/.\-](\d{1,2})/);
+  if (!m) return '';
+  const y = Number(m[1]) + 1911;
+  const mm = String(Number(m[2])).padStart(2, '0');
+  const dd = String(Number(m[3])).padStart(2, '0');
+  return `${y}-${mm}-${dd}`;
+}
+
+// Excel serial date → ISO：46143 → '2026-05-01'
+// Excel epoch 1899-12-30（避開 1900 leap-year bug）
+function excelSerialToIso(value) {
+  const n = Number(value);
+  if (!Number.isFinite(n) || n < 1 || n > 80000) return '';
+  const epoch = Date.UTC(1899, 11, 30);
+  const ms = epoch + Math.round(n) * 86400000;
+  const d = new Date(ms);
+  const yyyy = d.getUTCFullYear();
+  const mm = String(d.getUTCMonth() + 1).padStart(2, '0');
+  const dd = String(d.getUTCDate()).padStart(2, '0');
+  return `${yyyy}-${mm}-${dd}`;
+}
+
+// 任意日期輸入轉 ISO（支援：ISO 字串、民國年字串、Excel 序號、Date 物件）
+function normalizeWorkDate(value) {
+  if (value == null || value === '') return '';
+  if (value instanceof Date && !isNaN(value)) {
+    const yyyy = value.getFullYear();
+    const mm = String(value.getMonth() + 1).padStart(2, '0');
+    const dd = String(value.getDate()).padStart(2, '0');
+    return `${yyyy}-${mm}-${dd}`;
+  }
+  if (typeof value === 'number') return excelSerialToIso(value);
+  const s = String(value).trim();
+  if (isIsoDate(s)) return s;
+  const minguo = minguoToIso(s);
+  if (minguo) return minguo;
+  // 也接受 2026/05/01
+  const m = s.match(/^(\d{4})[/.\-](\d{1,2})[/.\-](\d{1,2})/);
+  if (m) {
+    return `${m[1]}-${String(Number(m[2])).padStart(2, '0')}-${String(Number(m[3])).padStart(2, '0')}`;
+  }
+  // 純數字字串當 Excel 序號
+  if (/^\d+(\.\d+)?$/.test(s)) return excelSerialToIso(Number(s));
+  return '';
+}
+
+function toNumOrNull(value) {
+  if (value === '' || value == null) return null;
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+function toNumOrZero(value) {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toIntOrZero(value) {
+  const n = parseInt(value, 10);
+  return Number.isFinite(n) ? n : 0;
+}
+
+function toTextOrNull(value) {
+  if (value == null) return null;
+  const s = String(value).trim();
+  return s === '' ? null : s;
+}
+
+// 非主線運費分類規則（業務同仁 2026-06-08 確認版）
+// 規則順序「由上往下、命中即停」，總共 12 條。
+// 回傳 [category_l1, category_l2, budgetWarehouse]
+//   budgetWarehouse: 跨區轉運費統一歸「大溪倉」；其餘回 null 代表沿用 row.warehouse_name
+function classifyNonMainline(row) {
+  const I = String(row.dispatch_reason || '');
+  const J = String(row.pricing_method  || '');
+  const F = String(row.delivery_item   || '');
+  const N = String(row.note            || '');
+  const wh = row.warehouse_name || null;
+
+  // 序 1：誤 key（資料錯誤）→ 不列入
+  if (/誤\s*key/i.test(N)) return ['不列入', '誤key', wh];
+
+  // 序 2：上收（不在預算範圍）→ 不列入
+  if (/上收/.test(I) || /上收/.test(N)) return ['不列入', '上收', wh];
+
+  // 序 3：違規罰款（關鍵字優先，避免被後續轉運/共配誤判）
+  if (/違規|罰款|警察|驅趕|封路|施工|無法停靠|火災/.test(N)) return ['其他', '違規罰款', wh];
+
+  // 序 4：花蓮轉運費（轉運 + 花蓮）
+  if ((/轉運/.test(I) || /轉運/.test(F)) && /花蓮/.test(`${J} ${N}`)) {
+    return ['轉運', '花蓮轉運費', wh];
+  }
+
+  // 序 5：跨區轉運費（其餘轉運）→ 統一歸大溪倉
+  if (/轉運/.test(I) || /轉運/.test(F)) {
+    return ['轉運', '跨區轉運費', '大溪倉'];
+  }
+
+  // 序 6：離島海陸空運（馬祖）
+  if (/離島/.test(I) && /馬祖/.test(N)) return ['其他', '離島海陸空運(馬祖)', wh];
+
+  // 序 7：離島運費（澎湖、金門）
+  if (/離島/.test(I) || /澎湖|金門/.test(N)) return ['其他', '離島運費(澎湖、金門)', wh];
+
+  // 序 8：全台共配費
+  if (/共配/.test(N)) return ['其他', '全台共配費', wh];
+
+  // 序 9：正物流（爆量）
+  if (/爆量/.test(I)) return ['加派', '正物流', wh];
+
+  // 序 10：逆物流（回頭收/店回/固定店回專車）
+  if (/回頭收|店回|固定店回專車/.test(I)) return ['加派', '逆物流', wh];
+
+  // 序 11：專車（特殊點專車 OR 新開店 OR J=其他專車系列 OR 派車原因=其他 之 fallback）
+  // 實測資料中 J 為「其他專車」「其他專車2」「其他專車3」皆屬此類；先級規則先攔截後，
+  // 落到此處的 /其他專車/ 都應歸專車（已驗證不會誤捕跨區/離島/上收等）。
+  // 業務確認：派車原因 = '其他' 沒被前面規則攔截的個案（如 POC 棧板回收）也歸專車。
+  if (/特殊點專車|新開店/.test(I) || /其他專車/.test(J) || /^其他$/.test(I.trim())) {
+    return ['其他', '專車', wh];
+  }
+
+  // 序 12：無法判斷 → 人工確認
+  return ['無法判斷', null, wh];
+}
+
+function freightMainlineRowsFromPayload(payload) {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  return records.map(r => {
+    const workDate = normalizeWorkDate(r['進貨日'] ?? r.workDate ?? r.work_date);
+    const month = monthStartFromDate(workDate);
+    return {
+      warehouse_name:        toTextOrNull(r['倉別']            ?? r.warehouse_name),
+      status_locked:         toTextOrNull(r['明細狀態']        ?? r.status_locked),
+      carry_month:           toTextOrNull(r['結轉年月']        ?? r.carry_month),
+      work_date:             workDate,
+      month,
+      shipper:               toTextOrNull(r['配別']            ?? r.shipper),
+      route_source:          toTextOrNull(r['路線來源']        ?? r.route_source),
+      route_code:            toTextOrNull(r['路線']            ?? r.route_code),
+      task_category:         toTextOrNull(r['任務分類']        ?? r.task_category),
+      carrier:               toTextOrNull(r['配送商']          ?? r.carrier),
+      route_status:          toTextOrNull(r['路線完成\r\n狀態'] ?? r['路線完成狀態'] ?? r.route_status),
+      task_note:             toTextOrNull(r['任務備註']        ?? r.task_note),
+
+      est_pricing_type:      toTextOrNull(r['預計\r\n計價類型'] ?? r['預計計價類型'] ?? r.est_pricing_type),
+      est_price_list:        toTextOrNull(r['預計\r\n價目表']   ?? r['預計價目表']   ?? r.est_price_list),
+      est_trip_type:         toTextOrNull(r['預計\r\n全/半趟']  ?? r['預計全/半趟']  ?? r.est_trip_type),
+      est_vehicle_tonnage:   toTextOrNull(r['合約\r\n車輛噸型'] ?? r['合約車輛噸型'] ?? r.est_vehicle_tonnage),
+      est_pricing_qty:       toNumOrNull (r['預計\r\n計價數']   ?? r['預計計價數']   ?? r.est_pricing_qty),
+      est_pricing_tier:      toTextOrNull(r['預計\r\n計價級距'] ?? r['預計計價級距'] ?? r.est_pricing_tier),
+      est_pricing_unit:      toTextOrNull(r['預計\r\n計價單位'] ?? r['預計計價單位'] ?? r.est_pricing_unit),
+      est_tier_rate:         toNumOrNull (r['預計\r\n級距費率'] ?? r['預計級距費率'] ?? r.est_tier_rate),
+      est_dispatch_price:    toNumOrNull (r['預計\r\n出車價']   ?? r['預計出車價']   ?? r.est_dispatch_price),
+      est_pricing_result:    toNumOrNull (r['預計\r\n計價結果'] ?? r['預計計價結果'] ?? r.est_pricing_result),
+      est_with_tax:          toTextOrNull(r['預計\r\n是否含稅'] ?? r['預計是否含稅'] ?? r.est_with_tax),
+
+      arr_vehicle_tonnage:   toTextOrNull(r['到點\r\n車輛噸型'] ?? r['到點車輛噸型'] ?? r.arr_vehicle_tonnage),
+      arr_pricing_qty:       toNumOrNull (r['到點\r\n計價數']   ?? r['到點計價數']   ?? r.arr_pricing_qty),
+      arr_pricing_tier:      toTextOrNull(r['到點\r\n計價級距'] ?? r['到點計價級距'] ?? r.arr_pricing_tier),
+      arr_pricing_unit:      toTextOrNull(r['到點\r\n計價單位'] ?? r['到點計價單位'] ?? r.arr_pricing_unit),
+      arr_tier_rate:         toNumOrNull (r['到點\r\n級距費率'] ?? r['到點級距費率'] ?? r.arr_tier_rate),
+      arr_dispatch_price:    toNumOrNull (r['到點\r\n車輛噸型出車價'] ?? r['到點車輛噸型出車價'] ?? r.arr_dispatch_price),
+      arr_pricing_result:    toNumOrNull (r['到點\r\n計價結果'] ?? r['到點計價結果'] ?? r.arr_pricing_result),
+
+      pricing_type:          toTextOrNull(r['計價類型']         ?? r.pricing_type),
+      price_list:            toTextOrNull(r['計價\r\n價目表']   ?? r['計價價目表']   ?? r.price_list),
+      trip_type:             toTextOrNull(r['計價\r\n全/半趟']  ?? r['計價全/半趟']  ?? r.trip_type),
+      vehicle_tonnage:       toTextOrNull(r['計價\r\n車輛噸型'] ?? r['計價車輛噸型'] ?? r.vehicle_tonnage),
+      pricing_qty:           toNumOrNull (r['計價數']           ?? r.pricing_qty),
+      pricing_tier:          toTextOrNull(r['計價級距']         ?? r.pricing_tier),
+      pricing_unit:          toTextOrNull(r['計價單位']         ?? r.pricing_unit),
+      tier_rate:             toNumOrNull (r['計價\r\n級距費率'] ?? r['計價級距費率'] ?? r.tier_rate),
+      dispatch_price:        toNumOrNull (r['出車價']           ?? r.dispatch_price),
+      pricing_result:        toNumOrZero (r['計價結果']         ?? r.pricing_result),
+      with_tax:              toTextOrNull(r['計價\r\n是否含稅'] ?? r['計價是否含稅'] ?? r.with_tax),
+
+      adjust_reason:         toTextOrNull(r['調整原因']         ?? r.adjust_reason),
+      system_updated_at_raw: toTextOrNull(r['系統最後\r\n更新時間'] ?? r['系統最後更新時間'] ?? r.system_updated_at_raw),
+      est_created_by:        toTextOrNull(r['預計計價\r\n建立人員'] ?? r['預計計價建立人員'] ?? r.est_created_by),
+      est_created_at_raw:    toTextOrNull(r['預計計價\r\n建立時間'] ?? r['預計計價建立時間'] ?? r.est_created_at_raw),
+      actual_updated_by:     toTextOrNull(r['實際/調整後\r\n計價更新人員'] ?? r['實際/調整後計價更新人員'] ?? r.actual_updated_by),
+      actual_updated_at_raw: toTextOrNull(r['實際/調整後\r\n計價更新時間'] ?? r['實際/調整後計價更新時間'] ?? r.actual_updated_at_raw),
+      status_updated_by:     toTextOrNull(r['狀態\r\n更新人員'] ?? r['狀態更新人員'] ?? r.status_updated_by),
+      status_updated_at_raw: toTextOrNull(r['狀態\r\n更新時間'] ?? r['狀態更新時間'] ?? r.status_updated_at_raw),
+      carry_by:              toTextOrNull(r['結轉人員']         ?? r.carry_by),
+      carry_at_raw:          toTextOrNull(r['結轉時間']         ?? r.carry_at_raw),
+    };
+  }).filter(row => isIsoDate(row.work_date) && row.warehouse_name);
+}
+
+function freightNonMainlineRowsFromPayload(payload) {
+  const records = Array.isArray(payload.records) ? payload.records : [];
+  return records.map(r => {
+    const workDate = normalizeWorkDate(r['進貨日'] ?? r.work_date);
+    const month = monthStartFromDate(workDate);
+    const unit = toNumOrZero(r['單價'] ?? r.unit_price);
+    const trip = toIntOrZero(r['趟數'] ?? r.trip_count);
+    const amt  = toNumOrZero(r['費用小計'] ?? r.amount);
+    return {
+      work_date:       workDate,
+      month,
+      shipper:         toTextOrNull(r['配別']     ?? r.shipper),
+      region:          toTextOrNull(r['區域']     ?? r.region),
+      vehicle_type:    toTextOrNull(r['車型']     ?? r.vehicle_type),
+      delivery_item:   toTextOrNull(r['配送項目'] ?? r.delivery_item),
+      warehouse_name:  toTextOrNull(r['廠商']     ?? r.warehouse_name),
+      carrier:         toTextOrNull(r['配送商']   ?? r.carrier),
+      dispatch_reason: toTextOrNull(r['派車原因'] ?? r.dispatch_reason),
+      pricing_method:  toTextOrNull(r['計價方式'] ?? r.pricing_method),
+      unit_price:      unit,
+      trip_count:      trip,
+      amount:          amt || (unit * trip),
+      note:            toTextOrNull(r['備註']     ?? r.note),
+      category_l1:     null,   // 由 classifyNonMainline() 於寫入前填寫
+      category_l2:     null,
+      budget_warehouse: null,
+    };
+  }).filter(row => isIsoDate(row.work_date) && row.warehouse_name);
+}
+
+async function handleFreightMainlineImport(req, res) {
+  if (req.method !== 'POST') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
+  if (!requireSession(req, res)) return;
+
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database is not configured.' }); return; }
+
+  let payload;
+  try {
+    const raw = await readRequestBody(req, 50 * 1024 * 1024);
+    payload = JSON.parse(raw || '{}');
+  } catch (err) {
+    sendJson(res, err.message === 'REQUEST_TOO_LARGE' ? 413 : 400, { ok: false, MSG: '999 Invalid freight-mainline import payload' });
+    return;
+  }
+
+  const rows = freightMainlineRowsFromPayload(payload);
+  if (!rows.length) { sendJson(res, 400, { ok: false, MSG: '999 No valid freight-mainline rows to import' }); return; }
+
+  const dryRun = Boolean(payload.dryRun);
+  const fileName = String(payload.fileName || 'freight_mainline.xlsx');
+
+  // 計算「將被覆蓋」的筆數（同 work_date + warehouse + route_code + carrier 已存在者）
+  const dates = rows.map(r => r.work_date).sort();
+  const dateFrom = dates[0];
+  const dateTo = dates[dates.length - 1];
+
+  try {
+    const dupResult = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM ${schemaTable('freight_mainline_daily')} t
+       WHERE work_date >= $1::date AND work_date <= $2::date`,
+      [dateFrom, dateTo],
+    );
+    const existingInRange = dupResult.rows[0]?.n || 0;
+
+    if (dryRun) {
+      sendJson(res, 200, {
+        ok: true,
+        dryRun: true,
+        rowsToImport: rows.length,
+        existingInRange,
+        dateFrom, dateTo,
+        MSG: '000 Dry run complete',
+      });
+      return;
+    }
+  } catch (err) {
+    console.error('[freight-mainline] dry-run 失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 主線運費檢查失敗，請稍後再試' });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const batchResult = await client.query(
+      `INSERT INTO ${schemaTable('import_batches')} (source_type, source_file, period_month, imported_by, note)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      ['freight_mainline', fileName, monthStartFromDate(dateFrom) || null, String(payload.importedBy || ''),
+       `date_range=${dateFrom}..${dateTo}; rows=${rows.length}`],
+    );
+    const batchId = batchResult.rows[0].id;
+
+    const upsertCols = [
+      'warehouse_name','status_locked','carry_month','work_date','month','shipper',
+      'route_source','route_code','task_category','carrier','route_status','task_note',
+      'est_pricing_type','est_price_list','est_trip_type','est_vehicle_tonnage',
+      'est_pricing_qty','est_pricing_tier','est_pricing_unit','est_tier_rate',
+      'est_dispatch_price','est_pricing_result','est_with_tax',
+      'arr_vehicle_tonnage','arr_pricing_qty','arr_pricing_tier','arr_pricing_unit',
+      'arr_tier_rate','arr_dispatch_price','arr_pricing_result',
+      'pricing_type','price_list','trip_type','vehicle_tonnage','pricing_qty',
+      'pricing_tier','pricing_unit','tier_rate','dispatch_price','pricing_result','with_tax',
+      'adjust_reason','system_updated_at_raw','est_created_by','est_created_at_raw',
+      'actual_updated_by','actual_updated_at_raw','status_updated_by','status_updated_at_raw',
+      'carry_by','carry_at_raw','source_file','import_batch_id',
+    ];
+    const placeholders = upsertCols.map((_, i) => `$${i + 1}`).join(', ');
+    const updateClause = upsertCols
+      .filter(c => !['warehouse_name','work_date','route_code','carrier'].includes(c))
+      .map(c => `${c} = EXCLUDED.${c}`).join(', ');
+    const upsertSql = `
+      INSERT INTO ${schemaTable('freight_mainline_daily')} (${upsertCols.join(', ')})
+      VALUES (${placeholders})
+      ON CONFLICT (work_date, warehouse_name, route_code, carrier) DO UPDATE
+      SET ${updateClause}
+    `;
+
+    for (const row of rows) {
+      const values = upsertCols.map(c => {
+        if (c === 'source_file')     return fileName;
+        if (c === 'import_batch_id') return batchId;
+        return row[c];
+      });
+      await client.query(upsertSql, values);
+    }
+
+    await client.query('COMMIT');
+    sendJson(res, 200, {
+      ok: true, MSG: '000 Freight mainline imported',
+      batchId, rows: rows.length, dateFrom, dateTo,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[freight-mainline] 匯入失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 主線運費匯入失敗，請稍後再試' });
+  } finally {
+    client.release();
+  }
+}
+
+async function handleFreightNonMainlineImport(req, res) {
+  if (req.method !== 'POST') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
+  if (!requireSession(req, res)) return;
+
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database is not configured.' }); return; }
+
+  let payload;
+  try {
+    const raw = await readRequestBody(req, 50 * 1024 * 1024);
+    payload = JSON.parse(raw || '{}');
+  } catch (err) {
+    sendJson(res, err.message === 'REQUEST_TOO_LARGE' ? 413 : 400, { ok: false, MSG: '999 Invalid freight-non-mainline import payload' });
+    return;
+  }
+
+  const rows = freightNonMainlineRowsFromPayload(payload);
+  if (!rows.length) { sendJson(res, 400, { ok: false, MSG: '999 No valid freight-non-mainline rows to import' }); return; }
+
+  const dryRun = Boolean(payload.dryRun);
+  const fileName = String(payload.fileName || 'freight_non_mainline.xlsx');
+  const dates = rows.map(r => r.work_date).sort();
+  const dateFrom = dates[0];
+  const dateTo = dates[dates.length - 1];
+
+  // 非主線無天然唯一鍵，重複上傳會新增 → 採「刪除日期區間內所有資料再寫入」策略（與 labor/picks 一致）
+  try {
+    const dupResult = await pool.query(
+      `SELECT COUNT(*)::int AS n FROM ${schemaTable('freight_non_mainline_daily')}
+       WHERE work_date >= $1::date AND work_date <= $2::date`,
+      [dateFrom, dateTo],
+    );
+    const existingInRange = dupResult.rows[0]?.n || 0;
+
+    if (dryRun) {
+      const classMap = {};
+      rows.forEach(row => {
+        const [l1, l2] = classifyNonMainline(row);
+        const key = `${l1}||${l2 || ''}`;
+        if (!classMap[key]) classMap[key] = { l1, l2: l2 || null, count: 0 };
+        classMap[key].count++;
+      });
+      const classification = Object.values(classMap).sort((a, b) => b.count - a.count);
+      sendJson(res, 200, {
+        ok: true,
+        dryRun: true,
+        rowsToImport: rows.length,
+        existingInRange,
+        dateFrom, dateTo,
+        classification,
+        MSG: '000 Dry run complete',
+      });
+      return;
+    }
+  } catch (err) {
+    console.error('[freight-non-mainline] dry-run 失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 非主線運費檢查失敗，請稍後再試' });
+    return;
+  }
+
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+    const batchResult = await client.query(
+      `INSERT INTO ${schemaTable('import_batches')} (source_type, source_file, period_month, imported_by, note)
+       VALUES ($1, $2, $3, $4, $5) RETURNING id`,
+      ['freight_non_mainline', fileName, monthStartFromDate(dateFrom) || null, String(payload.importedBy || ''),
+       `date_range=${dateFrom}..${dateTo}; rows=${rows.length}`],
+    );
+    const batchId = batchResult.rows[0].id;
+
+    await client.query(
+      `DELETE FROM ${schemaTable('freight_non_mainline_daily')}
+       WHERE work_date >= $1::date AND work_date <= $2::date`,
+      [dateFrom, dateTo],
+    );
+
+    const insertSql = `
+      INSERT INTO ${schemaTable('freight_non_mainline_daily')}
+        (work_date, month, shipper, region, vehicle_type, delivery_item, warehouse_name,
+         carrier, dispatch_reason, pricing_method, unit_price, trip_count, amount, note,
+         category_l1, category_l2, budget_warehouse, source_file, import_batch_id)
+      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
+    `;
+
+    for (const row of rows) {
+      // 套用業務同仁確認後的 12 條規則（命中即停）
+      const [l1, l2, budgetWh] = classifyNonMainline(row);
+      row.category_l1 = l1;
+      row.category_l2 = l2;
+      row.budget_warehouse = budgetWh || row.warehouse_name;
+      await client.query(insertSql, [
+        row.work_date, row.month, row.shipper, row.region, row.vehicle_type, row.delivery_item,
+        row.warehouse_name, row.carrier, row.dispatch_reason, row.pricing_method,
+        row.unit_price, row.trip_count, row.amount, row.note,
+        row.category_l1, row.category_l2, row.budget_warehouse, fileName, batchId,
+      ]);
+    }
+
+    await client.query('COMMIT');
+    sendJson(res, 200, {
+      ok: true, MSG: '000 Freight non-mainline imported',
+      batchId, rows: rows.length, dateFrom, dateTo,
+    });
+  } catch (err) {
+    await client.query('ROLLBACK').catch(() => {});
+    console.error('[freight-non-mainline] 匯入失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 非主線運費匯入失敗，請稍後再試' });
+  } finally {
+    client.release();
+  }
+}
+
+async function handleFreightMainlineData(req, res) {
+  if (req.method !== 'GET') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
+  if (!requireSession(req, res)) return;
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database is not configured.' }); return; }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const dateFrom = String(url.searchParams.get('date_from') || '').trim();
+  const dateTo   = String(url.searchParams.get('date_to')   || '').trim();
+  if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+    sendJson(res, 400, { ok: false, MSG: '999 Invalid freight-mainline date range' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT work_date, month, warehouse_name, route_code, task_category, carrier,
+              route_status, task_note, vehicle_tonnage, trip_type, pricing_qty,
+              pricing_tier, pricing_unit, tier_rate, dispatch_price, pricing_result,
+              with_tax, source_file, import_batch_id, updated_at
+       FROM ${schemaTable('freight_mainline_daily')}
+       WHERE work_date >= $1::date AND work_date <= $2::date
+       ORDER BY work_date, warehouse_name, route_code, carrier`,
+      [dateFrom, dateTo],
+    );
+    sendJson(res, 200, {
+      ok: true, dateFrom, dateTo,
+      rows: result.rows.map(row => ({
+        date: row.work_date, month: row.month,
+        wh: row.warehouse_name, route: row.route_code,
+        taskCategory: row.task_category, carrier: row.carrier,
+        routeStatus: row.route_status, note: row.task_note,
+        vehicleTonnage: row.vehicle_tonnage, tripType: row.trip_type,
+        pricingQty: Number(row.pricing_qty) || 0,
+        pricingTier: row.pricing_tier, pricingUnit: row.pricing_unit,
+        tierRate: Number(row.tier_rate) || 0,
+        dispatchPrice: Number(row.dispatch_price) || 0,
+        amount: Number(row.pricing_result) || 0,
+        withTax: row.with_tax,
+        sourceFile: row.source_file,
+        importBatchId: row.import_batch_id,
+        updatedAt: row.updated_at,
+      })),
+    });
+  } catch (err) {
+    console.error('[freight-mainline] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 主線運費查詢失敗' });
+  }
+}
+
+async function handleFreightNonMainlineData(req, res) {
+  if (req.method !== 'GET') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
+  if (!requireSession(req, res)) return;
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database is not configured.' }); return; }
+
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const dateFrom = String(url.searchParams.get('date_from') || '').trim();
+  const dateTo   = String(url.searchParams.get('date_to')   || '').trim();
+  if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
+    sendJson(res, 400, { ok: false, MSG: '999 Invalid freight-non-mainline date range' });
+    return;
+  }
+
+  try {
+    const result = await pool.query(
+      `SELECT work_date, month, warehouse_name, region, vehicle_type, delivery_item,
+              carrier, dispatch_reason, pricing_method, unit_price, trip_count, amount,
+              note, category_l1, category_l2, budget_warehouse,
+              source_file, import_batch_id, updated_at
+       FROM ${schemaTable('freight_non_mainline_daily')}
+       WHERE work_date >= $1::date AND work_date <= $2::date
+       ORDER BY work_date, warehouse_name, carrier`,
+      [dateFrom, dateTo],
+    );
+    sendJson(res, 200, {
+      ok: true, dateFrom, dateTo,
+      rows: result.rows.map(row => ({
+        date: row.work_date, month: row.month,
+        wh: row.warehouse_name, region: row.region,
+        vehicleType: row.vehicle_type, deliveryItem: row.delivery_item,
+        carrier: row.carrier, dispatchReason: row.dispatch_reason,
+        pricingMethod: row.pricing_method,
+        unitPrice: Number(row.unit_price) || 0,
+        tripCount: Number(row.trip_count) || 0,
+        amount: Number(row.amount) || 0,
+        note: row.note,
+        categoryL1: row.category_l1,
+        categoryL2: row.category_l2,
+        budgetWarehouse: row.budget_warehouse,
+        sourceFile: row.source_file,
+        importBatchId: row.import_batch_id,
+        updatedAt: row.updated_at,
+      })),
+    });
+  } catch (err) {
+    console.error('[freight-non-mainline] 查詢失敗:', err.message);
+    sendJson(res, 500, { ok: false, MSG: '999 非主線運費查詢失敗' });
+  }
+}
+
+// 舊端點：已拆成主線/非主線，回 410 Gone 提醒前端切換
+function handleFreightGone(req, res) {
+  sendJson(res, 410, {
+    ok: false,
+    MSG: '410 此端點已淘汰；請改用 /api/import/freight-mainline 或 /api/import/freight-non-mainline（查詢端同理）',
+  });
 }
 
 const server = http.createServer((req, res) => {
@@ -1132,6 +1699,28 @@ const server = http.createServer((req, res) => {
   }
   if (req.url.startsWith('/api/import/picks')) {
     handlePicksImport(req, res);
+    return;
+  }
+  // 主線 / 非主線運費（新）
+  if (req.url.startsWith('/api/import/freight-mainline')) {
+    handleFreightMainlineImport(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/import/freight-non-mainline')) {
+    handleFreightNonMainlineImport(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/data/freight-mainline')) {
+    handleFreightMainlineData(req, res);
+    return;
+  }
+  if (req.url.startsWith('/api/data/freight-non-mainline')) {
+    handleFreightNonMainlineData(req, res);
+    return;
+  }
+  // 舊運費端點：已拆分，回 410 Gone
+  if (req.url.startsWith('/api/import/freight') || req.url.startsWith('/api/data/freight')) {
+    handleFreightGone(req, res);
     return;
   }
   if (req.url.startsWith('/api/data/range')) {

@@ -4,9 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>KPL 儀表板 · 日翊文化行銷</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Geist+Mono:wght@400..900&family=Inter:wght@400..900&display=swap" rel="stylesheet">
 <link rel="stylesheet" href="css/base.css?v=20260518-6">
-<link rel="stylesheet" href="css/layout.css?v=20260518-6">
-<link rel="stylesheet" href="css/widget.css?v=20260519-1">
+<link rel="stylesheet" href="css/theme.css?v=20260608-2">
+<link rel="stylesheet" href="css/layout.css?v=20260606-1">
+<link rel="stylesheet" href="css/widget.css?v=20260608-2">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- 開機載入畫面：在 CSS/JS 還沒下載完前就顯示，避免空白頁 -->
@@ -121,19 +125,37 @@
         <rect y="12" width="18" height="2" rx="1"/>
       </svg>
     </button>
-    <nav class="topbar-center" id="topbar-tabs" aria-label="主功能分類"></nav>
+    <div class="topbar-brand-mark" aria-hidden="true">RY</div>
+    <div class="topbar-title-wrap">
+      <div class="topbar-title topbar-breadcrumb" id="topbar-breadcrumb">
+        <span class="topbar-breadcrumb-icon" id="topbar-breadcrumb-icon" aria-hidden="true">📊</span>
+        <span class="topbar-breadcrumb-group" id="topbar-breadcrumb-group">儀表板總覽</span>
+        <span class="topbar-breadcrumb-sep" aria-hidden="true">&gt;</span>
+        <span class="topbar-breadcrumb-page" id="topbar-breadcrumb-page">總費用動支率</span>
+      </div>
+      <div class="topbar-subtitle" id="topbar-page-name">儀表板總覽</div>
+    </div>
   </div>
 
   <!-- 右側：通知 + 使用者 -->
   <div class="topbar-right">
-    <button class="topbar-icon-btn" id="notif-btn" aria-label="通知">
-      <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
-           stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-        <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
-        <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
-      </svg>
-      <span class="topbar-notif-dot"></span>
-    </button>
+    <div class="topbar-time" id="nav-time"></div>
+    <div class="theme-switcher" id="theme-switcher" role="group" aria-label="主題切換">
+      <button class="theme-option" type="button" data-theme-option="original" onclick="setThemeMode('original')">原味</button>
+      <button class="theme-option" type="button" data-theme-option="day" onclick="setThemeMode('day')">白天</button>
+      <button class="theme-option" type="button" data-theme-option="night" onclick="setThemeMode('night')">黑夜</button>
+    </div>
+    <div class="topbar-notif-wrap">
+      <button class="topbar-icon-btn" id="notif-btn" aria-label="版本更新通知" onclick="toggleReleaseNotice()">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none"
+             stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+          <path d="M13.73 21a2 2 0 0 1-3.46 0"/>
+        </svg>
+        <span class="topbar-notif-dot" id="release-notif-dot"></span>
+      </button>
+      <div class="release-notice" id="release-notice" hidden></div>
+    </div>
 
     <div class="topbar-user-wrap">
       <button class="topbar-user-btn" id="user-btn" onclick="toggleUserMenu()">
@@ -161,6 +183,7 @@
 
 <!-- 側欄遮罩（手機用，點擊關閉側欄） -->
 <div class="sidebar-overlay" id="sidebar-overlay"></div>
+<div class="sidebar-hover-zone" id="sidebar-hover-zone" aria-hidden="true"></div>
 
 <!-- 主容器 -->
 <div class="shell">
@@ -179,7 +202,7 @@
   <div class="page-p" id="page-meta">載入中…</div>
 </div>
 
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="filter-from">
   <span class="range-arrow">→</span>
@@ -199,7 +222,7 @@
   <h1 class="page-h">總費用動支率</h1>
   <div class="page-p" id="dispatch-meta">載入中…</div>
 </div>
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="dispatch-from">
   <span class="range-arrow">→</span>
@@ -217,7 +240,7 @@
   <h1 class="page-h">運費損益分析</h1>
   <div class="page-p" id="freight-meta">載入中…</div>
 </div>
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="freight-from">
   <span class="range-arrow">→</span>
@@ -235,7 +258,7 @@
   <h1 class="page-h">揀次人效分析</h1>
   <div class="page-p" id="productivity-meta">整合揀次、工時、成本與區域效率</div>
 </div>
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="productivity-from">
   <span class="range-arrow">→</span>
@@ -253,7 +276,7 @@
   <h1 class="page-h">月度結算</h1>
   <div class="page-p" id="monthly-meta">月底結算時使用的本月口袋總結頁面</div>
 </div>
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="monthly-from">
   <span class="range-arrow">→</span>
@@ -284,18 +307,21 @@
   <div class="wh">
     <div class="wl"><div class="wdot"></div>目前儀表板資料狀態</div>
   </div>
-  <table class="tbl status-table">
+  <table class="tbl status-table ops-compact-table">
     <thead><tr>
       <th>資料類型</th>
       <th>狀態</th>
       <th>最新資料日期</th>
       <th>最舊資料日期</th>
+      <th>匯入資料</th>
+      <th>匯入範本</th>
     </tr></thead>
     <tbody id="status-tbody"></tbody>
   </table>
 </div>
-<div class="import-list">
-  <div class="w import-row">
+<div class="import-results-title" id="import-results-title" hidden>匯入資料讀取結果</div>
+<div class="import-list" id="import-results-list">
+  <div class="w import-row" data-import-result="budget">
     <div class="import-accent import-accent-budget"></div>
     <div class="import-info">
       <div class="import-kicker">💰 年度預算（總費用動支率）</div>
@@ -327,40 +353,71 @@
     </div>
     </div>
   </div>
-  <div class="w import-row">
+  <div class="w import-row" data-import-result="freight-mainline">
     <div class="import-accent import-accent-freight"></div>
     <div class="import-info">
-      <div class="import-kicker">🚚 運務費用（F002-F003 / F010 / T002 / T003）</div>
-      <div class="wl"><div class="wdot dot-freight"></div>每日各倉運務費用</div>
+      <div class="import-kicker">🚛 主線運費（雲端資料庫）</div>
+      <div class="wl"><div class="wdot dot-freight"></div>主線配送費用明細</div>
       <div class="import-note">
-        <div>彙總分頁：列標籤（民國日期）｜大肚倉｜大溪倉｜岡山倉｜總計</div>
-        <div>明細分頁：進貨日｜倉別｜配送商｜預計計價結果｜到點計價結果｜計價結果</div>
+        <div>必要欄位：倉別｜進貨日｜路線來源｜路線｜配送商｜計價結果</div>
+        <div>資料直接上傳至雲端資料庫，同日期範圍舊資料將被覆蓋</div>
       </div>
     </div>
     <div class="import-drop-wrap">
-    <div id="freight-drop"
+    <div id="freight-mainline-drop"
       class="import-drop"
-      onclick="document.getElementById('freight-file').click()"
-      ondragover="onDragOver(event,'freight-drop')"
-      ondragleave="onDragLeave('freight-drop')"
-      ondrop="onDrop(event,'freight')">
-      <div class="import-drop-icon">📊</div>
+      onclick="document.getElementById('freight-mainline-file').click()"
+      ondragover="onDragOver(event,'freight-mainline-drop')"
+      ondragleave="onDragLeave('freight-mainline-drop')"
+      ondrop="onDrop(event,'freight-mainline')">
+      <div class="import-drop-icon">🚛</div>
       <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
-      <div class="import-drop-hint">.xlsx 格式｜需含：進貨日與計價費用、貨運費用明細總表</div>
+      <div class="import-drop-hint">.xlsx 格式｜主線運費明細表</div>
     </div>
-    <input type="file" id="freight-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight')">
+    <input type="file" id="freight-mainline-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight-mainline')">
     </div>
     <div class="import-actions">
-      <span class="wmeta" id="freight-status">尚未上傳</span>
-    <div id="freight-preview" class="import-preview" style="display:none"></div>
-    <div id="freight-btns" class="import-btns" style="display:none">
-      <button class="btn btn-primary" onclick="applyFreight()">✅ 套用到儀表板</button>
-      <button class="btn btn-gold" onclick="downloadFreight()">⬇️ 下載彙總確認檔</button>
-      <button class="btn btn-ghost" onclick="resetFreight()">↺ 重選</button>
+      <span class="wmeta" id="freight-mainline-status">尚未上傳</span>
+    <div id="freight-mainline-preview" class="import-preview" style="display:none"></div>
+    <div id="freight-mainline-btns" class="import-btns" style="display:none">
+      <button class="btn btn-primary" onclick="applyFreightMainline()">✅ 上傳至雲端</button>
+      <button class="btn btn-ghost" onclick="resetFreightMainline()">↺ 重選</button>
     </div>
     </div>
   </div>
-  <div class="w import-row">
+  <div class="w import-row" data-import-result="freight-non-mainline">
+    <div class="import-accent import-accent-freight"></div>
+    <div class="import-info">
+      <div class="import-kicker">🚐 非主線運費（雲端資料庫）</div>
+      <div class="wl"><div class="wdot dot-freight"></div>非主線加派費用（伺服器自動分類）</div>
+      <div class="import-note">
+        <div>必要欄位：進貨日｜廠商｜配送商｜派車原因｜計價方式｜費用小計</div>
+        <div>上傳後依 12 條規則自動歸類（正物流／逆物流／專車／轉運等）</div>
+      </div>
+    </div>
+    <div class="import-drop-wrap">
+    <div id="freight-non-mainline-drop"
+      class="import-drop"
+      onclick="document.getElementById('freight-non-mainline-file').click()"
+      ondragover="onDragOver(event,'freight-non-mainline-drop')"
+      ondragleave="onDragLeave('freight-non-mainline-drop')"
+      ondrop="onDrop(event,'freight-non-mainline')">
+      <div class="import-drop-icon">🚐</div>
+      <div class="import-drop-title">點擊或拖曳 Excel 至此</div>
+      <div class="import-drop-hint">.xlsx 格式｜非主線加派費用明細</div>
+    </div>
+    <input type="file" id="freight-non-mainline-file" accept=".xlsx,.xls" style="display:none" onchange="onFileSelect(event,'freight-non-mainline')">
+    </div>
+    <div class="import-actions">
+      <span class="wmeta" id="freight-non-mainline-status">尚未上傳</span>
+    <div id="freight-non-mainline-preview" class="import-preview" style="display:none"></div>
+    <div id="freight-non-mainline-btns" class="import-btns" style="display:none">
+      <button class="btn btn-primary" onclick="applyFreightNonMainline()">✅ 上傳至雲端</button>
+      <button class="btn btn-ghost" onclick="resetFreightNonMainline()">↺ 重選</button>
+    </div>
+    </div>
+  </div>
+  <div class="w import-row" data-import-result="labor">
     <div class="import-accent import-accent-labor"></div>
     <div class="import-info">
       <div class="import-kicker">⏱ 工時資料（總費用動支率 / 工時結構）</div>
@@ -392,7 +449,7 @@
     </div>
     </div>
   </div>
-  <div class="w import-row">
+  <div class="w import-row" data-import-result="picks">
     <div class="import-accent import-accent-picks"></div>
     <div class="import-info">
       <div class="import-kicker">⚡ 揀次資料（揀次分析）</div>
@@ -459,7 +516,7 @@
   <h1 class="page-h">揀次分析</h1>
   <div class="page-p" id="picks-meta">載入中…</div>
 </div>
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="picks-from">
   <span class="range-arrow">→</span>
@@ -505,7 +562,7 @@
   <h1 class="page-h">人力工時結構</h1>
   <div class="page-p" id="labor-meta">載入中…</div>
 </div>
-<div class="filter-bar">
+<div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
   <input type="date" class="filter-input" id="labor-from">
   <span class="range-arrow">→</span>
@@ -538,7 +595,7 @@
 <script src="js/labor_data.js?v=20260504-3"></script>
 <script src="js/data.js?v=20260509-1"></script>
 <script src="js/utils.js?v=20260505-1"></script>
-<script src="js/widgets.js?v=20260518-5"></script>
+<script src="js/widgets.js?v=20260606-1"></script>
 <script>
 // 從 <script type="text/html"> 讀取模板
 const PAGE_TEMPLATES = {
@@ -555,6 +612,6 @@ const PAGE_TEMPLATES = {
   typography:     document.getElementById('tpl-typography').innerHTML,
 };
 </script>
-<script src="js/app.js?v=20260519-1"></script>
+<script src="js/app.js?v=20260608-4"></script>
 </body>
 </html>

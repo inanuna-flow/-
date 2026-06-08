@@ -78,6 +78,7 @@ const PAGES = [
     group: '📁 資料管理',
     items: [
       { id:'import',       icon:'📤', label:'資料匯入',     status:'ready' },
+      { id:'versions',     icon:'🕘', label:'版本資訊',     status:'ready' },
     ]
   },
   {
@@ -90,49 +91,117 @@ const PAGES = [
   },
 ];
 
+const SIDEBAR_GROUP_META = [
+  { label: '儀表板總覽', icon: '📊' },
+  { label: '成本分析', icon: '💼' },
+  { label: '效率分析', icon: '⚡' },
+  { label: '成本分析', icon: '📈' },
+  { label: '資料管理', icon: '📁' },
+  { label: '系統設定', icon: '⚙️' },
+];
+const THEME_STORAGE_KEY = 'kplThemeMode';
+const SIDEBAR_PINNED_KEY = 'kplSidebarPinned';
+const THEME_MODES = ['original', 'day', 'night'];
+const RELEASE_READ_KEY = 'kplReleaseRead';
+const FALLBACK_RELEASES = [
+  {
+    version: 'v0.4.0',
+    date: '2026-06-06',
+    title: '儀表板閱讀體驗更新',
+    summary: '統一元件標題、表格線條與數字字重。',
+    changes: [
+      '元件標題移至卡片外，並調整標題間距與字重。',
+      '區間動支彙總改為中性色表格，統一細線與分組樣式。',
+      '移除摘要卡與動支百分比進度線，重新整理資訊對齊。',
+      '元件數字統一使用正常字重，提升長時間閱讀舒適度。',
+      '運費損益分析由展示版介面改為資料驅動的 KPI、圖表與決策表元件。',
+    ],
+  },
+  {
+    version: 'v0.3.0',
+    date: '2026-05-26',
+    title: '版面與主題系統',
+    summary: '新增可釘選側邊欄與三種主題。',
+    changes: [
+      '新增原味、白天、黑夜主題並保存使用者選擇。',
+      '新增可釘選、收合與滑鼠靠近浮出的側邊欄。',
+      '全站套用 Inter 與 Geist Mono 字體。',
+    ],
+  },
+];
+let RELEASES = [...FALLBACK_RELEASES];
+
 let currentPageId = 'daily';
 let annualViewMode = 'labor';
 
 const TYPOGRAPHY_STORAGE_KEY = 'kplTypographySettings';
+const TYPOGRAPHY_VERSION_KEY = 'kplTypographyVersion';
+const TYPOGRAPHY_VERSION = '4';
 const TYPOGRAPHY_FONT_MAP = {
   ui: 'var(--font-ui)',
   number: 'var(--font-number)',
 };
 const TYPOGRAPHY_CONTROLS = [
-  { key:'page-title', label:'頁面主標題', hint:'頁面 H1，例如「運費損益分析」', sample:'運費損益分析', font:'ui', size:26, weight:900, line:1.2 },
-  { key:'page-kicker', label:'標題上方小標籤', hint:'breadcrumb 或頁面分類', sample:'成本分析 > 運費損益分析', font:'ui', size:13, weight:700, line:1.4 },
-  { key:'nav', label:'導覽 / 側邊選單', hint:'側邊選單群組與頁面名稱', sample:'系統設定 / 文字樣式設定', font:'ui', size:14, weight:800, line:1.25 },
-  { key:'control', label:'按鈕與篩選區', hint:'select、input、button、篩選 label', sample:'倉別 三倉總覽 月份 2026年03月', font:'ui', size:13, weight:700, line:1.35 },
-  { key:'form-hint', label:'表單輔助文字', hint:'篩選列提示與表單說明', sample:'日期區間已鎖定為整個月份', font:'ui', size:12, weight:500, line:1.5 },
-  { key:'widget-title', label:'元件標題', hint:'卡片、圖表與表格區塊標題', sample:'核心 KPI 總覽', font:'ui', size:16, weight:800, line:1.3 },
-  { key:'widget-note', label:'元件說明小文字', hint:'meta、note、補充說明', sample:'依資料庫預算計算，資料每月更新', font:'ui', size:12, weight:500, line:1.5 },
-  { key:'metric', label:'元件數字', hint:'KPI 大數字、金額、百分比', sample:'NT$14.53M', font:'number', size:32, weight:900, line:1 },
-  { key:'table', label:'表格文字', hint:'表頭、儲存格與密集數值', sample:'費用項目  預算金額  實際動支', font:'ui', size:12, weight:500, line:1.35 },
-  { key:'badge', label:'狀態標籤 / 圖表文字', hint:'badge、pill、圖表小標、空狀態標題', sample:'低於預算 · 使用健康', font:'ui', size:11, weight:800, line:1.25 },
+  { key:'page-title', label:'頁面主標題', hint:'頁面 H1，例如「運費損益分析」', sample:'運費損益分析', font:'ui', size:26, weight:600, line:1.3 },
+  { key:'page-kicker', label:'標題上方小標籤', hint:'breadcrumb 或頁面分類', sample:'成本分析 > 運費損益分析', font:'ui', size:13, weight:500, line:1.5 },
+  { key:'nav', label:'導覽 / 側邊選單', hint:'側邊選單群組與頁面名稱', sample:'系統設定 / 文字樣式設定', font:'ui', size:14, weight:500, line:1.45 },
+  { key:'control', label:'按鈕與篩選區', hint:'select、input、button、篩選 label', sample:'倉別 三倉總覽 月份 2026年03月', font:'ui', size:13, weight:500, line:1.45 },
+  { key:'form-hint', label:'表單輔助文字', hint:'篩選列提示與表單說明', sample:'日期區間已鎖定為整個月份', font:'ui', size:12, weight:400, line:1.55 },
+  { key:'widget-title', label:'元件標題', hint:'卡片、圖表與表格區塊標題', sample:'核心 KPI 總覽', font:'ui', size:16, weight:500, line:1.45 },
+  { key:'widget-note', label:'元件說明小文字', hint:'meta、note、補充說明', sample:'依資料庫預算計算，資料每月更新', font:'ui', size:12, weight:400, line:1.55 },
+  { key:'metric', label:'元件數字', hint:'KPI 大數字、金額、百分比', sample:'NT$14.53M', font:'number', size:32, weight:400, line:1.1 },
+  { key:'table', label:'表格文字', hint:'表頭、儲存格與密集數值', sample:'費用項目  預算金額  實際動支', font:'ui', size:12, weight:400, line:1.5 },
+  { key:'badge', label:'狀態標籤 / 圖表文字', hint:'badge、pill、圖表小標、空狀態標題', sample:'低於預算 · 使用健康', font:'ui', size:11, weight:500, line:1.4 },
 ];
 
-// ── 渲染左側 Accordion Drawer 選單 ──
+
+function toggleAccordion(categoryEl) {
+  const isExpanded = categoryEl.classList.contains('expanded');
+  document.querySelectorAll('.sb-category.expanded').forEach(el => el.classList.remove('expanded'));
+  if (!isExpanded) categoryEl.classList.add('expanded');
+}
+
+function getSidebarGroups() {
+  const grouped = [];
+  const byLabel = new Map();
+  PAGES.forEach((group, index) => {
+    const meta = SIDEBAR_GROUP_META[index] || { label: group.group, icon: '•' };
+    if (!byLabel.has(meta.label)) {
+      const next = { label: meta.label, icon: meta.icon, group: group.group, items: [] };
+      grouped.push(next);
+      byLabel.set(meta.label, next);
+    }
+    byLabel.get(meta.label).items.push(...group.items);
+  });
+  return grouped;
+}
+
 function renderSidebar() {
   const sb = document.getElementById('sidebar');
-  const userId = sessionStorage.getItem('kpl_user') || '使用者';
-  const adminBadge = isAdmin()
-    ? '<span style="font-size:10px;background:#f5c400;color:#123d74;padding:1px 6px;border-radius:99px;font-weight:700;margin-left:4px">管理員</span>'
-    : '';
+  if (!sb) return;
+  const userId = sessionStorage.getItem('kpl_user') || 'User';
+  const adminBadge = isAdmin() ? '<span class="sb-user-badge">ADMIN</span>' : '';
+  const sidebarGroups = getSidebarGroups();
 
   let html = `
   <div class="sb-header">
     <div class="sb-header-brand">
-      <div class="topbar-brand-badge">RY</div>
+      <div class="sb-brand-badge">RY</div>
       <div>
-        <div class="sb-header-title">KPL 儀表板</div>
-        <div class="sb-header-subtitle">日翊文化行銷股份有限公司</div>
+        <div class="sb-header-title">KPL 營運中控台</div>
+        <div class="sb-header-subtitle">Re-Yi Distribution</div>
       </div>
     </div>
-    <button class="sb-close" onclick="closeSidebar()" aria-label="關閉選單">✕</button>
+    <button class="sb-pin" onclick="toggleSidebarPinned()" type="button" aria-label="釘選側欄" title="釘選/隱藏側欄">
+      <svg class="sb-pin-icon" width="15" height="15" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+        <path d="M14 4l6 6-3.5 1.2-2.9 4.7 2.1 2.1-1.7 1.7-4.1-4.1-4.2 4.2-1.5-1.5 4.2-4.2-4.1-4.1L6 8.3l2.1 2.1 4.7-2.9L14 4z" fill="currentColor"/>
+      </svg>
+    </button>
+    <button class="sb-close" onclick="closeSidebar()" type="button" aria-label="關閉側欄">×</button>
   </div>
   <nav class="sb-nav">`;
 
-  PAGES.forEach(group => {
+  sidebarGroups.forEach(group => {
     const visibleItems = group.items.filter(item => {
       if (item.adminOnly) return isAdmin();
       return isPageVisible(item.id);
@@ -146,7 +215,10 @@ function renderSidebar() {
     html += `
     <div class="sb-category${expandedClass}">
       <button class="sb-category-btn${activeCatClass}" onclick="toggleAccordion(this.parentElement)" type="button">
-        <span class="sb-category-label">${group.group}</span>
+        <span class="sb-category-main">
+          <span class="sb-category-icon">${group.icon}</span>
+          <span class="sb-category-label">${group.label}</span>
+        </span>
         <svg class="sb-category-caret" width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
           <path d="M0 0l5 6 5-6z"/>
         </svg>
@@ -159,11 +231,11 @@ function renderSidebar() {
       if (item.status === 'wip') badge = '<span class="sb-item-badge wip">WIP</span>';
       else if (item.status === 'placeholder') badge = '<span class="sb-item-badge soon">TBD</span>';
       const hiddenMark = (isAdmin() && pagePermissions[item.id] === false && !item.adminOnly)
-        ? '<span class="sb-item-badge" style="background:#aaa;color:#fff">隱藏</span>' : '';
-      const itemStyle = item.adminOnly ? ' style="border-left-color:#f5c400"' : '';
+        ? '<span class="sb-item-badge muted">HIDDEN</span>' : '';
+      const itemStyle = item.adminOnly ? ' data-admin-item="true"' : '';
       html += `
         <a href="#${item.id}" class="sb-item${active}" onclick="navigate(event,'${item.id}')"${itemStyle}>
-          <span class="sb-item-icon">${item.icon}</span>
+          <span class="sb-item-icon" aria-hidden="true">${item.icon}</span>
           <span class="sb-item-label">${item.label}</span>
           ${badge}${hiddenMark}
         </a>`;
@@ -177,21 +249,15 @@ function renderSidebar() {
   html += `
   </nav>
   <div class="sb-user">
-    <div class="sb-user-avatar">${isAdmin() ? '👑' : '👤'}</div>
+    <div class="sb-user-avatar">${isAdmin() ? 'A' : userId.slice(0, 1).toUpperCase()}</div>
     <div class="sb-user-info">
       <div class="sb-user-name">${userId}${adminBadge}</div>
-      <div class="sb-user-role">日翊文化行銷</div>
+      <div class="sb-user-role">Re-Yi Distribution</div>
     </div>
     <button class="sb-logout" onclick="logout()" title="登出">⏻</button>
   </div>`;
 
   sb.innerHTML = html;
-}
-
-function toggleAccordion(categoryEl) {
-  const isExpanded = categoryEl.classList.contains('expanded');
-  document.querySelectorAll('.sb-category.expanded').forEach(el => el.classList.remove('expanded'));
-  if (!isExpanded) categoryEl.classList.add('expanded');
 }
 
 // ── 登出 ──
@@ -209,18 +275,108 @@ function navigate(event, pageId) {
   renderSidebar();
   renderTopbarTabs();
   loadPage(pageId);
+  if (isMobileLayout() || document.body.classList.contains('sidebar-collapsed')) {
+    closeSidebar();
+  }
+}
+
+function escapeReleaseText(value) {
+  return String(value ?? '').replace(/[&<>"']/g, char => ({
+    '&': '&amp;',
+    '<': '&lt;',
+    '>': '&gt;',
+    '"': '&quot;',
+    "'": '&#39;',
+  }[char]));
+}
+
+async function loadGithubReleases() {
+  try {
+    const res = await fetch('/api/releases', { cache: 'no-store' });
+    if (handleAuthExpired(res)) return;
+    const data = await res.json();
+    if (res.ok && data.ok && Array.isArray(data.releases) && data.releases.length) {
+      RELEASES = data.releases;
+    }
+  } catch {
+    RELEASES = [...FALLBACK_RELEASES];
+  }
+}
+
+function renderReleaseNotice() {
+  const panel = document.getElementById('release-notice');
+  const dot = document.getElementById('release-notif-dot');
+  const latest = RELEASES[0];
+  if (!panel || !latest) return;
+  panel.innerHTML = `
+    <div class="release-notice-kicker">最新版本 ${escapeReleaseText(latest.version)}</div>
+    <div class="release-notice-title">${escapeReleaseText(latest.title)}</div>
+    <div class="release-notice-summary">${escapeReleaseText(latest.summary)}</div>
+    <button type="button" class="release-notice-link" onclick="openVersionInfo(event)">查看詳細版本資訊</button>`;
+  if (dot) dot.hidden = localStorage.getItem(RELEASE_READ_KEY) === latest.version;
+}
+
+function toggleReleaseNotice() {
+  const panel = document.getElementById('release-notice');
+  if (!panel) return;
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden && RELEASES[0]) {
+    localStorage.setItem(RELEASE_READ_KEY, RELEASES[0].version);
+    const dot = document.getElementById('release-notif-dot');
+    if (dot) dot.hidden = true;
+  }
+}
+
+function openVersionInfo(event) {
+  if (event) event.stopPropagation();
+  const panel = document.getElementById('release-notice');
+  if (panel) panel.hidden = true;
+  navigate(null, 'versions');
+}
+
+function renderVersionsPage() {
+  const main = document.getElementById('main');
+  main.innerHTML = `
+    <div class="page-head">
+      <div class="page-eyebrow">資料管理 &gt; 版本資訊</div>
+      <h1 class="page-h">版本資訊</h1>
+    </div>
+    <div class="release-history">
+      ${RELEASES.map((release, index) => `
+        <article class="release-entry">
+          <div class="release-entry-meta">
+            <span class="release-version">${escapeReleaseText(release.version)}</span>
+            <time datetime="${escapeReleaseText(release.date)}">${escapeReleaseText(release.date)}</time>
+            ${index === 0 ? '<span class="release-latest">最新版本</span>' : ''}
+          </div>
+          <h2>${escapeReleaseText(release.title)}</h2>
+          <p>${escapeReleaseText(release.summary)}</p>
+          <ul>${release.changes.map(change => `<li>${escapeReleaseText(change)}</li>`).join('')}</ul>
+          ${release.url ? `<a class="release-github-link" href="${escapeReleaseText(release.url)}" target="_blank" rel="noopener noreferrer">在 GitHub 查看 Release</a>` : ''}
+        </article>`).join('')}
+    </div>`;
 }
 
 // ── 更新 Topbar 頁面名稱 ──
 function updateTopbarPageName(pageId) {
   const el = document.getElementById('topbar-page-name');
-  const allItems = PAGES.flatMap(g => g.items);
-  const page = allItems.find(i => i.id === pageId);
+  const group = PAGES.find(g => g.items.some(i => i.id === pageId));
+  const page = group?.items.find(i => i.id === pageId);
   if (page) {
     if (el) el.textContent = `${page.icon} ${page.label}`;
+    const groupIcon = document.getElementById('topbar-breadcrumb-icon');
+    const groupEl = document.getElementById('topbar-breadcrumb-group');
+    const pageEl = document.getElementById('topbar-breadcrumb-page');
+    if (groupIcon) groupIcon.textContent = group?.group.match(/^\S+/)?.[0] || page.icon || '📊';
+    if (groupEl) groupEl.textContent = (group?.group || '').replace(/^\S+\s*/, '') || '儀表板總覽';
+    if (pageEl) pageEl.textContent = page.label;
     document.title = `${page.label} · KPL 儀表板`;
   } else {
     if (el) el.textContent = '';
+    const groupEl = document.getElementById('topbar-breadcrumb-group');
+    const pageEl = document.getElementById('topbar-breadcrumb-page');
+    if (groupEl) groupEl.textContent = 'KPL';
+    if (pageEl) pageEl.textContent = '營運中控台';
     document.title = 'KPL 儀表板';
   }
 }
@@ -251,6 +407,11 @@ function loadPage(pageId) {
     return;
   }
 
+  if (pageId === 'versions') {
+    renderVersionsPage();
+    return;
+  }
+
   const main = document.getElementById('main');
   const tpl = PAGE_TEMPLATES[pageId];
   if (!tpl) {
@@ -269,8 +430,11 @@ function loadPage(pageId) {
   else if (pageId === 'org')     initOrgPage();
   else if (pageId === 'typography') initTypographyPage();
   else if (pageId === 'productivity') initProductivityPage();
+  else if (pageId === 'monthly') initMonthlyPage();
   else if (pageId === 'annual')  renderAnnualPage();
   else if (pageId === 'admin')   renderAdminPage();
+
+  normalizeDateFilterBars();
 }
 
 // ── 各頁面初始化 ──
@@ -290,7 +454,22 @@ const DASHBOARD_DATE_FILTERS = {
   picks:        { from:'picks-from',        to:'picks-to',        meta:'picks-date-meta' },
   labor:        { from:'labor-from',        to:'labor-to',        meta:'labor-date-meta' },
   productivity: { from:'productivity-from', to:'productivity-to', meta:'productivity-date-meta' },
+  monthly:      { from:'monthly-from',      to:'monthly-to',      meta:'monthly-date-meta' },
 };
+
+function normalizeDateFilterBars() {
+  document.querySelectorAll('#main .filter-bar').forEach(bar => {
+    if (!bar.querySelector('input[type="date"]')) {
+      bar.classList.remove('date-range-filter');
+      return;
+    }
+    bar.classList.add('date-range-filter');
+    const separator = bar.querySelector('.range-arrow');
+    if (separator) separator.textContent = '→';
+    const meta = bar.querySelector('.filter-meta');
+    if (meta) meta.textContent = '日期區間已鎖定為整個月份';
+  });
+}
 
 function syncDashboardDateInputs(pageId = currentPageId) {
   const cfg = DASHBOARD_DATE_FILTERS[pageId];
@@ -301,7 +480,7 @@ function syncDashboardDateInputs(pageId = currentPageId) {
   if (to) to.value = DATA.dateTo;
   if (cfg.meta) {
     const meta = document.getElementById(cfg.meta);
-    if (meta) meta.textContent = `🔗 與其他頁共用日期設定`;
+    if (meta) meta.textContent = '日期區間已鎖定為整個月份';
   }
 }
 
@@ -336,9 +515,9 @@ function renderAdminPage() {
     const isOn = pagePermissions[item.id] !== false;
     return `
     <tr>
-      <td style="padding:12px 16px;font-size:15px">${item.icon} ${item.label}</td>
-      <td style="padding:12px 16px;color:#888;font-size:12px;font-family:monospace">${item.id}</td>
-      <td style="padding:12px 16px;text-align:center">
+      <td>${item.icon} ${item.label}</td>
+      <td class="mono text-muted-strong">${item.id}</td>
+      <td>
         <label class="admin-toggle">
           <input type="checkbox" id="perm-${item.id}" ${isOn ? 'checked' : ''}>
           <span class="admin-toggle-slider"></span>
@@ -354,13 +533,13 @@ function renderAdminPage() {
       <div style="font-size:13px;color:#888;margin-top:4px">控制一般帳號可以看到哪些頁面。管理員帳號（inari）永遠可以看到全部頁面。</div>
     </div>
 
-    <div style="background:#fff;border-radius:8px;box-shadow:0 2px 12px rgba(0,0,0,.08);overflow:hidden;border:1px solid #eee">
-      <table style="width:100%;border-collapse:collapse">
+    <div class="admin-permission-table-frame">
+      <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">
         <thead>
-          <tr style="background:#f4f6fb;border-bottom:2px solid #e8eaf0">
-            <th style="padding:10px 16px;text-align:left;font-size:12px;color:#666;font-weight:700">頁面名稱</th>
-            <th style="padding:10px 16px;text-align:left;font-size:12px;color:#666;font-weight:700">頁面 ID</th>
-            <th style="padding:10px 16px;text-align:center;font-size:12px;color:#666;font-weight:700">一般帳號可見</th>
+          <tr>
+            <th>頁面名稱</th>
+            <th>頁面 ID</th>
+            <th>一般帳號可見</th>
           </tr>
         </thead>
         <tbody>${rows}</tbody>
@@ -476,6 +655,11 @@ function defaultTypographySettings() {
 function loadTypographySettings() {
   const defaults = defaultTypographySettings();
   try {
+    if (localStorage.getItem(TYPOGRAPHY_VERSION_KEY) !== TYPOGRAPHY_VERSION) {
+      localStorage.setItem(TYPOGRAPHY_STORAGE_KEY, JSON.stringify(defaults));
+      localStorage.setItem(TYPOGRAPHY_VERSION_KEY, TYPOGRAPHY_VERSION);
+      return defaults;
+    }
     const saved = JSON.parse(localStorage.getItem(TYPOGRAPHY_STORAGE_KEY) || '{}');
     TYPOGRAPHY_CONTROLS.forEach(item => {
       const row = saved[item.key] || {};
@@ -612,6 +796,7 @@ function updateTypographyDraft(key, prop, value) {
 function saveTypographySettings() {
   const settings = typographyDraft || loadTypographySettings();
   localStorage.setItem(TYPOGRAPHY_STORAGE_KEY, JSON.stringify(settings));
+  localStorage.setItem(TYPOGRAPHY_VERSION_KEY, TYPOGRAPHY_VERSION);
   applyTypographySettings(settings);
   toast('✅ 文字樣式設定已儲存');
 }
@@ -619,6 +804,7 @@ function saveTypographySettings() {
 function resetTypographySettings() {
   typographyDraft = defaultTypographySettings();
   localStorage.removeItem(TYPOGRAPHY_STORAGE_KEY);
+  localStorage.setItem(TYPOGRAPHY_VERSION_KEY, TYPOGRAPHY_VERSION);
   applyTypographySettings(typographyDraft);
   renderTypographyPage();
   toast('↺ 已恢復文字樣式預設值');
@@ -631,7 +817,9 @@ function rerenderDashboardPage(pageId = currentPageId) {
   else if (pageId === 'picks') renderPicksPage();
   else if (pageId === 'labor') renderLaborPage();
   else if (pageId === 'productivity') renderProductivityPage();
+  else if (pageId === 'monthly') renderMonthlyPage();
   else if (pageId === 'annual') renderAnnualPage();
+  normalizeDateFilterBars();
 }
 
 async function applyDashboardDateFilter(pageId = currentPageId) {
@@ -646,13 +834,69 @@ async function applyDashboardDateFilter(pageId = currentPageId) {
 
 // ── Drawer 開關（桌機與手機統一行為）──
 function toggleSidebar() {
-  const isOpen = document.getElementById('sidebar').classList.toggle('drawer-open');
-  document.body.classList.toggle('drawer-pinned', isOpen);
+  if (isMobileLayout()) {
+    const isOpen = document.getElementById('sidebar').classList.toggle('drawer-open');
+    document.body.classList.toggle('sidebar-mobile-open', isOpen);
+    return;
+  }
+  setSidebarPinned(!document.body.classList.contains('sidebar-pinned'));
 }
 
 function closeSidebar() {
   document.getElementById('sidebar').classList.remove('drawer-open');
-  document.body.classList.remove('drawer-pinned');
+  document.body.classList.remove('sidebar-mobile-open', 'sidebar-peek');
+}
+
+function isMobileLayout() {
+  return window.matchMedia('(max-width: 768px)').matches;
+}
+
+function setSidebarPinned(isPinned) {
+  document.body.classList.toggle('sidebar-pinned', isPinned);
+  document.body.classList.toggle('sidebar-collapsed', !isPinned);
+  document.body.classList.remove('sidebar-peek');
+  localStorage.setItem(SIDEBAR_PINNED_KEY, isPinned ? '1' : '0');
+}
+
+function toggleSidebarPinned() {
+  setSidebarPinned(!document.body.classList.contains('sidebar-pinned'));
+}
+
+function openSidebarPeek() {
+  if (!isMobileLayout() && document.body.classList.contains('sidebar-collapsed')) {
+    document.body.classList.add('sidebar-peek');
+  }
+}
+
+function closeSidebarPeek() {
+  if (!isMobileLayout()) document.body.classList.remove('sidebar-peek');
+}
+
+function initSidebarState() {
+  const saved = localStorage.getItem(SIDEBAR_PINNED_KEY);
+  setSidebarPinned(saved !== '0');
+  const zone = document.getElementById('sidebar-hover-zone');
+  const sidebar = document.getElementById('sidebar');
+  const overlay = document.getElementById('sidebar-overlay');
+  if (zone) zone.addEventListener('mouseenter', openSidebarPeek);
+  if (sidebar) {
+    sidebar.addEventListener('mouseenter', openSidebarPeek);
+    sidebar.addEventListener('mouseleave', closeSidebarPeek);
+  }
+  if (overlay) overlay.addEventListener('click', closeSidebar);
+}
+
+function setThemeMode(mode) {
+  const nextMode = THEME_MODES.includes(mode) ? mode : 'original';
+  document.documentElement.dataset.theme = nextMode;
+  localStorage.setItem(THEME_STORAGE_KEY, nextMode);
+  document.querySelectorAll('[data-theme-option]').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themeOption === nextMode);
+  });
+}
+
+function initThemeMode() {
+  setThemeMode(localStorage.getItem(THEME_STORAGE_KEY) || 'original');
 }
 
 // ── Topbar：分類 Tab 導覽 ──
@@ -758,9 +1002,13 @@ function toggleUserMenu() {
 document.addEventListener('click', function handleClickOutside(e) {
   const menu    = document.getElementById('user-menu');
   const userBtn = document.getElementById('user-btn');
+  const releaseNotice = document.getElementById('release-notice');
   if (menu && !menu.hidden && userBtn &&
       !menu.contains(e.target) && !userBtn.contains(e.target)) {
     menu.hidden = true;
+  }
+  if (releaseNotice && !releaseNotice.hidden && !e.target.closest('.topbar-notif-wrap')) {
+    releaseNotice.hidden = true;
   }
   if (!e.target.closest('.topbar-tab-wrap')) {
     document.querySelectorAll('.topbar-dropdown.dd-open').forEach(d => d.classList.remove('dd-open'));
@@ -773,13 +1021,18 @@ function updateTime() {
   if (el) el.textContent = new Date().toLocaleString('zh-TW', { hour12:false });
 }
 
-function checkMobile() {
-  // Drawer 行為在桌機與手機一致，不需要額外處理
-}
-
 function getBudgetYear() {
   const year = Number(String(DATA.dateFrom || '').slice(0, 4));
   return Number.isInteger(year) && year >= 2000 && year <= 2100 ? year : new Date().getFullYear();
+}
+
+function checkMobile() {
+  if (isMobileLayout()) {
+    document.body.classList.remove('sidebar-peek');
+  } else {
+    document.getElementById('sidebar')?.classList.remove('drawer-open');
+    document.body.classList.remove('sidebar-mobile-open');
+  }
 }
 
 function applyCloudBudgetRows(rows, year = getBudgetYear()) {
@@ -938,8 +1191,6 @@ async function loadCloudDataRange() {
       DATA.cloudRange.labor   = data.labor   || { min: '', max: '' };
       DATA.cloudRange.freight = data.freight || { min: '', max: '' };
       DATA.cloudRange.picks   = data.picks   || { min: '', max: '' };
-
-      // cloudRange 僅供 UI 參考用，日期區間由 DOMContentLoaded 統一設定
     }
   } catch {}
 }
@@ -1012,6 +1263,219 @@ async function syncCloudPicks(parsed) {
   return data;
 }
 
+async function uploadFreightWithConfirm(endpoint, records, fileName, label) {
+  const importedBy = sessionStorage.getItem('kpl_user') || '';
+  const dryRes = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ records, fileName, importedBy, dryRun: true }),
+  });
+  if (handleAuthExpired(dryRes)) throw new Error('登入已逾時，請重新登入');
+  const dryData = await dryRes.json().catch(() => ({}));
+  if (!dryRes.ok || !dryData.ok) throw new Error(dryData.MSG || `HTTP ${dryRes.status}`);
+
+  const { rowsToImport, existingInRange, dateFrom, dateTo } = dryData;
+  let msg = `${label}：${rowsToImport} 筆（${dateFrom} ～ ${dateTo}）`;
+  if (existingInRange > 0) msg += `\n\n⚠️ 雲端已有此區間 ${existingInRange} 筆，上傳後將被覆蓋`;
+  msg += '\n\n確認上傳？';
+  if (!confirm(msg)) return null;
+
+  const res = await fetch(endpoint, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ records, fileName, importedBy, dryRun: false }),
+  });
+  if (handleAuthExpired(res)) throw new Error('登入已逾時，請重新登入');
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
+  return data;
+}
+
+function parseFreightMainline(wb, fileName) {
+  const sheetName = wb.SheetNames.find(n => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: '', header: 1 });
+    return rows.length && rows[0].some(c => String(c).replace(/\s+/g,'').includes('進貨日'));
+  });
+  if (!sheetName) {
+    toast('❌ 找不到含「進貨日」欄位的工作表');
+    document.getElementById('freight-mainline-status').textContent = '❌ 找不到工作表';
+    return;
+  }
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+  if (!raw.length) { toast('❌ 主線運費工作表沒有資料'); return; }
+  const first = raw[0];
+  const missing = ['進貨日', '倉別'].filter(col => valueByHeader(first, col) === undefined);
+  if (missing.length) {
+    toast('❌ 主線運費缺少欄位：' + missing.join('、'));
+    document.getElementById('freight-mainline-status').textContent = '❌ 欄位不足';
+    return;
+  }
+  const validCount = raw.filter(r => valueByHeader(r, '進貨日') !== '').length;
+  if (!validCount) { toast('❌ 主線運費沒有有效資料列'); return; }
+
+  parsedFreightMainline = { records: raw, fileName, rowCount: validCount, sheetName };
+  document.getElementById('freight-mainline-status').textContent = `✅ ${validCount} 筆 · ${sheetName}`;
+  const prev = document.getElementById('freight-mainline-preview');
+  prev.innerHTML = `<div class="import-alert import-alert-info"><b>工作表：</b>${sheetName}　<b>有效列：</b>${validCount} 筆<br><small>確認後直接上傳至雲端資料庫</small></div>`;
+  prev.style.display = 'block';
+  document.getElementById('freight-mainline-btns').style.display = 'flex';
+  toast(`✅ 主線運費解析完成：${validCount} 筆`);
+}
+
+function parseFreightNonMainline(wb, fileName) {
+  const sheetName = wb.SheetNames.find(n => {
+    const rows = XLSX.utils.sheet_to_json(wb.Sheets[n], { defval: '', header: 1 });
+    return rows.length && rows[0].some(c => String(c).replace(/\s+/g,'').includes('派車原因'));
+  });
+  if (!sheetName) {
+    toast('❌ 找不到含「派車原因」欄位的工作表');
+    document.getElementById('freight-non-mainline-status').textContent = '❌ 找不到工作表';
+    return;
+  }
+  const raw = XLSX.utils.sheet_to_json(wb.Sheets[sheetName], { defval: '' });
+  if (!raw.length) { toast('❌ 非主線運費工作表沒有資料'); return; }
+  const first = raw[0];
+  const missing = ['進貨日', '廠商'].filter(col => valueByHeader(first, col) === undefined);
+  if (missing.length) {
+    toast('❌ 非主線運費缺少欄位：' + missing.join('、'));
+    document.getElementById('freight-non-mainline-status').textContent = '❌ 欄位不足';
+    return;
+  }
+  const validCount = raw.filter(r => valueByHeader(r, '進貨日') !== '').length;
+  if (!validCount) { toast('❌ 非主線運費沒有有效資料列'); return; }
+
+  parsedFreightNonMainline = { records: raw, fileName, rowCount: validCount, sheetName };
+  document.getElementById('freight-non-mainline-status').textContent = `✅ ${validCount} 筆 · ${sheetName}`;
+  const prev = document.getElementById('freight-non-mainline-preview');
+  prev.innerHTML = `<div class="import-alert import-alert-info"><b>工作表：</b>${sheetName}　<b>有效列：</b>${validCount} 筆<br><small>伺服器將自動分類後寫入雲端</small></div>`;
+  prev.style.display = 'block';
+  document.getElementById('freight-non-mainline-btns').style.display = 'flex';
+  toast(`✅ 非主線運費解析完成：${validCount} 筆`);
+}
+
+function resetFreightMainline() {
+  parsedFreightMainline = null;
+  setImportResultVisible('freight-mainline', false);
+  document.getElementById('freight-mainline-status').textContent = '尚未上傳';
+  document.getElementById('freight-mainline-preview').style.display = 'none';
+  document.getElementById('freight-mainline-btns').style.display = 'none';
+  document.getElementById('freight-mainline-file').value = '';
+}
+
+function resetFreightNonMainline() {
+  parsedFreightNonMainline = null;
+  setImportResultVisible('freight-non-mainline', false);
+  document.getElementById('freight-non-mainline-status').textContent = '尚未上傳';
+  document.getElementById('freight-non-mainline-preview').style.display = 'none';
+  document.getElementById('freight-non-mainline-btns').style.display = 'none';
+  document.getElementById('freight-non-mainline-file').value = '';
+}
+
+async function applyFreightMainline() {
+  if (!parsedFreightMainline) return;
+  const btns = document.getElementById('freight-mainline-btns').querySelectorAll('button');
+  btns.forEach(b => b.disabled = true);
+  try {
+    const result = await uploadFreightWithConfirm(
+      '/api/import/freight-mainline',
+      parsedFreightMainline.records,
+      parsedFreightMainline.fileName,
+      '主線運費'
+    );
+    if (!result) return;
+    document.getElementById('freight-mainline-status').textContent = `✅ 已上傳 ${result.rows} 筆`;
+    toast(`✅ 主線運費已上傳雲端（${result.rows} 筆）`);
+    await loadCloudDataRange();
+    updateStatus();
+  } catch (err) {
+    toast('❌ ' + err.message);
+    document.getElementById('freight-mainline-status').textContent = '❌ 上傳失敗';
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
+async function applyFreightNonMainline() {
+  if (!parsedFreightNonMainline) return;
+  const btnsDiv = document.getElementById('freight-non-mainline-btns');
+  const btns = btnsDiv.querySelectorAll('button');
+  btns.forEach(b => b.disabled = true);
+  const importedBy = sessionStorage.getItem('kpl_user') || '';
+  try {
+    // 步驟 1：Dry-run → 取得分類摘要
+    const dryRes = await fetch('/api/import/freight-non-mainline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        records: parsedFreightNonMainline.records,
+        fileName: parsedFreightNonMainline.fileName,
+        importedBy,
+        dryRun: true,
+      }),
+    });
+    if (handleAuthExpired(dryRes)) throw new Error('登入已逾時，請重新登入');
+    const dryData = await dryRes.json().catch(() => ({}));
+    if (!dryRes.ok || !dryData.ok) throw new Error(dryData.MSG || `HTTP ${dryRes.status}`);
+
+    const { rowsToImport, existingInRange, dateFrom, dateTo, classification = [] } = dryData;
+    const unclassified = classification.filter(c => c.l1 === '無法判斷').reduce((s, c) => s + c.count, 0);
+
+    // 顯示分類明細表
+    const prev = document.getElementById('freight-non-mainline-preview');
+    prev.innerHTML = `
+      <div class="import-alert import-alert-info">
+        <b>${dateFrom} ～ ${dateTo}　共 ${rowsToImport} 筆</b>
+        ${existingInRange ? `<br><span style="color:var(--app-warning)">⚠ 雲端已有此區間 ${existingInRange} 筆（將被覆蓋）</span>` : ''}
+        ${unclassified ? `<br><span style="color:var(--app-danger)">⚠ ${unclassified} 筆無法判斷，上傳後需人工確認</span>` : ''}
+      </div>
+      <table class="tbl ops-compact-table" style="margin-top:8px;width:100%">
+        <thead><tr><th>大分類</th><th>細分類</th><th style="text-align:right">筆數</th></tr></thead>
+        <tbody>${classification.map(c => `
+          <tr>
+            <td>${c.l1}</td>
+            <td>${c.l2 || '—'}</td>
+            <td class="mono" style="text-align:right">${c.count}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>`;
+    prev.style.display = 'block';
+    btns.forEach(b => b.disabled = false);
+
+    // 步驟 2：使用者確認
+    let confirmMsg = `非主線運費：${rowsToImport} 筆（${dateFrom} ～ ${dateTo}）`;
+    if (unclassified) confirmMsg += `\n⚠️ ${unclassified} 筆無法判斷，上傳後須人工核對`;
+    if (existingInRange) confirmMsg += `\n⚠️ 雲端已有此區間 ${existingInRange} 筆，將被覆蓋`;
+    confirmMsg += '\n\n確認上傳至雲端？';
+    if (!confirm(confirmMsg)) return;
+
+    // 步驟 3：正式上傳
+    btns.forEach(b => b.disabled = true);
+    const res = await fetch('/api/import/freight-non-mainline', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        records: parsedFreightNonMainline.records,
+        fileName: parsedFreightNonMainline.fileName,
+        importedBy,
+        dryRun: false,
+      }),
+    });
+    if (handleAuthExpired(res)) throw new Error('登入已逾時，請重新登入');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.ok) throw new Error(data.MSG || `HTTP ${res.status}`);
+
+    document.getElementById('freight-non-mainline-status').textContent = `✅ 已上傳 ${data.rows} 筆`;
+    toast(`✅ 非主線運費已上傳雲端（${data.rows} 筆）`);
+    await loadCloudDataRange();
+    updateStatus();
+  } catch (err) {
+    toast('❌ ' + err.message);
+    document.getElementById('freight-non-mainline-status').textContent = '❌ 上傳失敗';
+  } finally {
+    btns.forEach(b => b.disabled = false);
+  }
+}
+
 // ── 初始化 ──
 document.addEventListener('DOMContentLoaded', async () => {
   // 驗證登入
@@ -1019,23 +1483,29 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
-  // 預設區間：本月 1 日 ～ 今天（不依賴 API 回傳值）
-  (function () {
-    const t = new Date();
-    const y = t.getFullYear();
-    const m = String(t.getMonth() + 1).padStart(2, '0');
-    const d = String(t.getDate()).padStart(2, '0');
-    DATA.dateFrom = `${y}-${m}-01`;
-    DATA.dateTo   = `${y}-${m}-${d}`;
-  })();
-  await loadCloudDataRange();   // 取 cloudRange 供 UI 參考，不覆寫日期
   await loadCloudBudgetData();
   await loadCloudLaborData();
   await loadCloudPicksData();
+
+  // 預設日期：本月 1 日 → 今天
+  const _now = new Date();
+  const _y = _now.getFullYear();
+  const _m = String(_now.getMonth() + 1).padStart(2, '0');
+  const _d = String(_now.getDate()).padStart(2, '0');
+  DATA.dateFrom = `${_y}-${_m}-01`;
+  DATA.dateTo   = `${_y}-${_m}-${_d}`;
+
+  initThemeMode();
+  initSidebarState();
   applyTypographySettings();
 
   renderSidebar();
   initTopbar();
+  renderReleaseNotice();
+  void loadGithubReleases().then(() => {
+    renderReleaseNotice();
+    if (currentPageId === 'versions') renderVersionsPage();
+  });
 
   const hash = location.hash.slice(1);
   if (hash) {
@@ -1144,6 +1614,7 @@ function lockFreightToMonth(monthValue) {
 function setupFreightMonthShell() {
   const pageHead = document.querySelector('#main .page-head');
   const filterBar = document.querySelector('#main .filter-bar');
+  document.getElementById('freight-options-filter')?.remove();
   if (pageHead) {
     pageHead.style.display = '';
     const eyebrow = pageHead.querySelector('.page-eyebrow');
@@ -1153,29 +1624,37 @@ function setupFreightMonthShell() {
   }
   if (filterBar) {
     filterBar.style.display = '';
-    filterBar.className = 'filter-bar freight-month-filter';
+    filterBar.className = 'filter-bar freight-date-filter';
     filterBar.innerHTML = `
-      <span class="filter-label">倉別</span>
-      <select class="filter-input" id="freight-warehouse" onchange="applyFreightFilter()">
-        <option value="all">三倉總覽</option>
-        <option value="大溪倉">大溪倉</option>
-        <option value="大肚倉">大肚倉</option>
-        <option value="岡山倉">岡山倉</option>
-      </select>
-      <span class="filter-label">月份</span>
-      <input type="month" class="filter-input" id="freight-month" onchange="applyFreightFilter()">
       <span class="filter-label">日期區間</span>
       <input type="date" class="filter-input freight-locked-date" id="freight-from" readonly>
       <span class="range-arrow">→</span>
       <input type="date" class="filter-input freight-locked-date" id="freight-to" readonly>
-      <span class="filter-label">檢視方式</span>
-      <select class="filter-input" id="freight-view-mode" onchange="applyFreightFilter()">
-        <option value="month">月度</option>
-      </select>
+      <div class="filter-divider"></div>
       <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
-      <button class="btn btn-ghost" onclick="downloadFreight()">下載報表</button>
       <span class="filter-meta">日期區間已鎖定為整個月份</span>
     `;
+    filterBar.insertAdjacentHTML('afterend', `
+      <div class="filter-bar freight-options-filter" id="freight-options-filter">
+        <span class="filter-label">倉別</span>
+        <select class="filter-input" id="freight-warehouse" onchange="applyFreightFilter()">
+          <option value="all">三倉總覽</option>
+          <option value="大溪倉">大溪倉</option>
+          <option value="大肚倉">大肚倉</option>
+          <option value="岡山倉">岡山倉</option>
+        </select>
+        <div class="filter-divider"></div>
+        <span class="filter-label">月份</span>
+        <input type="month" class="filter-input" id="freight-month" onchange="applyFreightFilter()">
+        <div class="filter-divider"></div>
+        <span class="filter-label">檢視方式</span>
+        <select class="filter-input" id="freight-view-mode" onchange="applyFreightFilter()">
+          <option value="month">月度</option>
+        </select>
+        <div class="filter-divider"></div>
+        <button class="btn btn-ghost" onclick="downloadFreight()">下載報表</button>
+      </div>
+    `);
   }
   lockFreightToMonth(getFreightMonthValue());
   const warehouseEl = document.getElementById('freight-warehouse');
@@ -1206,6 +1685,7 @@ function renderFreightPage() {
     : '';
   document.getElementById('freight-meta').textContent =
     `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · ${days} 天 · 共 ${summary.totalOrders.toLocaleString()} 筆配送`;
+  normalizeDateFilterBars();
 }
 
 function applyFreightFilter() {
@@ -1218,10 +1698,13 @@ function applyFreightFilter() {
 // ════════════════════════════════════════════
 // Import Page 邏輯
 // ════════════════════════════════════════════
-let parsedFreight = null;
+let parsedFreightMainline    = null;
+let parsedFreightNonMainline = null;
 let parsedLabor   = null;
 let parsedPicks   = null;
 let parsedBudget  = null;
+let activeImportRequest = 0;
+const IMPORT_TYPES = ['budget', 'freight-mainline', 'freight-non-mainline', 'labor', 'picks'];
 
 function onDragOver(e, id) {
   e.preventDefault();
@@ -1240,22 +1723,69 @@ function onDrop(e, type) {
   if (e.dataTransfer.files[0]) parseExcel(e.dataTransfer.files[0], type);
 }
 function onFileSelect(e, type) {
-  if (e.target.files[0]) parseExcel(e.target.files[0], type);
+  const file = e.target.files[0];
+  if (!file) return;
+  e.target.value = '';
+  parseExcel(file, type);
+}
+
+function setImportResultVisible(type, visible = true) {
+  const row = document.querySelector(`.import-row[data-import-result="${type}"]`);
+  if (row) row.classList.toggle('is-active', visible);
+
+  const title = document.getElementById('import-results-title');
+  if (title) {
+    title.hidden = !document.querySelector('.import-row[data-import-result].is-active');
+  }
+}
+
+function clearImportPreview(type) {
+  if (type === 'budget') parsedBudget = null;
+  else if (type === 'freight-mainline') parsedFreightMainline = null;
+  else if (type === 'freight-non-mainline') parsedFreightNonMainline = null;
+  else if (type === 'labor') parsedLabor = null;
+  else if (type === 'picks') parsedPicks = null;
+
+  const preview = document.getElementById(type + '-preview');
+  if (preview) {
+    preview.innerHTML = '';
+    preview.style.display = 'none';
+  }
+
+  const buttons = document.getElementById(type + '-btns');
+  if (buttons) buttons.style.display = 'none';
+
+  setImportResultVisible(type, false);
+}
+
+function beginImportPreview(file, type) {
+  IMPORT_TYPES.forEach(clearImportPreview);
+  setImportResultVisible(type, true);
+
+  const status = document.getElementById(type + '-status');
+  if (status) status.textContent = `讀取中：${file.name}`;
 }
 
 function parseExcel(file, type) {
+  const requestId = ++activeImportRequest;
+  beginImportPreview(file, type);
+  setImportResultVisible(type, true);
   document.getElementById(type + '-status').textContent = '解析中…';
   const reader = new FileReader();
   reader.onload = e => {
+    if (requestId !== activeImportRequest) return;
     try {
       const wb = XLSX.read(e.target.result, { type:'array' });
       const detectedType = detectWorkbookType(wb);
       if (detectedType && detectedType !== type) {
         document.getElementById(type + '-status').textContent = `↪ 已改由${importTypeLabel(detectedType)}解析`;
+        setImportResultVisible(type, false);
         type = detectedType;
+        setImportResultVisible(type, true);
         document.getElementById(type + '-status').textContent = '解析中…';
       }
-      if (type === 'freight') parseFreight(wb, file.name);
+      if (type === 'freight-mainline') parseFreightMainline(wb, file.name);
+      else if (type === 'freight-non-mainline') parseFreightNonMainline(wb, file.name);
       else if (type === 'labor') parseLabor(wb, file.name);
       else if (type === 'picks') parsePicks(wb, file.name);
       else if (type === 'budget') parseBudget(wb, file.name);
@@ -1279,10 +1809,38 @@ function detectWorkbookType(wb) {
 function importTypeLabel(type) {
   return {
     budget: '年度預算',
-    freight: '運務費用',
+    'freight-mainline': '主線運費',
+    'freight-non-mainline': '非主線運費',
     labor: '工時資料',
     picks: '揀次資料',
   }[type] || '正確類型';
+}
+
+function downloadImportTemplate(type) {
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, headers, example = []) => {
+    const ws = XLSX.utils.aoa_to_sheet([headers, example]);
+    ws['!cols'] = headers.map(header => ({ wch: Math.max(12, String(header).length * 2 + 2) }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+
+  if (type === 'budget') {
+    const months = Array.from({ length:12 }, (_, index) => `${index + 1}月`);
+    addSheet('人力', ['區別', '單位', '類別', '作業項目', ...months, '合計'], ['北區', '理貨一課', '人力', '夜配', ...Array(12).fill(0), 0]);
+    addSheet('運務', ['區別', '倉別', '類別', '作業項目', ...months, '合計'], ['北區', '大溪倉', '主線', '夜配', ...Array(12).fill(0), 0]);
+  } else if (type === 'freight-mainline') {
+    addSheet('主線運費', ['倉別', '進貨日', '路線來源', '路線', '配別', '配送商', '預計計價結果', '到點計價結果', '計價結果'], ['大溪倉', '2026/03/01', '主線', '大溪－北區', '夜配', '台灣宅配通', 0, 0, 0]);
+  } else if (type === 'freight-non-mainline') {
+    addSheet('非主線加派費用', ['進貨日', '廠商', '配別', '配送商', '派車原因', '計價方式', '單價', '趟數', '費用小計', '備註'], ['2026/03/01', '大溪倉', '夜配', '台灣宅配通', '爆量', '趟', 0, 1, 0, '']);
+  } else if (type === 'labor') {
+    addSheet('工時資料', ['倉別', '日期', '廠商', '班別', '員編', '作業課別', '姓名', '作業區域', '作業時數', '實際費用', '裝箱時數', '夜間時數', '正常時數'], ['大溪倉', 46082, '日翊', '日', 'A0001', '理貨一課', '範例人員', '夜配理貨', 8, 0, 0, 0, 8]);
+  } else if (type === 'picks') {
+    addSheet('揀次資料', ['倉別', '日期', '業務類別', '作業區', '工時區域', '揀次'], ['大溪倉', 46082, '夜配', '理貨區', '夜配理貨', 0]);
+  } else {
+    return;
+  }
+
+  XLSX.writeFile(wb, `${importTypeLabel(type)}_匯入範本.xlsx`);
 }
 
 function parseBudget(wb, fileName) {
@@ -1434,7 +1992,7 @@ function showBudgetPreview(parsed) {
       ⚠️ 警告：${parsed.warnings.length.toLocaleString()} 項（前 5 項：${parsed.warnings.slice(0, 5).join('；')}）
     </div>` : ''}
     <div class="preview-table-wrap">
-      <table class="preview-table">
+      <table class="preview-table ops-compact-table">
         <thead class="preview-thead">
           <tr>
             <th class="preview-head">倉別</th>
@@ -1480,13 +2038,15 @@ async function applyBudget() {
 
 function resetBudget() {
   parsedBudget = null;
+  setImportResultVisible('budget', false);
   document.getElementById('budget-status').textContent = '尚未上傳';
   document.getElementById('budget-preview').style.display = 'none';
   document.getElementById('budget-btns').style.display = 'none';
   document.getElementById('budget-file').value = '';
 }
 
-function parseFreight(wb, fileName) {
+// parseFreight / applyFreight / downloadFreight / resetFreight removed — replaced by mainline/non-mainline split
+function _parseFreightLegacy_unused(wb, fileName) {
   const SUMMARY_SHEET = '進貨日與計價費用';
   const DETAIL_SHEET = '貨運費用明細總表';
   if (!wb.SheetNames.includes(SUMMARY_SHEET)) {
@@ -1633,6 +2193,18 @@ function parseFreightDetails(sheet) {
     const dateInfo = parseFreightDate(valueByHeader(r, '進貨日'));
     const warehouse = String(valueByHeader(r, '倉別') || '').trim();
     const vendor = String(valueByHeader(r, '配送商') || '').trim();
+    const reason = String(
+      valueByHeader(r, '派車原因')
+      || valueByHeader(r, '非主線派車原因')
+      || valueByHeader(r, '原因')
+      || ''
+    ).trim();
+    const route = String(
+      valueByHeader(r, '主線派車路線')
+      || valueByHeader(r, '派車路線')
+      || valueByHeader(r, '路線')
+      || ''
+    ).trim();
     const estimated = parseMoney(valueByHeader(r, '預計計價結果'));
     const point = parseMoney(valueByHeader(r, '到點計價結果'));
     const actual = parseMoney(valueByHeader(r, '計價結果'));
@@ -1658,6 +2230,8 @@ function parseFreightDetails(sheet) {
       fullDate: dateInfo.full,
       warehouse,
       vendor,
+      reason,
+      route,
       estimated,
       point,
       actual,
@@ -1721,7 +2295,7 @@ function showFreightPreview(parsed) {
       <div class="preview-stat"><b>配送商</b><br><span class="mono">${detailSummary.vendors.length.toLocaleString()} 家</span></div>
     </div>
     <div class="preview-table-wrap preview-table-wrap-tall">
-      <table class="preview-table">
+      <table class="preview-table ops-compact-table">
         <thead class="preview-thead">
           <tr>
             <th class="preview-head">日期</th>
@@ -1744,72 +2318,6 @@ function showFreightPreview(parsed) {
   document.getElementById('freight-preview').style.display = 'block';
 }
 
-function applyFreight() {
-  if (!parsedFreight) return;
-  DATA.freight.dailyByWarehouse = parsedFreight.rows.map(r => [r.date, r.daxi, r.dadu, r.gangshan, r.fullDate]);
-  DATA.freight.dailyTrend = parsedFreight.rows.map(r => [r.date, r.daxi + r.dadu + r.gangshan, r.fullDate]);
-  DATA.freight.totalCost = parsedFreight.totals.daxi + parsedFreight.totals.dadu + parsedFreight.totals.gangshan;
-  DATA.freight.estimatedCost = parsedFreight.detailSummary.estimatedCost;
-  DATA.freight.actualCost = parsedFreight.detailSummary.actualCost;
-  DATA.freight.totalOrders = parsedFreight.detailSummary.totalOrders;
-  DATA.freight.overCount = parsedFreight.detailSummary.overCount;
-  DATA.freight.saveCount = parsedFreight.detailSummary.saveCount;
-  DATA.freight.diffThreshold = 90;
-  DATA.freight.vendors = parsedFreight.detailSummary.vendors;
-  DATA.freight.details = parsedFreight.detailRecords;
-  const map = {};
-  parsedFreight.rows.forEach(r => { map[r.fullDate] = r; });
-  const existing = {};
-  DATA.dispatch.daily.forEach(row => { existing[dispatchRowFullDate(row)] = row; });
-
-  DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
-    const f = map[dispatchRowFullDate(row)];
-    return f ? [row[0], row[1], f.daxi, row[3], f.dadu, row[5], f.gangshan, f.fullDate] : row;
-  });
-
-  parsedFreight.rows.forEach(r => {
-    if (existing[r.fullDate]) return;
-    DATA.dispatch.daily.push([r.date, 0, r.daxi, 0, r.dadu, 0, r.gangshan, r.fullDate]);
-  });
-
-  DATA.dispatch.daily.sort((a, b) => dispatchRowFullDate(a).localeCompare(dispatchRowFullDate(b)));
-  updateDispatchLatestUploadDate(parsedFreight.rows.map(r => r.fullDate));
-  if (currentPageId === 'annual') renderAnnualPage();
-  updateStatus();
-  toast('✅ 運務資料已套用！切換至「總費用動支率」頁查看');
-}
-
-function downloadFreight() {
-  if (!parsedFreight) return;
-  const { rows, totals, fileName, at } = parsedFreight;
-  const headers = ['日期', '大溪倉', '大肚倉', '岡山倉', '當日合計'];
-  const data = rows.map(r => [r.date, r.daxi, r.dadu, r.gangshan, r.daxi+r.dadu+r.gangshan]);
-  const total = ['月合計', totals.daxi, totals.dadu, totals.gangshan, totals.daxi+totals.dadu+totals.gangshan];
-  const ws = XLSX.utils.aoa_to_sheet([headers, ...data, total]);
-  ws['!cols'] = [{wch:10},{wch:14},{wch:14},{wch:14},{wch:14}];
-  const info = XLSX.utils.aoa_to_sheet([
-    ['KPL 儀表板 · 運費彙總確認'],[''],
-    ['來源檔案', fileName],['解析時間', at.toLocaleString('zh-TW')],
-    ['資料天數', rows.length],['大溪倉合計', totals.daxi],
-    ['大肚倉合計', totals.dadu],['岡山倉合計', totals.gangshan],
-    ['三倉總計', totals.daxi+totals.dadu+totals.gangshan],
-  ]);
-  const wb = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(wb, ws, '運費彙總');
-  XLSX.utils.book_append_sheet(wb, info, '資料說明');
-  const n = at;
-  const name = `運費彙總_${n.getFullYear()}${String(n.getMonth()+1).padStart(2,'0')}${String(n.getDate()).padStart(2,'0')}.xlsx`;
-  XLSX.writeFile(wb, name);
-  toast('⬇️ 已下載：' + name);
-}
-
-function resetFreight() {
-  parsedFreight = null;
-  document.getElementById('freight-status').textContent = '尚未上傳';
-  document.getElementById('freight-preview').style.display = 'none';
-  document.getElementById('freight-btns').style.display = 'none';
-  document.getElementById('freight-file').value = '';
-}
 
 function parseLabor(wb, fileName) {
   const sheetNames = getLaborSheetNames(wb);
@@ -1990,7 +2498,7 @@ function showLaborPreview(records, totalHrs, totalCost, personDays, warnings, me
       ⚠️ 警告但允許套用：${warnings.length.toLocaleString()} 項（前 5 項：${warnings.slice(0, 5).join('；')}）
     </div>` : ''}
     <div class="preview-table-wrap">
-      <table class="preview-table">
+      <table class="preview-table ops-compact-table">
         <thead class="preview-thead">
           <tr>
             <th class="preview-head">作業區域</th>
@@ -2076,6 +2584,7 @@ function updateDispatchLatestUploadDate(dates) {
 
 function resetLabor() {
   parsedLabor = null;
+  setImportResultVisible('labor', false);
   document.getElementById('labor-status').textContent = '尚未上傳';
   document.getElementById('labor-preview').style.display = 'none';
   document.getElementById('labor-btns').style.display = 'none';
@@ -2157,7 +2666,7 @@ function showPicksPreview(records, totals, totalPicks) {
   document.getElementById('picks-preview').innerHTML = `
     <div class="import-preview-title">📋 工時區域摘要（共 ${totalPicks.toLocaleString()} 揀次）</div>
     <div class="preview-table-wrap">
-      <table class="preview-table">
+      <table class="preview-table ops-compact-table">
         <thead class="preview-thead">
           <tr>
             <th class="preview-head">工時區域</th>
@@ -2197,6 +2706,7 @@ async function applyPicks() {
 function resetPicks() {
   parsedPicks = null;
   PICKS_RAW = [];
+  setImportResultVisible('picks', false);
   document.getElementById('picks-status').textContent = '尚未上傳';
   document.getElementById('picks-preview').style.display = 'none';
   document.getElementById('picks-btns').style.display = 'none';
@@ -2207,16 +2717,6 @@ function resetPicks() {
 }
 
 function updateStatus() {
-  const latestFreight = DATA.cloudRange?.freight?.max || (() => {
-    if (DATA.freight.details?.length)
-      return DATA.freight.details.map(r => r.fullDate).filter(Boolean).sort().pop() || '';
-    return DATA.freight.dailyTrend.map(r => r[2] || shortToFreightFullDate(r[0])).filter(Boolean).sort().pop() || '';
-  })();
-  const oldestFreight = DATA.cloudRange?.freight?.min || (() => {
-    if (DATA.freight.details?.length)
-      return DATA.freight.details.map(r => r.fullDate).filter(Boolean).sort()[0] || '';
-    return DATA.freight.dailyTrend.map(r => r[2] || shortToFreightFullDate(r[0])).filter(Boolean).sort()[0] || '';
-  })();
   const latestLabor = DATA.cloudRange?.labor?.max || (() => {
     const raw = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
     return raw.map(r => r.date).filter(Boolean).sort().pop() || '';
@@ -2235,10 +2735,11 @@ function updateStatus() {
   })();
 
   const rows = [
-    { type:'💰 年度預算', real:hasDispatchBudget(), latest: DATA.dataLatest?.budget || '', oldest: DATA.dataOldest?.budget || '' },
-    { type:'🚚 運務費用', real:!!parsedFreight,      latest: latestFreight, oldest: oldestFreight },
-    { type:'💵 人力費用', real:!!parsedLabor || !!((typeof LABOR_RAW !== 'undefined') && LABOR_RAW.length), latest: latestLabor, oldest: oldestLabor },
-    { type:'⚡ 揀次資料', real:!!parsedPicks || !!((typeof PICKS_RAW !== 'undefined') && PICKS_RAW.length) || !!latestPicks, latest: latestPicks, oldest: oldestPicks },
+    { key:'budget', type:'💰 年度預算', real:hasDispatchBudget(), latest: DATA.dataLatest?.budget || '', oldest: DATA.dataOldest?.budget || '' },
+    { key:'freight-mainline', type:'🚛 主線運費', real: !!(DATA.cloudRange?.freightMainline?.max), latest: DATA.cloudRange?.freightMainline?.max || '', oldest: DATA.cloudRange?.freightMainline?.min || '' },
+    { key:'freight-non-mainline', type:'🚐 非主線運費', real: !!(DATA.cloudRange?.freightNonMainline?.max), latest: DATA.cloudRange?.freightNonMainline?.max || '', oldest: DATA.cloudRange?.freightNonMainline?.min || '' },
+    { key:'labor', type:'💵 人力費用', real:!!parsedLabor || !!((typeof LABOR_RAW !== 'undefined') && LABOR_RAW.length), latest: latestLabor, oldest: oldestLabor },
+    { key:'picks', type:'⚡ 揀次資料', real:!!parsedPicks || !!((typeof PICKS_RAW !== 'undefined') && PICKS_RAW.length) || !!latestPicks, latest: latestPicks, oldest: oldestPicks },
   ];
 
   const dateCell = v => v
@@ -2253,6 +2754,8 @@ function updateStatus() {
       <td><span style="color:${c};font-weight:700">${s}</span></td>
       <td>${dateCell(r.latest)}</td>
       <td>${dateCell(r.oldest)}</td>
+      <td><button class="btn btn-primary import-table-action" onclick="document.getElementById('${r.key}-file').click()">選擇檔案</button></td>
+      <td><button class="btn btn-ghost import-table-action" onclick="downloadImportTemplate('${r.key}')">下載範本</button></td>
     </tr>`;
   }).join('');
 }
@@ -2376,7 +2879,7 @@ function renderPicksPage() {
   <div class="w s12">
     <div class="gold-band">P005 · 📊 作業區域分析</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域揀次量 × 三倉</div><span class="wmeta">單位：次</span></div>
-    <table class="tbl">
+    <table class="tbl ops-compact-table">
       <thead><tr><th>作業區域</th><th style="text-align:right">大肚倉</th><th style="text-align:right">大溪倉</th><th style="text-align:right">岡山倉</th><th style="text-align:right">合計</th><th>佔比</th></tr></thead>
       <tbody>${opRows}</tbody>
     </table>
@@ -2595,7 +3098,7 @@ function renderLaborPage() {
     <div class="wh"><div class="wl"><div class="wdot"></div>各作業課別工時與費用</div></div>
     <div class="table-edge labor-dept-edge">
       <div class="scroll-x">
-        <table class="tbl labor-dept-table">
+        <table class="tbl labor-dept-table ops-compact-table">
           <thead>
             <tr>
               <th>課別</th>

@@ -197,3 +197,5 @@ git status --short
 git log --oneline --decorate origin/main..HEAD
 git log --oneline --decorate HEAD..origin/main
 ```
+稱呼我為【少佐】
+CLAUDE CODE 自稱[タチコマ]
