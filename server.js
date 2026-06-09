@@ -1517,24 +1517,28 @@ async function handleFreightMainlineImport(req, res) {
       'actual_updated_by','actual_updated_at_raw','status_updated_by','status_updated_at_raw',
       'carry_by','carry_at_raw','source_file','import_batch_id',
     ];
-    const placeholders = upsertCols.map((_, i) => `$${i + 1}`).join(', ');
     const updateClause = upsertCols
       .filter(c => !['warehouse_name','work_date','route_code','carrier'].includes(c))
       .map(c => `${c} = EXCLUDED.${c}`).join(', ');
-    const upsertSql = `
-      INSERT INTO ${schemaTable('freight_mainline_daily')} (${upsertCols.join(', ')})
-      VALUES (${placeholders})
-      ON CONFLICT (work_date, warehouse_name, route_code, carrier) DO UPDATE
-      SET ${updateClause}
-    `;
 
-    for (const row of rows) {
-      const values = upsertCols.map(c => {
+    const BATCH = 500;
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const valueGroups = batch.map((_, bi) =>
+        `(${upsertCols.map((__, ci) => `$${bi * upsertCols.length + ci + 1}`).join(', ')})`
+      ).join(', ');
+      const values = batch.flatMap(row => upsertCols.map(c => {
         if (c === 'source_file')     return fileName;
         if (c === 'import_batch_id') return batchId;
         return row[c];
-      });
-      await client.query(upsertSql, values);
+      }));
+      await client.query(
+        `INSERT INTO ${schemaTable('freight_mainline_daily')} (${upsertCols.join(', ')})
+         VALUES ${valueGroups}
+         ON CONFLICT (work_date, warehouse_name, route_code, carrier) DO UPDATE
+         SET ${updateClause}`,
+        values,
+      );
     }
 
     await client.query('COMMIT');
@@ -1631,26 +1635,35 @@ async function handleFreightNonMainlineImport(req, res) {
       [dateFrom, dateTo],
     );
 
-    const insertSql = `
-      INSERT INTO ${schemaTable('freight_non_mainline_daily')}
-        (work_date, month, shipper, region, vehicle_type, delivery_item, warehouse_name,
-         carrier, dispatch_reason, pricing_method, unit_price, trip_count, amount, note,
-         category_l1, category_l2, budget_warehouse, source_file, import_batch_id)
-      VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19)
-    `;
+    const NM_COLS = 19;
+    const BATCH = 500;
 
     for (const row of rows) {
-      // 套用業務同仁確認後的 12 條規則（命中即停）
       const [l1, l2, budgetWh] = classifyNonMainline(row);
       row.category_l1 = l1;
       row.category_l2 = l2;
       row.budget_warehouse = budgetWh || row.warehouse_name;
-      await client.query(insertSql, [
+    }
+
+    for (let i = 0; i < rows.length; i += BATCH) {
+      const batch = rows.slice(i, i + BATCH);
+      const valueGroups = batch.map((_, bi) =>
+        `(${Array.from({length: NM_COLS}, (__, ci) => `$${bi * NM_COLS + ci + 1}`).join(', ')})`
+      ).join(', ');
+      const values = batch.flatMap(row => [
         row.work_date, row.month, row.shipper, row.region, row.vehicle_type, row.delivery_item,
         row.warehouse_name, row.carrier, row.dispatch_reason, row.pricing_method,
         row.unit_price, row.trip_count, row.amount, row.note,
         row.category_l1, row.category_l2, row.budget_warehouse, fileName, batchId,
       ]);
+      await client.query(
+        `INSERT INTO ${schemaTable('freight_non_mainline_daily')}
+          (work_date, month, shipper, region, vehicle_type, delivery_item, warehouse_name,
+           carrier, dispatch_reason, pricing_method, unit_price, trip_count, amount, note,
+           category_l1, category_l2, budget_warehouse, source_file, import_batch_id)
+         VALUES ${valueGroups}`,
+        values,
+      );
     }
 
     await client.query('COMMIT');

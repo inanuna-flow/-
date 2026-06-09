@@ -3693,6 +3693,7 @@ html[data-theme="day"] .t002-rate-track span {
   overflow: auto;
   background: var(--app-surface);
   box-shadow: none;
+  margin: 0;
 }
 
 #main .table-edge > :is(.scroll-x, .f010-scroll, .annual-table-scroll),

@@ -824,10 +824,12 @@ function rerenderDashboardPage(pageId = currentPageId) {
 
 async function applyDashboardDateFilter(pageId = currentPageId) {
   if (!setSharedDateRangeFromInputs(pageId)) return;
-  await loadCloudBudgetData();
-  await loadCloudLaborData();
-  await loadCloudPicksData();
-  await loadCloudFreightData();
+  await Promise.all([
+    loadCloudBudgetData(),
+    loadCloudLaborData(),
+    loadCloudPicksData(),
+    loadCloudFreightData(),
+  ]);
   if (pageId === 'dispatch') syncDispatchBudgetForCurrentMonth();
   rerenderDashboardPage(pageId);
   toast('🔄 日期區間已更新');
@@ -1540,10 +1542,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
-  await loadCloudBudgetData();
-  await loadCloudLaborData();
-  await loadCloudPicksData();
-  await loadCloudFreightData();
+  await Promise.all([
+    loadCloudBudgetData(),
+    loadCloudLaborData(),
+    loadCloudPicksData(),
+    loadCloudFreightData(),
+  ]);
 
   // 預設日期：本月 1 日 → 今天
   const _now = new Date();
