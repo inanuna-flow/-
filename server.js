@@ -1839,8 +1839,12 @@ const server = http.createServer((req, res) => {
     handleFreightNonMainlineData(req, res);
     return;
   }
+  if (req.url.startsWith('/api/data/freight')) {
+    handleFreightData(req, res);
+    return;
+  }
   // 舊運費端點：已拆分，回 410 Gone
-  if (req.url.startsWith('/api/import/freight') || req.url.startsWith('/api/data/freight')) {
+  if (req.url.startsWith('/api/import/freight')) {
     handleFreightGone(req, res);
     return;
   }
@@ -1856,11 +1860,6 @@ const server = http.createServer((req, res) => {
     handlePicksData(req, res);
     return;
   }
-  if (req.url.startsWith('/api/data/freight')) {
-    handleFreightData(req, res);
-    return;
-  }
-
   handleStatic(req, res);
 });
 

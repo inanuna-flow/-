@@ -3736,6 +3736,12 @@ html[data-theme="day"] .t002-rate-track span {
   border-top: 1px solid var(--app-border);
 }
 
+/* Keep M015 on the same outer grid line as regular cards. */
+#main .m015-card > .table-edge {
+  margin-inline: -18px;
+  overflow: auto;
+}
+
 #main :is(.tbl, .preview-table, .typo-preview-table, .freight-ref-matrix) tr.total td,
 #main :is(.tbl, .preview-table, .typo-preview-table) tfoot td {
   background: var(--app-surface-soft);

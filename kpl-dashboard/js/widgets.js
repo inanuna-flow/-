@@ -100,7 +100,7 @@ function renderM015() {
 
   if (!allLabor.length && !hasFreight) {
     return `
-  <div class="w s12 table-card">
+  <div class="w s12 table-card m015-card">
     <div class="wh"><div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div></div>
     <div class="empty-state">請先匯入人力費用資料</div>
   </div>`;
@@ -153,7 +153,7 @@ function renderM015() {
   }).join('');
 
   return `
-  <div class="w s12 table-card">
+  <div class="w s12 table-card m015-card">
     <div class="wh">
       <div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div>
       <span class="wmeta">${months.length} 個月份</span>
