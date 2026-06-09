@@ -58,7 +58,11 @@ function renderM012() {
         </div>
         <div class="metric-sub">
           ${fmtMoney(Math.round(actual))} / ${fmtMoney(Math.round(budget))}
-          <span style="font-size:10px;color:var(--ry-muted);margin-left:8px">人力 ${fmtMoney(Math.round(laborCost))} ＋ 運費 ${fmtMoney(Math.round(freightCost))}</span>
+        </div>
+        <div class="metric-breakdown">
+          <span>人力 ${fmtWan(laborCost)}</span>
+          <span class="breakdown-sep">＋</span>
+          <span>運費 ${fmtWan(freightCost)}</span>
         </div>
       </div>
       <div class="m012-panel">

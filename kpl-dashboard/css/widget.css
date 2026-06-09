@@ -489,6 +489,17 @@
   color: var(--ry-muted);
   font-family: var(--f-mono);
 }
+.metric-breakdown {
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 11px;
+  color: var(--ry-muted);
+  margin-top: 2px;
+}
+.metric-breakdown .breakdown-sep {
+  opacity: 0.4;
+}
 .m012-note {
   margin-top: 14px;
   padding: 10px 14px;
