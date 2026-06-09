@@ -969,12 +969,40 @@ async function handleLaborData(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const dateFrom = String(url.searchParams.get('date_from') || '').trim();
   const dateTo = String(url.searchParams.get('date_to') || '').trim();
+  const summaryOnly = url.searchParams.get('summary') === '1';
   if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
     sendJson(res, 400, { ok: false, MSG: '999 Invalid labor date range' });
     return;
   }
 
   try {
+    if (summaryOnly) {
+      const result = await pool.query(
+        `SELECT work_date, warehouse_name,
+                SUM(hours)::float AS hours,
+                SUM(cost)::float AS cost
+         FROM ${schemaTable('labor_daily')}
+         WHERE work_date >= $1::date AND work_date <= $2::date
+           AND operation_area <> '午休時間'
+         GROUP BY work_date, warehouse_name
+         ORDER BY work_date, warehouse_name`,
+        [dateFrom, dateTo],
+      );
+
+      sendJson(res, 200, {
+        ok: true,
+        dateFrom,
+        dateTo,
+        rows: result.rows.map(row => ({
+          date: row.work_date,
+          wh: row.warehouse_name,
+          hours: Number(row.hours) || 0,
+          cost: Number(row.cost) || 0,
+        })),
+      });
+      return;
+    }
+
     const result = await pool.query(
       `SELECT work_date, warehouse_name, vendor_name, shift_name, employee_id,
               department_name, operation_area, hours, cost, source_file,
@@ -1076,6 +1104,7 @@ async function handleFreightData(req, res) {
   const url = new URL(req.url, `http://${req.headers.host}`);
   const dateFrom = String(url.searchParams.get('date_from') || '').trim();
   const dateTo   = String(url.searchParams.get('date_to')   || '').trim();
+  const summaryOnly = url.searchParams.get('summary') === '1';
   if (!isIsoDate(dateFrom) || !isIsoDate(dateTo) || dateFrom > dateTo) {
     sendJson(res, 400, { ok: false, MSG: '400 date_from / date_to 格式錯誤' }); return;
   }
@@ -1114,7 +1143,7 @@ async function handleFreightData(req, res) {
     );
 
     // 主線明細（供 F002 預計 vs 實際、F003 超支筆數）
-    const detailResult = await pool.query(
+    const detailResult = summaryOnly ? { rows: [] } : await pool.query(
       `SELECT
          work_date::text AS date,
          COALESCE(carrier, '未知') AS vendor,

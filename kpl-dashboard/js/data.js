@@ -16,6 +16,13 @@ const DATA = {
   dateFrom: '2026-03-01',
   dateTo:   '2026-03-31',
 
+  dailySummary: {
+    dateFrom: '',
+    dateTo: '',
+    laborRows: [],
+    freightRows: [],
+  },
+
   // 運費資料（F001-F009）
   freight: {
     totalCost:       0,

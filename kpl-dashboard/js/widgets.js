@@ -6,10 +6,18 @@
 
 // M012 預算達成率（從已匯入的人力 + 運費資料自動計算）
 function renderM012() {
-  const laborRaw  = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
+  const summaryMatchesRange = DATA.dailySummary?.dateFrom === DATA.dateFrom &&
+    DATA.dailySummary?.dateTo === DATA.dateTo;
+  const laborSource = summaryMatchesRange
+    ? DATA.dailySummary.laborRows
+    : (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : []);
+  const freightSource = summaryMatchesRange
+    ? DATA.dailySummary.freightRows
+    : getFreightDailyRowsFiltered();
+  const laborRaw  = laborSource
     .filter(r => dateInSelectedRange(r.date) && r.hours > 0 && r.opArea !== '午休時間');
   const laborCost   = laborRaw.reduce((s, r) => s + r.cost, 0);
-  const freightCost = getFreightDailyRowsFiltered()
+  const freightCost = freightSource
     .reduce((s, r) => s + (r[1]||0) + (r[2]||0) + (r[3]||0), 0);
   const actual = laborCost + freightCost;
 
@@ -93,9 +101,17 @@ function renderM012() {
 
 // M015 每月動支率時序列
 function renderM015() {
-  const allLabor = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
+  const summaryMatchesRange = DATA.dailySummary?.dateFrom === DATA.dateFrom &&
+    DATA.dailySummary?.dateTo === DATA.dateTo;
+  const laborSource = summaryMatchesRange
+    ? DATA.dailySummary.laborRows
+    : (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : []);
+  const freightSource = summaryMatchesRange
+    ? DATA.dailySummary.freightRows
+    : DATA.freight.dailyByWarehouse;
+  const allLabor = laborSource
     .filter(r => r.hours > 0 && r.opArea !== '午休時間' && r.date);
-  const hasFreight = DATA.freight.dailyByWarehouse?.length > 0 ||
+  const hasFreight = freightSource?.length > 0 ||
                      DATA.freight.dailyTrend?.length > 0;
 
   if (!allLabor.length && !hasFreight) {
@@ -116,7 +132,7 @@ function renderM015() {
 
   // 依月份彙總運費
   const freightByMonth = {};
-  DATA.freight.dailyByWarehouse.forEach(r => {
+  freightSource.forEach(r => {
     const fullDate = r[4] || shortToFreightFullDate(r[0]);
     if (!fullDate) return;
     const ym = fullDate.slice(0, 7);

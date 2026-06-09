@@ -824,12 +824,24 @@ function rerenderDashboardPage(pageId = currentPageId) {
 
 async function applyDashboardDateFilter(pageId = currentPageId) {
   if (!setSharedDateRangeFromInputs(pageId)) return;
-  await Promise.all([
-    loadCloudBudgetData(),
-    loadCloudLaborData(),
-    loadCloudPicksData(),
-    loadCloudFreightData(),
-  ]);
+  if (pageId === 'daily') {
+    DATA.dailySummary.dateFrom = DATA.dateFrom;
+    DATA.dailySummary.dateTo = DATA.dateTo;
+    DATA.dailySummary.laborRows = [];
+    DATA.dailySummary.freightRows = [];
+    await Promise.all([
+      loadCloudBudgetData(),
+      loadCloudLaborData({ summary: true }),
+      loadCloudFreightData({ summary: true }),
+    ]);
+  } else {
+    await Promise.all([
+      loadCloudBudgetData(),
+      loadCloudLaborData(),
+      loadCloudPicksData(),
+      loadCloudFreightData(),
+    ]);
+  }
   if (pageId === 'dispatch') syncDispatchBudgetForCurrentMonth();
   rerenderDashboardPage(pageId);
   toast('🔄 日期區間已更新');
@@ -1200,17 +1212,29 @@ async function loadCloudDataRange() {
   } catch {}
 }
 
-async function loadCloudLaborData() {
+async function loadCloudLaborData({ summary = false } = {}) {
   try {
     const params = new URLSearchParams({
       date_from: DATA.dateFrom,
       date_to: DATA.dateTo,
     });
+    if (summary) params.set('summary', '1');
     const res = await fetch(`/api/data/labor?${params.toString()}`);
     if (handleAuthExpired(res)) return false;
     if (!res.ok) return false;
     const data = await res.json();
-    return data.ok ? applyCloudLaborRows(data.rows) : false;
+    if (!data.ok) return false;
+    if (summary) {
+      DATA.dailySummary.laborRows = (data.rows || []).map(row => ({
+        wh: row.wh || '',
+        date: normalizeCloudDate(row.date),
+        opArea: 'daily-summary',
+        hours: Number(row.hours) || 0,
+        cost: Number(row.cost) || 0,
+      })).filter(row => row.date && row.wh);
+      return true;
+    }
+    return applyCloudLaborRows(data.rows);
   } catch {
     return false;
   }
@@ -1232,15 +1256,23 @@ async function loadCloudPicksData() {
   }
 }
 
-async function loadCloudFreightData() {
+async function loadCloudFreightData({ summary = false } = {}) {
   try {
     const params = new URLSearchParams({ date_from: DATA.dateFrom, date_to: DATA.dateTo });
+    if (summary) params.set('summary', '1');
     const res = await fetch(`/api/data/freight?${params.toString()}`);
     if (handleAuthExpired(res)) return false;
     if (!res.ok) return false;
     const data = await res.json();
     if (!data.ok) return false;
-    applyCloudFreightData(data);
+    if (summary) {
+      DATA.dailySummary.freightRows = (data.dailyCosts || []).map(r => {
+        const mmdd = `${r.date.slice(5, 7)}/${r.date.slice(8, 10)}`;
+        return [mmdd, r.daxi || 0, r.dadu || 0, r.gangshan || 0, r.date];
+      });
+    } else {
+      applyCloudFreightData(data);
+    }
     return true;
   } catch {
     return false;
