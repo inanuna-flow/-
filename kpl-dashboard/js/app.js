@@ -1131,6 +1131,40 @@ function resetDispatchLaborForRange(from = DATA.dateFrom, to = DATA.dateTo) {
   });
 }
 
+function applyFreightToDispatch(dailyRows) {
+  const freightByDate = {};
+  dailyRows.forEach(row => {
+    const fullDate = row[4];
+    if (fullDate) freightByDate[fullDate] = row;
+  });
+
+  const existing = {};
+  DATA.dispatch.daily = DATA.dispatch.daily.map(row => {
+    const fullDate = dispatchRowFullDate(row);
+    existing[fullDate] = true;
+    if (!fullDate || fullDate < DATA.dateFrom || fullDate > DATA.dateTo) return row;
+    const freight = freightByDate[fullDate];
+    return [
+      row[0],
+      row[1],
+      freight?.[1] || 0,
+      row[3],
+      freight?.[2] || 0,
+      row[5],
+      freight?.[3] || 0,
+      fullDate,
+    ];
+  });
+
+  dailyRows.forEach(row => {
+    const fullDate = row[4];
+    if (!fullDate || existing[fullDate]) return;
+    DATA.dispatch.daily.push([row[0], 0, row[1] || 0, 0, row[2] || 0, 0, row[3] || 0, fullDate]);
+  });
+
+  DATA.dispatch.daily.sort((a, b) => dispatchRowFullDate(a).localeCompare(dispatchRowFullDate(b)));
+}
+
 function applyCloudLaborRows(rows) {
   resetDispatchLaborForRange();
   if (!Array.isArray(rows) || !rows.length) {
@@ -1289,6 +1323,7 @@ function applyCloudFreightData(data) {
     const mmdd = `${r.date.slice(5, 7)}/${r.date.slice(8, 10)}`;
     return [mmdd, r.daxi || 0, r.dadu || 0, r.gangshan || 0, r.date];
   });
+  applyFreightToDispatch(DATA.freight.dailyByWarehouse);
 
   // dailyTrend: [mm/dd, 合計, fullDate]
   DATA.freight.dailyTrend = dailyCosts.map(r => {

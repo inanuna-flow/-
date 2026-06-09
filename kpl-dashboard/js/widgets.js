@@ -89,12 +89,12 @@ function renderM012() {
           <div class="metric-limit metric-limit-72"></div>
         </div>
         <div class="metric-sub">依目前速度線性外推</div>
+        <div class="m012-note" style="background:${bgFor(projected)};border-left-color:${projColor}">
+          ${projected>=90 ? `<b class="text-danger">⚠️ 月底預估將超過 90% 目標上限</b>，建議立即盤點未執行項目、延後可遞延支出。`
+            : projected>=75 ? `<b class="text-warning">🟡 月底預估接近警戒線</b>，請留意未來兩週的費用節奏。`
+                            : `<b class="text-safe">🟢 月底預估控管良好</b>，可維持目前節奏。`}
+        </div>
       </div>
-    </div>
-    <div class="m012-note" style="background:${bgFor(projected)};border-left-color:${projColor}">
-      ${projected>=90 ? `<b class="text-danger">⚠️ 月底預估將超過 90% 目標上限</b>，建議立即盤點未執行項目、延後可遞延支出。`
-        : projected>=75 ? `<b class="text-warning">🟡 月底預估接近警戒線</b>，請留意未來兩週的費用節奏。`
-                        : `<b class="text-safe">🟢 月底預估控管良好</b>，可維持目前節奏。`}
     </div>
   </div>`;
 }
