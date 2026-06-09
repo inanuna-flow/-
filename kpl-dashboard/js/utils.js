@@ -26,9 +26,11 @@ function fmtMoney(n) {
   return '$' + Number(n).toLocaleString();
 }
 
-// 金額縮寫（萬元）：32444791 → $3,245萬
+// 金額縮寫（萬元）：32444791 → $3,245萬；0 → $0
 function fmtWan(n) {
-  const wan = Math.round(Number(n) / 10000);
+  const val = Number(n) || 0;
+  if (val === 0) return '$0';
+  const wan = Math.round(val / 10000);
   return '$' + wan.toLocaleString() + '萬';
 }
 

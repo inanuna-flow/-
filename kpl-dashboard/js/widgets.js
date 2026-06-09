@@ -56,13 +56,17 @@ function renderM012() {
           <div class="metric-fill" style="width:${Math.min(pct,100)}%;background:${curColor}"></div>
           <div class="metric-limit metric-limit-90"></div>
         </div>
-        <div class="metric-sub">
-          ${fmtMoney(Math.round(actual))} / ${fmtMoney(Math.round(budget))}
-        </div>
-        <div class="metric-breakdown">
-          <span>人力 ${fmtWan(laborCost)}</span>
-          <span class="breakdown-sep">＋</span>
-          <span>運費 ${fmtWan(freightCost)}</span>
+        <div class="metric-sub">${fmtMoney(Math.round(actual))} / ${fmtMoney(Math.round(budget))}</div>
+        <div class="m012-cost-row">
+          <div class="m012-cost-item">
+            <div class="m012-cost-label">人力</div>
+            <div class="m012-cost-val">${fmtWan(laborCost)}</div>
+          </div>
+          <div class="m012-cost-sep"></div>
+          <div class="m012-cost-item">
+            <div class="m012-cost-label">運費</div>
+            <div class="m012-cost-val">${fmtWan(freightCost)}</div>
+          </div>
         </div>
       </div>
       <div class="m012-panel">

@@ -489,16 +489,34 @@
   color: var(--ry-muted);
   font-family: var(--f-mono);
 }
-.metric-breakdown {
+.m012-cost-row {
   display: flex;
-  gap: 6px;
-  align-items: center;
-  font-size: 11px;
-  color: var(--ry-muted);
-  margin-top: 2px;
+  margin-top: 8px;
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  overflow: hidden;
 }
-.metric-breakdown .breakdown-sep {
-  opacity: 0.4;
+.m012-cost-item {
+  flex: 1;
+  padding: 5px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+.m012-cost-label {
+  font-size: 10px;
+  color: var(--ry-muted);
+  letter-spacing: 0.03em;
+}
+.m012-cost-val {
+  font-size: 13px;
+  font-family: var(--f-mono);
+  font-weight: 600;
+  color: var(--app-text);
+}
+.m012-cost-sep {
+  width: 1px;
+  background: var(--app-border);
 }
 .m012-note {
   margin-top: 14px;
