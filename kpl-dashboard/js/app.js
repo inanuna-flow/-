@@ -438,10 +438,35 @@ function loadPage(pageId) {
 }
 
 // ── 各頁面初始化 ──
-function initDailyPage() { renderDailyPage(); }
+async function initDailyPage() {
+  renderDailyPage();
+  DATA.dailySummary.dateFrom = DATA.dateFrom;
+  DATA.dailySummary.dateTo = DATA.dateTo;
+  DATA.dailySummary.laborRows = [];
+  DATA.dailySummary.freightRows = [];
+  await Promise.all([
+    loadCloudBudgetData(),
+    loadCloudLaborData({ summary: true }),
+    loadCloudFreightData({ summary: true }),
+  ]);
+  if (currentPageId === 'daily') renderDailyPage();
+}
 
-function initDispatchPage() { renderDispatchPage(); }
-function initFreightPage()  { renderFreightPage(); }
+async function initDispatchPage() {
+  renderDispatchPage();
+  await Promise.all([
+    loadCloudBudgetData(),
+    loadCloudLaborData({ summary: true }),
+    loadCloudFreightData({ summary: true }),
+  ]);
+  if (currentPageId === 'dispatch') renderDispatchPage();
+}
+
+async function initFreightPage() {
+  renderFreightPage();
+  await Promise.all([loadCloudBudgetData(), loadCloudFreightData()]);
+  if (currentPageId === 'freight') renderFreightPage();
+}
 async function initImportPage() {
   await loadCloudDataRange();
   updateStatus();
@@ -824,11 +849,13 @@ function rerenderDashboardPage(pageId = currentPageId) {
 
 async function applyDashboardDateFilter(pageId = currentPageId) {
   if (!setSharedDateRangeFromInputs(pageId)) return;
-  if (pageId === 'daily') {
-    DATA.dailySummary.dateFrom = DATA.dateFrom;
-    DATA.dailySummary.dateTo = DATA.dateTo;
-    DATA.dailySummary.laborRows = [];
-    DATA.dailySummary.freightRows = [];
+  if (pageId === 'daily' || pageId === 'dispatch') {
+    if (pageId === 'daily') {
+      DATA.dailySummary.dateFrom = DATA.dateFrom;
+      DATA.dailySummary.dateTo = DATA.dateTo;
+      DATA.dailySummary.laborRows = [];
+      DATA.dailySummary.freightRows = [];
+    }
     await Promise.all([
       loadCloudBudgetData(),
       loadCloudLaborData({ summary: true }),
@@ -1165,6 +1192,22 @@ function applyFreightToDispatch(dailyRows) {
   DATA.dispatch.daily.sort((a, b) => dispatchRowFullDate(a).localeCompare(dispatchRowFullDate(b)));
 }
 
+function applyLaborSummaryToDispatch(rows) {
+  const dailyByDate = {};
+  rows.forEach(row => {
+    if (!dailyByDate[row.date]) {
+      dailyByDate[row.date] = { date: row.date, '大溪倉': 0, '大肚倉': 0, '岡山倉': 0 };
+    }
+    if (dailyByDate[row.date][row.wh] !== undefined) {
+      dailyByDate[row.date][row.wh] += Number(row.cost) || 0;
+    }
+  });
+  resetDispatchLaborForRange();
+  const dailyRows = Object.values(dailyByDate);
+  applyLaborToDispatch(dailyRows);
+  updateDispatchLatestUploadDate(dailyRows.map(row => row.date));
+}
+
 function applyCloudLaborRows(rows) {
   resetDispatchLaborForRange();
   if (!Array.isArray(rows) || !rows.length) {
@@ -1266,6 +1309,7 @@ async function loadCloudLaborData({ summary = false } = {}) {
         hours: Number(row.hours) || 0,
         cost: Number(row.cost) || 0,
       })).filter(row => row.date && row.wh);
+      applyLaborSummaryToDispatch(DATA.dailySummary.laborRows);
       return true;
     }
     return applyCloudLaborRows(data.rows);
@@ -1304,6 +1348,7 @@ async function loadCloudFreightData({ summary = false } = {}) {
         const mmdd = `${r.date.slice(5, 7)}/${r.date.slice(8, 10)}`;
         return [mmdd, r.daxi || 0, r.dadu || 0, r.gangshan || 0, r.date];
       });
+      applyFreightToDispatch(DATA.dailySummary.freightRows);
     } else {
       applyCloudFreightData(data);
     }
@@ -1337,8 +1382,14 @@ function applyCloudFreightData(data) {
     vendor:    r.vendor,
     estimated: r.estimated || 0,
     actual:    r.actual    || 0,
+    sourceType: r.source_type || '',
+    reason:    r.reason || '',
+    route:     r.route || '',
+    categoryL1: r.category_l1 || '',
+    categoryL2: r.category_l2 || '',
+    budgetWarehouse: r.budget_warehouse || '',
     point:     0,
-    rate:      r.estimated > 0 ? (r.actual / r.estimated) * 100 : 100,
+    rate:      r.source_type === 'nonmainline' ? 0 : r.estimated > 0 ? (r.actual / r.estimated) * 100 : 100,
   }));
 
   const allActual = dailyCosts.reduce((s, r) => s + (r.daxi || 0) + (r.dadu || 0) + (r.gangshan || 0), 0);

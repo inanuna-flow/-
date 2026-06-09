@@ -1125,6 +1125,7 @@ async function handleFreightData(req, res) {
                 COALESCE(amount, 0) AS cost
          FROM ${schemaTable('freight_non_mainline_daily')}
          WHERE work_date BETWEEN $1 AND $2
+           AND category_l1 IS DISTINCT FROM '不列入'
        ),
        combined AS (
          SELECT work_date, warehouse_name, cost FROM mainline
@@ -1142,16 +1143,39 @@ async function handleFreightData(req, res) {
       [dateFrom, dateTo],
     );
 
-    // 主線明細（供 F002 預計 vs 實際、F003 超支筆數）
+    // 主線 + 非主線明細（供運費損益明細元件）
     const detailResult = summaryOnly ? { rows: [] } : await pool.query(
-      `SELECT
-         work_date::text AS date,
-         COALESCE(carrier, '未知') AS vendor,
-         COALESCE(est_pricing_result, 0)::float AS estimated,
-         COALESCE(pricing_result, 0)::float AS actual
-       FROM ${schemaTable('freight_mainline_daily')}
-       WHERE work_date BETWEEN $1 AND $2
-       ORDER BY work_date`,
+      `SELECT * FROM (
+         SELECT
+           work_date::text AS date,
+           'mainline'::text AS source_type,
+           COALESCE(carrier, '未知') AS vendor,
+           COALESCE(est_pricing_result, 0)::float AS estimated,
+           COALESCE(pricing_result, 0)::float AS actual,
+           NULL::text AS reason,
+           route_code::text AS route,
+           '主線'::text AS category_l1,
+           task_category::text AS category_l2,
+           warehouse_name::text AS budget_warehouse
+         FROM ${schemaTable('freight_mainline_daily')}
+         WHERE work_date BETWEEN $1 AND $2
+         UNION ALL
+         SELECT
+           work_date::text AS date,
+           'nonmainline'::text AS source_type,
+           COALESCE(carrier, '非主線') AS vendor,
+           0::float AS estimated,
+           COALESCE(amount, 0)::float AS actual,
+           dispatch_reason::text AS reason,
+           delivery_item::text AS route,
+           category_l1::text,
+           category_l2::text,
+           budget_warehouse::text
+         FROM ${schemaTable('freight_non_mainline_daily')}
+         WHERE work_date BETWEEN $1 AND $2
+           AND category_l1 IS DISTINCT FROM '不列入'
+       ) details
+       ORDER BY date, source_type`,
       [dateFrom, dateTo],
     );
 
@@ -1167,6 +1191,7 @@ async function handleFreightData(req, res) {
            SELECT SUM(COALESCE(amount, 0))
            FROM ${schemaTable('freight_non_mainline_daily')}
            WHERE date_trunc('month', work_date) = date_trunc('month', $1::date) - INTERVAL '1 month'
+             AND category_l1 IS DISTINCT FROM '不列入'
          ), 0)
        )::float AS total`,
       [dateFrom],

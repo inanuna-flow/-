@@ -765,10 +765,10 @@ function renderFreightReferenceDashboard() {
   const previousMonthOrders = (DATA.freight?.details || []).filter(row => row.fullDate?.startsWith(previousMonthKey)).length;
   const orderDifference = summary.totalOrders - previousMonthOrders;
   const selectedDetails = getFreightDetailsFiltered() || [];
-  const nonMainlineDetails = selectedDetails.filter(row => String(row.vendor || '').includes('非主線') || String(row.reason || '').trim());
+  const nonMainlineDetails = selectedDetails.filter(row => row.sourceType === 'nonmainline');
   const mainlineDetails = selectedDetails.filter(row => !nonMainlineDetails.includes(row));
-  const specialTruckCount = nonMainlineDetails.filter(row => String(row.vendor || '').includes('專車')).length;
-  const nonMainlineRatio = nonMainlineDetails.length ? specialTruckCount / nonMainlineDetails.length * 100 : 0;
+  const specialTruckCount = nonMainlineDetails.filter(row => row.categoryL2 === '專車').length;
+  const nonMainlineRatio = selectedDetails.length ? nonMainlineDetails.length / selectedDetails.length * 100 : 0;
   const spendingRate = budgetTotal ? actualTotal / budgetTotal * 100 : 0;
   const spendingState = !budgetTotal ? 'muted' : spendingRate < 75 ? 'safe' : spendingRate <= 90 ? 'warning' : 'danger';
   const actualReasonRows = Object.values(nonMainlineDetails.reduce((map, row) => {
@@ -849,6 +849,7 @@ function renderFreightReferenceDashboard() {
     matrixDates.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
   }
   function classifyFreightWorkItem(row) {
+    if (row.sourceType === 'nonmainline' && row.categoryL2) return row.categoryL2;
     const text = `${row.route || ''} ${row.vendor || ''} ${row.reason || ''}`;
     if (/花蓮/.test(text)) return '花蓮轉運費';
     if (/跨區/.test(text)) return '跨區轉運費';
