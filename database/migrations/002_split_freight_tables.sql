@@ -51,9 +51,10 @@ CREATE TABLE IF NOT EXISTS kpl_dashboard.freight_mainline_daily (
   month                    DATE NOT NULL CHECK (date_trunc('month', month)::date = month),
   shipper                  TEXT,                           -- 配別（日翊）
   route_source             TEXT,                           -- 路線來源（主線）
-  route_code               TEXT,                           -- 路線（如 1A/1B/1C）
+  -- route_code / carrier 設為 NOT NULL DEFAULT ''，避免 NULL 在 UNIQUE 比對時被 PostgreSQL 視為「不衝突」而插入重複列
+  route_code               TEXT NOT NULL DEFAULT '',       -- 路線（如 1A/1B/1C；空字串代表未填）
   task_category            TEXT,                           -- 任務分類（主線計價）
-  carrier                  TEXT,                           -- 配送商（創新/...）
+  carrier                  TEXT NOT NULL DEFAULT '',       -- 配送商（創新/...；空字串代表未填）
 
   -- 路線狀態（2 欄）
   route_status             TEXT,                           -- 路線完成狀態（已返廠/...）
@@ -124,6 +125,18 @@ CREATE INDEX IF NOT EXISTS idx_freight_mainline_warehouse
 
 CREATE INDEX IF NOT EXISTS idx_freight_mainline_month
   ON kpl_dashboard.freight_mainline_daily(month);
+
+-- 防呆：若先前已建表（含 NULLable route_code/carrier），把 NULL 補成空字串再強制 NOT NULL
+-- 這樣即使表已存在、CREATE TABLE IF NOT EXISTS 跳過，UNIQUE 仍然能正確比對
+UPDATE kpl_dashboard.freight_mainline_daily
+  SET route_code = COALESCE(route_code, ''),
+      carrier    = COALESCE(carrier, '');
+
+ALTER TABLE kpl_dashboard.freight_mainline_daily
+  ALTER COLUMN route_code SET DEFAULT '',
+  ALTER COLUMN route_code SET NOT NULL,
+  ALTER COLUMN carrier    SET DEFAULT '',
+  ALTER COLUMN carrier    SET NOT NULL;
 
 DROP TRIGGER IF EXISTS set_updated_at_freight_mainline_daily ON kpl_dashboard.freight_mainline_daily;
 CREATE TRIGGER set_updated_at_freight_mainline_daily

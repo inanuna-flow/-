@@ -1110,8 +1110,8 @@ async function handleFreightData(req, res) {
   }
 
   try {
-    // 每日各倉費用（主線 + 非主線合計）
-    const dailyResult = await pool.query(
+    // 三個查詢都是 read-only 且互不相依 → 並行送往 DB，縮短整體回應時間
+    const dailyQuery = pool.query(
       `WITH mainline AS (
          SELECT work_date,
                 warehouse_name,
@@ -1144,7 +1144,7 @@ async function handleFreightData(req, res) {
     );
 
     // 主線 + 非主線明細（供運費損益明細元件）
-    const detailResult = summaryOnly ? { rows: [] } : await pool.query(
+    const detailQuery = summaryOnly ? Promise.resolve({ rows: [] }) : pool.query(
       `SELECT * FROM (
          SELECT
            work_date::text AS date,
@@ -1180,7 +1180,8 @@ async function handleFreightData(req, res) {
     );
 
     // 上月總費用（供 F001 月趨勢比較）
-    const lastMonthResult = await pool.query(
+    // 基準改為 dateTo（範圍結尾月），更符合「最近月的上一個月」直覺
+    const lastMonthQuery = pool.query(
       `SELECT (
          COALESCE((
            SELECT SUM(COALESCE(pricing_result, 0))
@@ -1194,8 +1195,11 @@ async function handleFreightData(req, res) {
              AND category_l1 IS DISTINCT FROM '不列入'
          ), 0)
        )::float AS total`,
-      [dateFrom],
+      [dateTo],
     );
+
+    const [dailyResult, detailResult, lastMonthResult] =
+      await Promise.all([dailyQuery, detailQuery, lastMonthQuery]);
 
     sendJson(res, 200, {
       ok: true,
@@ -1310,6 +1314,15 @@ function normalizeWorkDate(value) {
   if (m) {
     return `${m[1]}-${String(Number(m[2])).padStart(2, '0')}-${String(Number(m[3])).padStart(2, '0')}`;
   }
+  // 8 位純數字優先當 YYYYMMDD 解析（避免被誤判為極大 Excel 序號）
+  const compactMatch = s.match(/^(\d{4})(\d{2})(\d{2})$/);
+  if (compactMatch) {
+    const mm = Number(compactMatch[2]);
+    const dd = Number(compactMatch[3]);
+    if (mm >= 1 && mm <= 12 && dd >= 1 && dd <= 31) {
+      return `${compactMatch[1]}-${compactMatch[2]}-${compactMatch[3]}`;
+    }
+  }
   // 純數字字串當 Excel 序號
   if (/^\d+(\.\d+)?$/.test(s)) return excelSerialToIso(Number(s));
   return '';
@@ -1407,9 +1420,10 @@ function freightMainlineRowsFromPayload(payload) {
       month,
       shipper:               toTextOrNull(r['配別']            ?? r.shipper),
       route_source:          toTextOrNull(r['路線來源']        ?? r.route_source),
-      route_code:            toTextOrNull(r['路線']            ?? r.route_code),
+      // route_code / carrier 必須為非 NULL，否則 ON CONFLICT 比對會把 NULL 當成「不衝突」→ 重複列
+      route_code:            toTextOrNull(r['路線']            ?? r.route_code) || '',
       task_category:         toTextOrNull(r['任務分類']        ?? r.task_category),
-      carrier:               toTextOrNull(r['配送商']          ?? r.carrier),
+      carrier:               toTextOrNull(r['配送商']          ?? r.carrier) || '',
       route_status:          toTextOrNull(r['路線完成\r\n狀態'] ?? r['路線完成狀態'] ?? r.route_status),
       task_note:             toTextOrNull(r['任務備註']        ?? r.task_note),
 
@@ -1843,77 +1857,42 @@ function handleFreightGone(req, res) {
   });
 }
 
+// 改用精確 pathname 比對，避免 startsWith 因新增端點而被誤路由
+// 例如：/api/data/freight 與 /api/data/freight-mainline 若用 startsWith 順序就敏感；用 === 則安全
+const ROUTES = {
+  '/api/check-user':         handleCheckUser,
+  '/api/session':            handleSession,
+  '/api/logout':             handleLogout,
+  '/api/import/budget':      handleBudgetImport,
+  '/api/data/budget':        handleBudgetData,
+  '/api/import/labor':       handleLaborImport,
+  '/api/import/picks':       handlePicksImport,
+  '/api/import/freight-mainline':     handleFreightMainlineImport,
+  '/api/import/freight-non-mainline': handleFreightNonMainlineImport,
+  '/api/data/freight-mainline':       handleFreightMainlineData,
+  '/api/data/freight-non-mainline':   handleFreightNonMainlineData,
+  '/api/data/freight':       handleFreightData,
+  '/api/import/freight':     handleFreightGone,   // 舊端點已淘汰
+  '/api/data/range':         handleDataRange,
+  '/api/data/labor':         handleLaborData,
+  '/api/data/picks':         handlePicksData,
+};
+
 const server = http.createServer((req, res) => {
-  if (req.url.startsWith('/api/check-user')) {
-    handleCheckUser(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/session')) {
-    handleSession(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/logout')) {
-    handleLogout(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/page-permissions')) {
+  // 切掉 query string 取純路徑做比對
+  const pathname = req.url.split('?')[0];
+
+  // page-permissions 需依 method 分流
+  if (pathname === '/api/page-permissions') {
     if (req.method === 'GET')  { handleGetPermissions(req, res);  return; }
     if (req.method === 'POST') { handleSavePermissions(req, res); return; }
-  }
-  if (req.url.startsWith('/api/import/budget')) {
-    handleBudgetImport(req, res);
+    sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
     return;
   }
-  if (req.url.startsWith('/api/data/budget')) {
-    handleBudgetData(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/import/labor')) {
-    handleLaborImport(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/import/picks')) {
-    handlePicksImport(req, res);
-    return;
-  }
-  // 主線 / 非主線運費（新）
-  if (req.url.startsWith('/api/import/freight-mainline')) {
-    handleFreightMainlineImport(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/import/freight-non-mainline')) {
-    handleFreightNonMainlineImport(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/data/freight-mainline')) {
-    handleFreightMainlineData(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/data/freight-non-mainline')) {
-    handleFreightNonMainlineData(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/data/freight')) {
-    handleFreightData(req, res);
-    return;
-  }
-  // 舊運費端點：已拆分，回 410 Gone
-  if (req.url.startsWith('/api/import/freight')) {
-    handleFreightGone(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/data/range')) {
-    handleDataRange(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/data/labor')) {
-    handleLaborData(req, res);
-    return;
-  }
-  if (req.url.startsWith('/api/data/picks')) {
-    handlePicksData(req, res);
-    return;
-  }
+
+  const handler = ROUTES[pathname];
+  if (handler) { handler(req, res); return; }
+
   handleStatic(req, res);
 });
 

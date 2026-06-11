@@ -240,14 +240,12 @@
   <h1 class="page-h">運費損益分析</h1>
   <div class="page-p" id="freight-meta">載入中…</div>
 </div>
-<div class="filter-bar date-range-filter">
-  <span class="filter-label">日期區間</span>
-  <input type="date" class="filter-input" id="freight-from">
-  <span class="range-arrow">→</span>
-  <input type="date" class="filter-input" id="freight-to">
+<div class="filter-bar">
+  <span class="filter-label">月份</span>
+  <input type="month" class="filter-input" id="freight-month">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
-  <span class="filter-meta">🔗 與其他頁共用日期設定</span>
+  <span class="filter-meta">以月度檢視運費損益</span>
 </div>
 <div class="grid" id="freight-grid"></div>
 </script>

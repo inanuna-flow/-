@@ -751,16 +751,22 @@ function renderFreightReferenceDashboard() {
   const actualTotal = overview.totalActual;
   const budgetTotal = overview.totalBudget;
   const variance = actualTotal - budgetTotal;
-  const rangeStart = new Date(`${DATA.dateFrom || new Date().toISOString().slice(0, 10)}T00:00:00`);
-  const previousMonthDate = new Date(rangeStart.getFullYear(), rangeStart.getMonth() - 1, 1);
+  // 以 dateTo（範圍結尾月）為基準，前月 = 結尾月-1。server 已在 lastMonthCost 算好整月金額；
+  // 若 server 沒回值（舊 API），再 fallback 用本地 dailyByWarehouse 自行加總。
+  const rangeEndStr = DATA.dateTo || DATA.dateFrom || new Date().toISOString().slice(0, 10);
+  const rangeEnd = new Date(`${rangeEndStr}T00:00:00`);
+  const previousMonthDate = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth() - 1, 1);
   const previousMonthKey = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`;
   const previousMonthDays = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth() + 1, 0).getDate();
-  const previousMonthTotal = (DATA.freight?.dailyByWarehouse || []).reduce((sum, row) => {
-    const fullDate = row[4] || shortToFreightFullDate(row[0]);
-    return fullDate?.startsWith(previousMonthKey)
-      ? sum + Number(row[1] || 0) + Number(row[2] || 0) + Number(row[3] || 0)
-      : sum;
-  }, 0);
+  const serverPrevMonth = Number(DATA.freight?.lastMonthCost || 0);
+  const previousMonthTotal = serverPrevMonth > 0
+    ? serverPrevMonth
+    : (DATA.freight?.dailyByWarehouse || []).reduce((sum, row) => {
+        const fullDate = row[4] || shortToFreightFullDate(row[0]);
+        return fullDate?.startsWith(previousMonthKey)
+          ? sum + Number(row[1] || 0) + Number(row[2] || 0) + Number(row[3] || 0)
+          : sum;
+      }, 0);
   const fullMonthDifference = actualTotal - previousMonthTotal;
   const previousMonthOrders = (DATA.freight?.details || []).filter(row => row.fullDate?.startsWith(previousMonthKey)).length;
   const orderDifference = summary.totalOrders - previousMonthOrders;

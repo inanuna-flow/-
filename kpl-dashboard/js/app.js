@@ -91,13 +91,14 @@ const PAGES = [
   },
 ];
 
+// 索引必須與 PAGES 順序一一對應；label 用 Map 去重，若重複會把後面的群組併進前面
 const SIDEBAR_GROUP_META = [
   { label: '儀表板總覽', icon: '📊' },
-  { label: '成本分析', icon: '💼' },
-  { label: '效率分析', icon: '⚡' },
-  { label: '成本分析', icon: '📈' },
-  { label: '資料管理', icon: '📁' },
-  { label: '系統設定', icon: '⚙️' },
+  { label: '成本分析',   icon: '💼' },
+  { label: '效率分析',   icon: '⚡' },
+  { label: '預算規劃',   icon: '📈' },
+  { label: '資料管理',   icon: '📁' },
+  { label: '系統設定',   icon: '⚙️' },
 ];
 const THEME_STORAGE_KEY = 'kplThemeMode';
 const SIDEBAR_PINNED_KEY = 'kplSidebarPinned';
@@ -290,6 +291,13 @@ function escapeReleaseText(value) {
   }[char]));
 }
 
+// 釋出版本連結僅允許 https GitHub URL，避免 javascript: 之類的偽協議被塞入 href
+function safeReleaseUrl(value) {
+  const s = String(value ?? '').trim();
+  if (!/^https:\/\//i.test(s)) return '';
+  return escapeReleaseText(s);
+}
+
 async function loadGithubReleases() {
   try {
     const res = await fetch('/api/releases', { cache: 'no-store' });
@@ -352,7 +360,7 @@ function renderVersionsPage() {
           <h2>${escapeReleaseText(release.title)}</h2>
           <p>${escapeReleaseText(release.summary)}</p>
           <ul>${release.changes.map(change => `<li>${escapeReleaseText(change)}</li>`).join('')}</ul>
-          ${release.url ? `<a class="release-github-link" href="${escapeReleaseText(release.url)}" target="_blank" rel="noopener noreferrer">在 GitHub 查看 Release</a>` : ''}
+          ${(() => { const u = safeReleaseUrl(release.url); return u ? `<a class="release-github-link" href="${u}" target="_blank" rel="noopener noreferrer">在 GitHub 查看 Release</a>` : ''; })()}
         </article>`).join('')}
     </div>`;
 }
@@ -1806,13 +1814,11 @@ function setupFreightMonthShell() {
     filterBar.style.display = '';
     filterBar.className = 'filter-bar freight-date-filter';
     filterBar.innerHTML = `
-      <span class="filter-label">日期區間</span>
-      <input type="date" class="filter-input freight-locked-date" id="freight-from" readonly>
-      <span class="range-arrow">→</span>
-      <input type="date" class="filter-input freight-locked-date" id="freight-to" readonly>
+      <span class="filter-label">月份</span>
+      <input type="month" class="filter-input" id="freight-month" onchange="applyFreightFilter()">
       <div class="filter-divider"></div>
       <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
-      <span class="filter-meta">日期區間已鎖定為整個月份</span>
+      <span class="filter-meta">以月度檢視運費損益</span>
     `;
     filterBar.insertAdjacentHTML('afterend', `
       <div class="filter-bar freight-options-filter" id="freight-options-filter">
@@ -1823,9 +1829,6 @@ function setupFreightMonthShell() {
           <option value="大肚倉">大肚倉</option>
           <option value="岡山倉">岡山倉</option>
         </select>
-        <div class="filter-divider"></div>
-        <span class="filter-label">月份</span>
-        <input type="month" class="filter-input" id="freight-month" onchange="applyFreightFilter()">
         <div class="filter-divider"></div>
         <span class="filter-label">檢視方式</span>
         <select class="filter-input" id="freight-view-mode" onchange="applyFreightFilter()">
@@ -1850,8 +1853,8 @@ function renderFreightPage() {
   if (filterBar) filterBar.style.display = 'none';
   setupFreightMonthShell();
 
-  document.getElementById('freight-from').value = DATA.dateFrom;
-  document.getElementById('freight-to').value   = DATA.dateTo;
+  const ffrom = document.getElementById('freight-from'); if (ffrom) ffrom.value = DATA.dateFrom;
+  const fto   = document.getElementById('freight-to');   if (fto)   fto.value   = DATA.dateTo;
   const summary = typeof getFreightSummaryForPage === 'function'
     ? getFreightSummaryForPage()
     : { totalOrders: DATA.freight.totalOrders };
