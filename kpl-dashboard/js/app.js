@@ -1851,18 +1851,18 @@ function renderFreightPage() {
   const days = typeof getFreightTrendRowsForPage === 'function'
     ? getFreightTrendRowsForPage().length
     : DATA.freight.dailyTrend.length;
-  const modeLabel = typeof getFreightAnalysisMode === 'function' && getFreightAnalysisMode() === 'demo'
-    ? '展示資料 · '
-    : '';
   document.getElementById('freight-meta').textContent =
     `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo} · ${days} 天 · 共 ${summary.totalOrders.toLocaleString()} 筆配送`;
   normalizeDateFilterBars();
 }
 
-function applyFreightFilter() {
+async function applyFreightFilter() {
   DATA.freightSelectedWarehouse = document.getElementById('freight-warehouse')?.value || 'all';
   lockFreightToMonth(getFreightMonthValue());
-  renderFreightPage();
+  // 月份改變後必須向後端重新抓該月資料，否則只會在記憶體舊資料上過濾，
+  // 找不到該月就掉回展示資料（費用總計、動支率、配送筆數變成 demo 值）。
+  await Promise.all([loadCloudBudgetData(), loadCloudFreightData()]);
+  if (currentPageId === 'freight') renderFreightPage();
 }
 
 // ════════════════════════════════════════════

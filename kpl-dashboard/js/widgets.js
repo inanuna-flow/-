@@ -319,14 +319,13 @@ function getFreightDemoDailyRows() {
 }
 
 function getFreightDailyRowsForPage() {
-  const rows = getFreightDailyRowsFiltered();
-  return rows.length ? rows : getFreightDemoDailyRows();
+  // 沒有該月實際資料就回空陣列（顯示 0），不再掉回展示資料。
+  return getFreightDailyRowsFiltered();
 }
 
 function getFreightTrendRowsForPage() {
-  const rows = getFreightTrendFiltered();
-  if (rows.length) return rows;
-  return getFreightDemoDailyRows().map(row => [row[0], row[1] + row[2] + row[3], row[4]]);
+  // 沒有該月實際資料就回空陣列（顯示 0），不再掉回展示資料。
+  return getFreightTrendFiltered();
 }
 
 function getFreightAnalysisMode() {
@@ -334,18 +333,8 @@ function getFreightAnalysisMode() {
 }
 
 function getFreightSummaryForPage() {
-  if (getFreightAnalysisMode() === 'real') return getFreightFilteredSummary();
-  const totalActual = getFreightTrendRowsForPage().reduce((sum, row) => sum + Number(row[1] || 0), 0);
-  const estimatedCost = Math.round(totalActual * 0.94);
-  const totalOrders = getFreightTrendRowsForPage().length * 326;
-  return {
-    estimatedCost,
-    actualCost: totalActual,
-    totalOrders,
-    overCount: 8,
-    saveCount: 10,
-    vendors: [],
-  };
+  // 一律使用實際過濾結果；沒資料時各欄位自然為 0 / 空。
+  return getFreightFilteredSummary();
 }
 
 function getFreightBudgetMonthIndex() {
@@ -360,11 +349,8 @@ function getFreightBudgetByWarehouse() {
   const source = DATA.annualBudget?.freight || {};
   const allowDbBudget = DATA.budgetSource === 'cloud';
   return order.reduce((map, warehouse) => {
-    map[warehouse] = allowDbBudget
-      ? Number(source[warehouse]?.[monthIndex] || 0)
-      : getFreightAnalysisMode() === 'demo'
-        ? Number(FREIGHT_DEMO_BUDGET[warehouse] || 0)
-        : 0;
+    // 預算只讀資料庫年度預算；沒有就 0，不再使用展示預算。
+    map[warehouse] = allowDbBudget ? Number(source[warehouse]?.[monthIndex] || 0) : 0;
     return map;
   }, {});
 }
