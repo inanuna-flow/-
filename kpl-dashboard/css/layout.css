@@ -802,8 +802,8 @@ body.sidebar-mobile-open .sidebar-overlay {
 }
 
 .sb-pin {
-  background: #0b0b0b;
-  border-color: #292929;
+  background: #f4f4f5;
+  border-color: #e4e4e7;
   color: #f472b6;
 }
 
@@ -819,20 +819,20 @@ body.sidebar-mobile-open .sidebar-overlay {
 }
 
 .sb-pin:hover {
-  background: #111111;
-  border-color: #3a3a3a;
+  background: #e4e4e7;
+  border-color: #d4d4d8;
   color: #fb7185;
 }
 
 body.sidebar-pinned .sb-pin {
-  background: #111111;
-  border-color: #3a3a3a;
+  background: #e4e4e7;
+  border-color: #d4d4d8;
   color: #fb7185;
 }
 
 html[data-theme="day"] .sb-pin {
-  background: transparent;
-  border-color: transparent;
+  background: #f4f4f5;
+  border-color: #e4e4e7;
   color: #e11d48;
 }
 

@@ -1817,31 +1817,21 @@ function setupFreightMonthShell() {
       <span class="filter-label">月份</span>
       <input type="month" class="filter-input" id="freight-month" onchange="applyFreightFilter()">
       <div class="filter-divider"></div>
+      <span class="filter-label">倉別</span>
+      <select class="filter-input" id="freight-warehouse" onchange="applyFreightFilter()">
+        <option value="all">三倉總覽</option>
+        <option value="大溪倉">大溪倉</option>
+        <option value="大肚倉">大肚倉</option>
+        <option value="岡山倉">岡山倉</option>
+      </select>
+      <div class="filter-divider"></div>
       <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
       <span class="filter-meta">以月度檢視運費損益</span>
     `;
-    filterBar.insertAdjacentHTML('afterend', `
-      <div class="filter-bar freight-options-filter" id="freight-options-filter">
-        <span class="filter-label">倉別</span>
-        <select class="filter-input" id="freight-warehouse" onchange="applyFreightFilter()">
-          <option value="all">三倉總覽</option>
-          <option value="大溪倉">大溪倉</option>
-          <option value="大肚倉">大肚倉</option>
-          <option value="岡山倉">岡山倉</option>
-        </select>
-        <div class="filter-divider"></div>
-        <span class="filter-label">檢視方式</span>
-        <select class="filter-input" id="freight-view-mode" onchange="applyFreightFilter()">
-          <option value="month">月度</option>
-        </select>
-      </div>
-    `);
   }
   lockFreightToMonth(getFreightMonthValue());
   const warehouseEl = document.getElementById('freight-warehouse');
-  const viewModeEl = document.getElementById('freight-view-mode');
   if (warehouseEl) warehouseEl.value = DATA.freightSelectedWarehouse || 'all';
-  if (viewModeEl) viewModeEl.value = DATA.freightViewMode || 'month';
 }
 
 function renderFreightPage() {
@@ -1871,7 +1861,6 @@ function renderFreightPage() {
 
 function applyFreightFilter() {
   DATA.freightSelectedWarehouse = document.getElementById('freight-warehouse')?.value || 'all';
-  DATA.freightViewMode = document.getElementById('freight-view-mode')?.value || 'month';
   lockFreightToMonth(getFreightMonthValue());
   renderFreightPage();
 }

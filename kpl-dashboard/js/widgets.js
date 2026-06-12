@@ -212,12 +212,25 @@ function getFreightDailyRowsFiltered() {
 }
 
 function getFreightTrendFiltered() {
+  const selectedWarehouse = getSelectedFreightWarehouse();
+  if (selectedWarehouse !== 'all') {
+    const amountIndex = FREIGHT_WAREHOUSE_ORDER.indexOf(selectedWarehouse) + 1;
+    return getFreightDailyRowsFiltered().map(row => [
+      row[0],
+      Number(row[amountIndex] || 0),
+      row[4] || shortToFreightFullDate(row[0]),
+    ]);
+  }
   return DATA.freight.dailyTrend.filter(row => freightDateInRange(row[2] || shortToFreightFullDate(row[0])));
 }
 
 function getFreightDetailsFiltered() {
   if (!DATA.freight.details) return null;
-  return DATA.freight.details.filter(r => freightDateInRange(r.fullDate));
+  const selectedWarehouse = getSelectedFreightWarehouse();
+  return DATA.freight.details.filter(r =>
+    freightDateInRange(r.fullDate) &&
+    (selectedWarehouse === 'all' || r.budgetWarehouse === selectedWarehouse)
+  );
 }
 
 function summarizeFreightVendorsForRange(records) {
@@ -268,8 +281,17 @@ function getFreightWarehouseOrder() {
   const legacy = DATA.freight?.warehouseBudget || {};
   const names = Object.keys(annual).length ? Object.keys(annual) : Object.keys(legacy);
   const preferred = FREIGHT_WAREHOUSE_ORDER.filter(name => names.includes(name));
-  if (preferred.length === FREIGHT_WAREHOUSE_ORDER.length) return preferred;
-  return names.length ? names.slice(0, 3) : FREIGHT_WAREHOUSE_ORDER;
+  const order = preferred.length === FREIGHT_WAREHOUSE_ORDER.length
+    ? preferred
+    : names.length ? names.slice(0, 3) : FREIGHT_WAREHOUSE_ORDER;
+  const selectedWarehouse = getSelectedFreightWarehouse();
+  return selectedWarehouse === 'all' ? order : order.filter(name => name === selectedWarehouse);
+}
+
+function getSelectedFreightWarehouse() {
+  return FREIGHT_WAREHOUSE_ORDER.includes(DATA.freightSelectedWarehouse)
+    ? DATA.freightSelectedWarehouse
+    : 'all';
 }
 
 function hasRealFreightRows() {
@@ -354,8 +376,9 @@ function getFreightActualByWarehouse() {
     return map;
   }, {});
   getFreightDailyRowsForPage().forEach(row => {
-    order.forEach((warehouse, index) => {
-      totals[warehouse] += Number(row[index + 1] || 0);
+    order.forEach(warehouse => {
+      const amountIndex = FREIGHT_WAREHOUSE_ORDER.indexOf(warehouse) + 1;
+      totals[warehouse] += Number(row[amountIndex] || 0);
     });
   });
   return totals;
@@ -745,6 +768,66 @@ function renderFreightMonthlyBudgetMatrix() {
   </div>`;
 }
 
+const FREIGHT_BUDGET_WEIGHT_DEFAULTS = { mon:1, tue:1.4, wed:1.4, thu:1.4, fri:1, sat:0.6, sun:0.5 };
+let freightBudgetWeights = { ...FREIGHT_BUDGET_WEIGHT_DEFAULTS };
+let freightBudgetHolidays = [];
+
+function freightBudgetDayWeight(date) {
+  if (freightBudgetHolidays.includes(date)) return freightBudgetWeights.sun;
+  const day = new Date(`${date}T00:00:00`).getDay();
+  return [
+    freightBudgetWeights.sun,
+    freightBudgetWeights.mon,
+    freightBudgetWeights.tue,
+    freightBudgetWeights.wed,
+    freightBudgetWeights.thu,
+    freightBudgetWeights.fri,
+    freightBudgetWeights.sat,
+  ][day];
+}
+
+function apportionFreightBudget(total, weights) {
+  const weightTotal = weights.reduce((sum, value) => sum + value, 0);
+  if (!weightTotal) return weights.map(() => 0);
+  const raw = weights.map(value => total * value / weightTotal);
+  const result = raw.map(Math.floor);
+  let remainder = Math.round(total - result.reduce((sum, value) => sum + value, 0));
+  raw.map((value, index) => ({ index, fraction:value - result[index] }))
+    .sort((a, b) => b.fraction - a.fraction)
+    .slice(0, remainder)
+    .forEach(({ index }) => { result[index] += 1; });
+  return result;
+}
+
+function toggleFreightBudgetPanel() {
+  const body = document.getElementById('freight-budget-panel-body');
+  const arrow = document.getElementById('freight-budget-panel-arrow');
+  if (!body || !arrow) return;
+  const opening = body.hidden;
+  body.hidden = !opening;
+  arrow.textContent = opening ? '▲ 收合' : '▼ 展開';
+}
+
+function applyFreightBudgetWeights() {
+  const keys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  keys.forEach(key => {
+    const value = Number(document.getElementById(`freight-weight-${key}`)?.value);
+    if (Number.isFinite(value) && value >= 0) freightBudgetWeights[key] = value;
+  });
+  freightBudgetHolidays = String(document.getElementById('freight-budget-holidays')?.value || '')
+    .split(/[,\s]+/)
+    .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value));
+  renderFreightPage();
+  toast('✅ 已更新運費每日預算分攤');
+}
+
+function resetFreightBudgetWeights() {
+  freightBudgetWeights = { ...FREIGHT_BUDGET_WEIGHT_DEFAULTS };
+  freightBudgetHolidays = [];
+  renderFreightPage();
+  toast('↺ 已還原預算分攤預設值');
+}
+
 function renderFreightReferenceDashboard() {
   const overview = getFreightAnalysisData();
   const summary = getFreightSummaryForPage();
@@ -758,17 +841,24 @@ function renderFreightReferenceDashboard() {
   const previousMonthDate = new Date(rangeEnd.getFullYear(), rangeEnd.getMonth() - 1, 1);
   const previousMonthKey = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`;
   const previousMonthDays = new Date(previousMonthDate.getFullYear(), previousMonthDate.getMonth() + 1, 0).getDate();
-  const serverPrevMonth = Number(DATA.freight?.lastMonthCost || 0);
+  const selectedWarehouse = getSelectedFreightWarehouse();
+  const serverPrevMonth = selectedWarehouse === 'all' ? Number(DATA.freight?.lastMonthCost || 0) : 0;
   const previousMonthTotal = serverPrevMonth > 0
     ? serverPrevMonth
     : (DATA.freight?.dailyByWarehouse || []).reduce((sum, row) => {
         const fullDate = row[4] || shortToFreightFullDate(row[0]);
-        return fullDate?.startsWith(previousMonthKey)
-          ? sum + Number(row[1] || 0) + Number(row[2] || 0) + Number(row[3] || 0)
-          : sum;
+        if (!fullDate?.startsWith(previousMonthKey)) return sum;
+        if (selectedWarehouse === 'all') {
+          return sum + Number(row[1] || 0) + Number(row[2] || 0) + Number(row[3] || 0);
+        }
+        const amountIndex = FREIGHT_WAREHOUSE_ORDER.indexOf(selectedWarehouse) + 1;
+        return sum + Number(row[amountIndex] || 0);
       }, 0);
   const fullMonthDifference = actualTotal - previousMonthTotal;
-  const previousMonthOrders = (DATA.freight?.details || []).filter(row => row.fullDate?.startsWith(previousMonthKey)).length;
+  const previousMonthOrders = (DATA.freight?.details || []).filter(row =>
+    row.fullDate?.startsWith(previousMonthKey) &&
+    (selectedWarehouse === 'all' || row.budgetWarehouse === selectedWarehouse)
+  ).length;
   const orderDifference = summary.totalOrders - previousMonthOrders;
   const selectedDetails = getFreightDetailsFiltered() || [];
   const nonMainlineDetails = selectedDetails.filter(row => row.sourceType === 'nonmainline');
@@ -878,7 +968,11 @@ function renderFreightReferenceDashboard() {
   const workActualTotals = Object.fromEntries(workItems.map(({ item }) => [item, matrixDates.reduce((sum, date) => sum + workActualByDate[item][date], 0)]));
   const classifiedActualTotal = Object.values(workActualTotals).reduce((sum, value) => sum + value, 0);
   const workShares = Object.fromEntries(workItems.map(({ item }) => [item, classifiedActualTotal ? workActualTotals[item] / classifiedActualTotal : 1 / workItems.length]));
-  const dailyBudgetTotal = Object.fromEntries(matrixDates.map(date => [date, budgetTotal / daysInMonthFor(date)]));
+  const formatFreightWorkItemLabel = item => item === '離島海陸空運(馬祖)'
+    ? '<span class="freight-ref-matrix-item-label">離島海陸空運<span>(馬祖)</span></span>'
+    : item;
+  const apportionedDailyBudget = apportionFreightBudget(budgetTotal, matrixDates.map(freightBudgetDayWeight));
+  const dailyBudgetTotal = Object.fromEntries(matrixDates.map((date, index) => [date, apportionedDailyBudget[index]]));
   const workBudgetByDate = Object.fromEntries(workItems.map(({ item }) => [
     item,
     Object.fromEntries(matrixDates.map(date => [date, dailyBudgetTotal[date] * workShares[item]])),
@@ -904,7 +998,7 @@ function renderFreightReferenceDashboard() {
     return lines.map((line, lineIndex) => `
       <tr class="matrix-${line.type} ${lineIndex === 0 ? 'work-start' : ''} ${itemIndex === 0 && lineIndex === 0 ? 'group-start' : ''}" data-work-category="${group.category}">
         ${itemIndex === 0 && lineIndex === 0 ? `<td rowspan="${group.items.length * 3}" class="freight-ref-matrix-category">${group.category}</td>` : ''}
-        ${lineIndex === 0 ? `<td rowspan="3" class="freight-ref-matrix-item">${item}</td>` : ''}
+        ${lineIndex === 0 ? `<td rowspan="3" class="freight-ref-matrix-item">${formatFreightWorkItemLabel(item)}</td>` : ''}
         <td class="freight-ref-matrix-metric">${line.label}</td>
         ${line.values.map(value => matrixValue(value, line.type)).join('')}
         ${matrixValue(line.total, line.type)}
@@ -915,6 +1009,54 @@ function renderFreightReferenceDashboard() {
   const totalRateValues = totalActualValues.map((actual, index) => totalBudgetValues[index] ? actual / totalBudgetValues[index] * 100 : 0);
   const totalBudgetAmount = totalBudgetValues.reduce((sum, value) => sum + value, 0);
   const totalActualAmount = totalActualValues.reduce((sum, value) => sum + value, 0);
+  const mainlineActualValues = matrixDates.map(date => mainlineDetails
+    .filter(row => row.fullDate === date)
+    .reduce((sum, row) => sum + Number(row.actual || 0), 0));
+  const nonMainlineActualValues = matrixDates.map(date => nonMainlineDetails
+    .filter(row => row.fullDate === date)
+    .reduce((sum, row) => sum + Number(row.actual || 0), 0));
+  const trendMax = Math.max(1, ...totalBudgetValues, ...totalActualValues);
+  const trendW = 1240;
+  const trendH = 250;
+  const trendPadL = 58;
+  const trendPadR = 14;
+  const trendPadT = 12;
+  const trendPadB = 28;
+  const trendPlotH = trendH - trendPadT - trendPadB;
+  const trendBarW = (trendW - trendPadL - trendPadR) / Math.max(1, matrixDates.length);
+  const trendY = value => trendPadT + trendPlotH - value / trendMax * trendPlotH;
+  const trendGrid = Array.from({ length:5 }, (_, index) => {
+    const value = trendMax / 4 * index;
+    const y = trendY(value);
+    return `<line x1="${trendPadL}" y1="${y}" x2="${trendW - trendPadR}" y2="${y}" stroke="var(--app-border)" stroke-width="0.5"></line>
+      <text x="${trendPadL - 7}" y="${y + 4}" text-anchor="end" class="freight-ref-axis">${Math.round(value / 10000)}萬</text>`;
+  }).join('');
+  const trendBars = matrixDates.map((date, index) => {
+    const x = trendPadL + index * trendBarW + 2;
+    const width = Math.max(2, trendBarW - 4);
+    const main = mainlineActualValues[index];
+    const nonmain = nonMainlineActualValues[index];
+    const total = main + nonmain;
+    const label = Number(date.slice(8, 10));
+    return `<rect x="${x}" y="${trendY(main)}" width="${width}" height="${trendH - trendPadB - trendY(main)}" fill="var(--freight-kpi-blue)">
+        <title>${date}｜主線 $${Math.round(main).toLocaleString()}｜非主線 $${Math.round(nonmain).toLocaleString()}｜預算 $${Math.round(totalBudgetValues[index]).toLocaleString()}</title>
+      </rect>
+      <rect x="${x}" y="${trendY(total)}" width="${width}" height="${trendY(main) - trendY(total)}" fill="var(--freight-kpi-blue)" opacity="0.4"></rect>
+      ${label % 2 ? `<text x="${x + width / 2}" y="${trendH - 9}" text-anchor="middle" class="freight-ref-axis">${label}</text>` : ''}`;
+  }).join('');
+  const budgetTrendPath = totalBudgetValues.map((value, index) => {
+    const x = trendPadL + index * trendBarW + trendBarW / 2;
+    return `${index ? 'L' : 'M'}${x},${trendY(value)}`;
+  }).join(' ');
+  const weightLabels = [
+    ['mon', '週一'], ['tue', '週二'], ['wed', '週三'], ['thu', '週四'],
+    ['fri', '週五'], ['sat', '週六'], ['sun', '週日／假日'],
+  ];
+  const weightInputs = weightLabels.map(([key, label]) => `
+    <label class="freight-budget-weight">
+      <span>${label}</span>
+      <input type="number" min="0" step="0.1" id="freight-weight-${key}" value="${freightBudgetWeights[key]}">
+    </label>`).join('');
   const totalRows = [
     { label:'預算', type:'budget', values:totalBudgetValues, total:totalBudgetAmount },
     { label:'實際', type:'actual', values:totalActualValues, total:totalActualAmount },
@@ -963,36 +1105,37 @@ function renderFreightReferenceDashboard() {
       </div>
     </div>
 
-    <div class="freight-ref-charts">
-      <section class="freight-ref-chart-section">
-        <div class="freight-ref-card-title">非主線派車原因</div>
-        <article class="freight-ref-card freight-ref-reason-card">
-        <svg class="freight-ref-combo freight-ref-reason-chart" viewBox="0 12 700 220">
-          <path d="${reasonChart.path}" fill="none" stroke="var(--freight-kpi-pink)" stroke-width="1.5"></path>
-          ${reasonChart.bars}
-        </svg>
-        <div class="freight-ref-summary-strip freight-ref-reason-summary">
-          <span><small>前五名費用</small><strong>$${(topReasonCost / 10000).toFixed(1)}W</strong></span>
-          <span><small>派車筆數</small><strong>${topReasonCount.toLocaleString()} 筆</strong></span>
-          <span><small>平均單價</small><strong>$${Math.round(topReasonAverage).toLocaleString()}</strong></span>
+    <section class="freight-budget-trend-card">
+      <div class="freight-ref-card-title">每日費用趨勢</div>
+      <div class="freight-trend-legend">
+        <span><i class="mainline"></i>主線</span>
+        <span><i class="nonmainline"></i>非主線</span>
+        <span><i class="budget"></i>每日預算分攤</span>
+      </div>
+      <svg class="freight-budget-trend-chart" viewBox="0 0 ${trendW} ${trendH}">
+        ${trendGrid}
+        ${trendBars}
+        <path d="${budgetTrendPath}" fill="none" stroke="var(--app-warning)" stroke-width="2" stroke-dasharray="6 4"></path>
+      </svg>
+      <button type="button" class="freight-budget-panel-toggle" onclick="toggleFreightBudgetPanel()">
+        <span><strong>⚙️ 預算分攤控制台</strong>　物流量集中在非國定假日的週二～四，權重可調</span>
+        <span id="freight-budget-panel-arrow">▼ 展開</span>
+      </button>
+      <div class="freight-budget-panel-body" id="freight-budget-panel-body" hidden>
+        <p>每日預算 ＝ 月預算 × 當日權重 ÷ 全月權重總和。國定假日採週日權重；僅影響本頁預算分攤顯示，不修改資料庫預算。</p>
+        <div class="freight-budget-weights">${weightInputs}</div>
+        <div class="freight-budget-actions">
+          <label>
+            <span>國定假日（YYYY-MM-DD，逗號或換行分隔）</span>
+            <textarea id="freight-budget-holidays">${freightBudgetHolidays.join('\n')}</textarea>
+          </label>
+          <div>
+            <button class="btn btn-primary" onclick="applyFreightBudgetWeights()">套用</button>
+            <button class="btn btn-ghost" onclick="resetFreightBudgetWeights()">還原預設</button>
+          </div>
         </div>
-        </article>
-      </section>
-      <section class="freight-ref-chart-section">
-        <div class="freight-ref-card-title">主線派車路線前五</div>
-        <article class="freight-ref-card freight-ref-reason-card">
-        <svg class="freight-ref-combo freight-ref-reason-chart" viewBox="0 12 700 220">
-          <path d="${routeChart.path}" fill="none" stroke="var(--freight-kpi-pink)" stroke-width="1.5"></path>
-          ${routeChart.bars}
-        </svg>
-        <div class="freight-ref-summary-strip freight-ref-reason-summary">
-          <span><small>前五名費用</small><strong>$${(topRouteCost / 10000).toFixed(1)}W</strong></span>
-          <span><small>派車筆數</small><strong>${topRouteCount.toLocaleString()} 筆</strong></span>
-          <span><small>平均單價</small><strong>$${Math.round(topRouteAverage).toLocaleString()}</strong></span>
-        </div>
-        </article>
-      </section>
-    </div>
+      </div>
+    </section>
 
     <section class="freight-ref-matrix-section">
       <div class="freight-ref-matrix-heading">
@@ -1024,6 +1167,13 @@ function renderFreightReferenceDashboard() {
         </table>
       </div>
       </article>
+    </section>
+    <section class="freight-exception-panel">
+      <div>
+        <div class="freight-ref-card-title">⊘ 不列入預算明細</div>
+        <p>上收、誤 key 與尚未完成分類的資料，不計入動支率與費用總計。</p>
+      </div>
+      <span>目前後端 API 尚未提供不列入明細，待資料介面完成後即可在此檢視與分類。</span>
     </section>
   </section>`;
 }
