@@ -1814,6 +1814,12 @@ td.mono { font-family: var(--f-mono); }
 .freight-ref-matrix.t002-matrix thead th:nth-child(2) {
   width: 80px;
 }
+/* 覆蓋基底 th:nth-child(3) 的 72px（那是運費版「項目」欄用的），
+   讓 T002 的大溪/大肚/岡山/全區四欄平均分配 */
+.freight-ref-matrix.t002-matrix thead th:nth-child(n+3) {
+  width: auto;
+  min-width: 0;
+}
 .t002-matrix-card .table-note,
 .t003-matrix-card .table-note {
   border-top: 1px solid var(--app-border);
