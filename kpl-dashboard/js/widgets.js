@@ -1170,6 +1170,13 @@ function filterFreightWorkMatrix(category = 'all') {
   });
 }
 
+// T003 每日動支明細：依領域（全部/人力/運務）過濾
+function filterT003Domain(value = 'all') {
+  document.querySelectorAll('.freight-ref-matrix tr[data-t003-domain]').forEach(row => {
+    row.hidden = value !== 'all' && row.dataset.t003Domain !== value;
+  });
+}
+
 function renderF001() {
   const f = DATA.freight;
   const daily = getFreightTrendFiltered();
@@ -2520,7 +2527,7 @@ function renderT003() {
           if (item === '實際') return numCell(actual, latest);
           return rateMatrixCell(budget ? actual / budget * 100 : 0, latest);
         }).join('');
-        return `<tr class="matrix-${type} ${itemIndex === 0 ? 'work-start' : ''} ${isFirstDomainRow ? 'group-start' : ''}">
+        return `<tr class="matrix-${type} ${itemIndex === 0 ? 'work-start' : ''} ${isFirstDomainRow ? 'group-start' : ''}" data-t003-domain="${domain.label}">
           ${isFirstDomainRow ? `<td rowspan="${domainRowspan}" class="freight-ref-matrix-category">${domain.icon} ${domain.label}</td>` : ''}
           ${itemIndex === 0 ? `<td rowspan="3" class="freight-ref-matrix-item">${w.name}</td>` : ''}
           <td class="freight-ref-matrix-metric">${item}</td>
@@ -2532,7 +2539,17 @@ function renderT003() {
 
   return `
   <section class="t002-section">
-    <div class="t002-section-title">每日動支明細</div>
+    <div class="freight-ref-matrix-heading">
+      <div class="t002-section-title">每日動支明細</div>
+      <label class="freight-ref-matrix-view">
+        <span>查看</span>
+        <select class="filter-input" id="t003-domain-filter" onchange="filterT003Domain(this.value)">
+          <option value="all">全部</option>
+          <option value="人力">人力</option>
+          <option value="運務">運務</option>
+        </select>
+      </label>
+    </div>
     <article class="freight-ref-matrix-card t003-matrix-card">
       <div class="freight-ref-matrix-scroll">
         <table class="freight-ref-matrix">
