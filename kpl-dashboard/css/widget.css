@@ -2424,21 +2424,12 @@ td.mono { font-family: var(--f-mono); }
   font-weight: 700;
   color: var(--ry-ink);
 }
+/* 圓餅卡與班別卡：等高（grid stretch），內容垂直置中，不拉伸內容 */
 .labor-struct-card,
 .labor-shift-card {
   display: flex;
   flex-direction: column;
-}
-.labor-struct-card .labor-pie-wrap {
-  flex: 1;
-  display: flex;
-  align-items: center;
-}
-.labor-struct-card .labor-pie-layout {
-  width: 100%;
-}
-.labor-shift-card .tbl {
-  flex: 1;
+  justify-content: center;
 }
 .labor-top-value {
   font-family: var(--f-mono);
