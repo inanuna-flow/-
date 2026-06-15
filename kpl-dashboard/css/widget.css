@@ -2393,21 +2393,24 @@ td.mono { font-family: var(--f-mono); }
   padding: 16px;
 }
 .labor-pie-layout {
-  display: grid;
-  grid-template-columns: 260px minmax(0, 1fr);
-  gap: 18px;
+  display: flex;
+  flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
+  gap: 16px 24px;
 }
 .labor-pie-chart {
-  width: 100%;
-  max-width: 260px;
+  flex: 0 0 auto;
+  width: 180px;
+  max-width: 180px;
   aspect-ratio: 1;
   display: block;
 }
 .labor-top-list {
+  flex: 1 1 256px;
   display: flex;
   flex-direction: column;
-  gap: 9px;
+  gap: 10px;
   min-width: 0;
 }
 .labor-top-title {

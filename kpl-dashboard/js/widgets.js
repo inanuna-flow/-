@@ -931,17 +931,9 @@ function renderFreightReferenceDashboard() {
     matrixDates.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
   }
   function classifyFreightWorkItem(row) {
-    if (row.sourceType === 'nonmainline' && row.categoryL2) return row.categoryL2;
-    const text = `${row.route || ''} ${row.vendor || ''} ${row.reason || ''}`;
-    if (/花蓮/.test(text)) return '花蓮轉運費';
-    if (/跨區/.test(text)) return '跨區轉運費';
-    if (/違規|罰款/.test(text)) return '違規罰款';
-    if (/馬祖/.test(text)) return '離島海陸空運(馬祖)';
-    if (/澎湖|金門/.test(text)) return '離島運費(澎湖、金門)';
-    if (/共配/.test(text)) return '全台共配費';
-    if (/逆物流/.test(text)) return '逆物流';
-    if (/正物流/.test(text)) return '正物流';
-    if (/專車|非主線/.test(text) || String(row.reason || '').trim()) return '專車';
+    // 非主線：採用匯入時 classifyNonMainline 寫入的權威分類；無法判斷暫歸專車
+    if (row.sourceType === 'nonmainline') return row.categoryL2 || '專車';
+    // 主線：一律夜配（業務確認主線目前只有夜配）
     return '夜配';
   }
   const workActualByDate = Object.fromEntries(workItems.map(({ item }) => [item, Object.fromEntries(matrixDates.map(date => [date, 0]))]));
