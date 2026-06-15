@@ -3,6 +3,15 @@
    日翊文化行銷 Re-Yi Distribution
    ═══════════════════════════════════════════════════════ */
 
+/* 自架字體：全站統一 Noto Sans TC（可變字重 100–900），不再依賴 Google Fonts */
+@font-face {
+  font-family: "Noto Sans TC";
+  src: url("../fonts/NotoSansTC-VariableFont_wght.ttf?v=20260613-1") format("truetype");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: swap;
+}
+
 :root {
   /* 主色系 */
   --ry-blue:       #1e5ca8;
@@ -28,10 +37,11 @@
   --ry-paper:      #fafbfd;
 
   /* 字型 */
-  --f-head: "Inter", "Noto Sans TC", "Microsoft JhengHei", "微軟正黑體", "PingFang TC", system-ui, sans-serif;
-  --f-mono: "Geist Mono", "Cascadia Mono", "SFMono-Regular", "Consolas", monospace;
+  /* 全站統一 Noto Sans TC；--f-mono 保留別名供舊有引用，數字也走同一字體 */
+  --f-head: "Noto Sans TC", "Microsoft JhengHei", "微軟正黑體", "PingFang TC", system-ui, sans-serif;
+  --f-mono: "Noto Sans TC", "Microsoft JhengHei", "微軟正黑體", "PingFang TC", system-ui, sans-serif;
   --font-ui: var(--f-head);
-  --font-number: var(--f-mono);
+  --font-number: var(--f-head);
 
   /* 文字層級 */
   --typo-page-title-size: 26px;

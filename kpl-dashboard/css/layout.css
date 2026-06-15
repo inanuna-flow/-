@@ -582,11 +582,12 @@ body.drawer-pinned .main {
   display: inline-grid;
   place-items: center;
   border-radius: 10px;
-  background: linear-gradient(135deg, var(--app-primary), var(--app-primary-strong));
-  color: white;
+  /* RY 標誌固定紅底白字，不隨主題變色 */
+  background: linear-gradient(135deg, #e24a22, #c0341a);
+  color: #fff;
   font-size: 11px;
   font-weight: 900;
-  box-shadow: 0 8px 18px color-mix(in srgb, var(--app-primary) 28%, transparent);
+  box-shadow: 0 8px 18px rgba(217, 64, 27, 0.30);
   flex-shrink: 0;
 }
 
@@ -753,6 +754,44 @@ body.sidebar-collapsed .sidebar-hover-zone {
   display: block;
 }
 
+/* 側邊欄寬度拖拉把手（僅在釘選/docked 狀態顯示） */
+.sidebar-resize-handle {
+  position: fixed;
+  top: var(--topbar-h);
+  left: calc(var(--workspace-gap) + var(--drawer-width));
+  bottom: 0;
+  width: 10px;
+  transform: translateX(-5px);
+  cursor: ew-resize;
+  z-index: 200;
+  display: none;
+}
+body.sidebar-pinned .sidebar-resize-handle {
+  display: block;
+}
+.sidebar-resize-handle::after {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: transparent;
+  transition: background .15s ease;
+}
+.sidebar-resize-handle:hover::after,
+body.sidebar-resizing .sidebar-resize-handle::after {
+  background: var(--app-primary);
+}
+body.sidebar-resizing {
+  cursor: ew-resize;
+  user-select: none;
+}
+body.sidebar-resizing .sidebar,
+body.sidebar-resizing .main,
+body.sidebar-resizing .topbar {
+  transition: none;
+}
+
 .sidebar-overlay {
   position: fixed;
   inset: 0;
@@ -888,7 +927,7 @@ html[data-theme="day"] body.sidebar-pinned .sb-pin {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 17px;
-  font-weight: 900;
+  font-weight: 400;
 }
 
 .sb-category-caret {
@@ -1226,6 +1265,11 @@ html[data-theme="day"] .sb-item.active::before {
 }
 
 @media (max-width: 768px) {
+  .sidebar-resize-handle,
+  body.sidebar-pinned .sidebar-resize-handle {
+    display: none;
+  }
+
   .shell {
     padding: 14px;
   }

@@ -1783,6 +1783,30 @@ td.mono { font-family: var(--f-mono); }
   color: var(--app-text);
   font-style: normal;
 }
+.freight-ref-matrix-number.rate.safe {
+  color: var(--app-success);
+}
+.freight-ref-matrix-number.rate.warning {
+  color: var(--app-warning);
+}
+.freight-ref-matrix-number.rate.danger {
+  color: var(--app-danger);
+}
+
+/* T002「區間動支彙總」沿用 freight-ref-matrix，但只有兩個標籤欄（領域＋項目）、
+   且資料短，停用 sticky 與第三欄陰影；說明收在卡片內並以分隔線區隔 */
+.freight-ref-matrix.t002-matrix th,
+.freight-ref-matrix.t002-matrix td {
+  position: static;
+}
+.freight-ref-matrix.t002-matrix td.freight-ref-matrix-metric {
+  box-shadow: none;
+}
+.t002-matrix-card .table-note {
+  border-top: 1px solid var(--app-border);
+  padding: 10px 16px;
+}
+
 .freight-ref-matrix tr.total td {
   background: var(--app-surface-soft);
   font-weight: var(--typo-table-weight);
@@ -2394,6 +2418,22 @@ td.mono { font-family: var(--f-mono); }
   font-weight: 700;
   color: var(--ry-ink);
 }
+.labor-struct-card,
+.labor-shift-card {
+  display: flex;
+  flex-direction: column;
+}
+.labor-struct-card .labor-pie-wrap {
+  flex: 1;
+  display: flex;
+  align-items: center;
+}
+.labor-struct-card .labor-pie-layout {
+  width: 100%;
+}
+.labor-shift-card .tbl {
+  flex: 1;
+}
 .labor-top-value {
   font-family: var(--f-mono);
   font-size: var(--fs-xs);
@@ -2643,9 +2683,20 @@ td.mono { font-family: var(--f-mono); }
 }
 .t001-cost-grid {
   display: grid;
-  gap: 7px;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px 14px;
   padding-top: 10px;
-  border-top: 1px solid var(--ry-line);
+  border-top: 1px solid var(--app-border);
+}
+.t001-cost-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.t001-cost-col .mini-value {
+  text-align: left;
+  font-size: var(--fs-md);
 }
 .t001-detail-row,
 .t001-summary-row {
@@ -2689,6 +2740,47 @@ td.mono { font-family: var(--f-mono); }
   text-align: right;
 }
 
+/* T001 總實際／總預算：滑過卡片才浮現的懸浮卡片 */
+.t001-card {
+  position: relative;
+}
+.t001-hover-card {
+  position: absolute;
+  top: calc(100% - 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  box-shadow: var(--app-shadow);
+  padding: 12px 14px;
+  display: grid;
+  gap: 6px;
+  opacity: 0;
+  visibility: hidden;
+  pointer-events: none;
+  transform: translateY(4px);
+  transition: opacity .15s ease, transform .15s ease, visibility .15s ease;
+}
+.t001-card:hover .t001-hover-card {
+  opacity: 1;
+  visibility: visible;
+  transform: translateY(0);
+}
+.t001-hover-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 12px;
+  color: var(--app-muted);
+}
+.t001-hover-row span:last-child {
+  color: var(--app-text);
+  font-family: var(--f-mono);
+  font-weight: 600;
+}
+
 /*
  * T002 viewport-fit controls
  * Edit these values to make the whole ledger taller or shorter.
@@ -2709,8 +2801,9 @@ td.mono { font-family: var(--f-mono); }
 }
 .table-card:has(.t002-table) .table-edge {
   margin: 0;
-  overflow: hidden;
-  border-radius: inherit;
+  /* 改由卡片本身裁切，避免外框與內層同半徑裁切造成圓角接縫、粗細不一 */
+  overflow: visible;
+  border-radius: 0;
 }
 .t002-section {
   grid-column: 1 / -1;
@@ -2727,6 +2820,8 @@ td.mono { font-family: var(--f-mono); }
 }
 .table-card:has(.t002-table) {
   margin-top: 0;
+  /* 卡片自身（含 1px 邊框＋圓角）負責裁切，外框四邊與圓角粗細一致 */
+  overflow: hidden;
 }
 .table-card:has(.t002-table) > .wh {
   display: none;
@@ -3604,6 +3699,44 @@ html[data-theme="day"] .tbl.t002-table .t002-domain-row-total.t002-domain-start 
   border-top-color: #52525b;
 }
 
+/* T002 對齊「每日作業項目預算動支明細」(freight-ref-matrix) 的乾淨網格：
+   所有儲存格統一 1px 縱橫格線；組首深色強調線改用 inset box-shadow（不佔版面、不與格線疊成 2px）。 */
+.tbl.t002-table th,
+.tbl.t002-table td {
+  border-top: 0;
+  border-left: 0;
+  border-right: var(--t002-line-width) solid var(--app-border);
+  border-bottom: var(--t002-line-width) solid var(--app-border);
+}
+.tbl.t002-table th.t002-wh-total,
+.tbl.t002-table td.total-cell {
+  border-left: 0;
+}
+.tbl.t002-table .t002-domain-start td {
+  border-top: 0;
+  box-shadow: inset 0 1px 0 var(--app-muted-strong);
+}
+/* 組末列（動支）不畫灰底線，避免與下一組的深色強調線疊成 2px */
+.tbl.t002-table tbody tr:has(+ tr.t002-domain-start) td {
+  border-bottom: 0;
+}
+/* 最外圈不重複畫線：右緣、底列交給外框 */
+.tbl.t002-table th:last-child,
+.tbl.t002-table td:last-child {
+  border-right: 0;
+}
+.tbl.t002-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+/* 「實際」列淡底，與 freight-ref-matrix 一致 */
+.tbl.t002-table td.actual-strong {
+  background: var(--app-surface-soft);
+}
+/* 說明區收在同一張卡片內，與表格以分隔線區隔 */
+.table-card:has(.t002-table) .table-note {
+  border-top: 1px solid var(--app-border);
+}
+
 html[data-theme="day"] .tbl.t002-table .t002-head-row,
 html[data-theme="day"] .tbl.t002-table th.t002-head-domain,
 html[data-theme="day"] .tbl.t002-table th.t002-head-item,
@@ -4072,6 +4205,113 @@ html[data-theme="night"] #main :is(
 
 #main .admin-permission-table-frame .admin-permission-table {
   border-radius: 0;
+}
+
+/* 外框由 frame 提供單一 1px 邊框；移除表格最外圈邊框，避免雙層導致粗細不一致 */
+#main .admin-permission-table-frame .ops-compact-table th {
+  border-top: none;
+}
+#main .admin-permission-table-frame .ops-compact-table th:first-child,
+#main .admin-permission-table-frame .ops-compact-table td:first-child {
+  border-left: none;
+}
+#main .admin-permission-table-frame .ops-compact-table th:last-child,
+#main .admin-permission-table-frame .ops-compact-table td:last-child {
+  border-right: none;
+}
+#main .admin-permission-table-frame .ops-compact-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── 通用資料表格外框（統一設計）──
+   由容器提供單一外框與水平捲動；表格不自畫外框，只留內部細線。
+   套用於 .ops-table-frame；承載它的 .w 卡片本身不再畫框，避免雙層。 */
+#main .w:has(> .ops-table-frame) {
+  padding: 0;
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+}
+#main .ops-table-frame {
+  overflow-x: auto;
+  overflow-y: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+  /* shadcn data table 容器只有 border、無陰影，四邊 1px 一致 */
+}
+#main .ops-table-frame > .ops-compact-table {
+  border-radius: 0;
+}
+/* 表頭儲存格的 border-top 會與外框頂緣疊成 2px，強制清除讓頂緣=底緣=1px */
+#main .ops-table-frame .ops-compact-table thead tr:first-child th {
+  border-top: 0 !important;
+}
+#main .ops-table-frame .ops-compact-table th {
+  border-top: none;
+}
+#main .ops-table-frame .ops-compact-table th:first-child,
+#main .ops-table-frame .ops-compact-table td:first-child {
+  border-left: none;
+}
+#main .ops-table-frame .ops-compact-table th:last-child,
+#main .ops-table-frame .ops-compact-table td:last-child {
+  border-right: none;
+}
+#main .ops-table-frame .ops-compact-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* shadcn Data Table 外觀複刻：純水平列分隔、無縱向格線、淡化表頭、無斑馬紋、列 hover */
+#main .ops-table-frame .ops-compact-table th,
+#main .ops-table-frame .ops-compact-table td {
+  border-right: none;
+  border-left: none;
+}
+#main .ops-table-frame .ops-compact-table thead tr,
+#main .ops-table-frame .ops-compact-table thead th {
+  background: transparent;
+}
+/* 清掉舊 .tbl thead tr 的 1px 頂線 / 2px 藍底線，避免表頭分隔變粗 */
+#main .ops-table-frame .ops-compact-table thead tr {
+  border-top: none;
+  border-bottom: none;
+}
+#main .ops-table-frame .ops-compact-table thead th {
+  color: var(--app-muted);
+  font-weight: 500;
+  border-top: none;
+  border-bottom: 1px solid var(--app-border);
+}
+#main .ops-table-frame .ops-compact-table tbody tr:nth-child(even) td {
+  background: transparent;
+}
+#main .ops-table-frame .ops-compact-table tbody tr:hover td {
+  background: var(--app-surface-muted);
+}
+
+/* ── 密集財務表「只統一外框」──
+   保留表格內部縱橫格線，只把外框換成單一 1px 圓角裁切（與其他卡片一致）。
+   排除：t002（已單獨處理）、annual（其 .table-edge 本身是水平捲動容器，不可裁切）。 */
+#main .w.table-card:not(:has(.t002-table)):has(> .table-edge:not(.annual-table-scroll)) {
+  border: 0;
+  box-shadow: none;
+  background: transparent;
+  padding: 0;
+}
+#main .w.table-card:not(:has(.t002-table)) > .table-edge:not(.annual-table-scroll) {
+  margin: 0;
+  overflow: hidden;
+  border: 1px solid var(--app-border);
+  border-radius: var(--app-radius);
+  background: var(--app-surface);
+}
+/* 移除表格最外圈上下邊框，避免與新外框疊成 2px */
+#main .w.table-card:not(:has(.t002-table)) > .table-edge:not(.annual-table-scroll) .tbl thead tr:first-child th {
+  border-top: 0;
+}
+#main .w.table-card:not(:has(.t002-table)) > .table-edge:not(.annual-table-scroll) .tbl tbody tr:last-child td {
+  border-bottom: 0;
 }
 
 #main .preview-table-wrap:has(.ops-compact-table) {

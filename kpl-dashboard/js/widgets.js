@@ -174,7 +174,7 @@ function renderM015() {
       <div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div>
       <span class="wmeta">${months.length} 個月份</span>
     </div>
-    <div class="table-edge">
+    <div class="ops-table-frame">
       <table class="tbl ops-compact-table">
         <thead><tr>
           <th>月份</th>
@@ -610,11 +610,11 @@ function renderFreightBudgetActualCombo() {
     return `
       <rect x="${cx - barW - 4}" y="${yBudget}" width="${barW}" height="${padT + chartH - yBudget}" rx="4" fill="#3b82f6"></rect>
       <rect x="${cx + 4}" y="${yActual}" width="${barW}" height="${padT + chartH - yActual}" rx="4" fill="#fb6f92"></rect>
-      <text x="${cx - barW / 2 - 4}" y="${yBudget - 7}" text-anchor="middle" font-size="10" fill="#123d74" font-family="Courier New">${(budget / 1000000).toFixed(1)}</text>
-      <text x="${cx + barW / 2 + 4}" y="${yActual - 7}" text-anchor="middle" font-size="10" fill="#9f1239" font-family="Courier New">${(actual / 1000000).toFixed(1)}</text>
+      <text x="${cx - barW / 2 - 4}" y="${yBudget - 7}" text-anchor="middle" font-size="10" fill="#123d74" font-family="Noto Sans TC">${(budget / 1000000).toFixed(1)}</text>
+      <text x="${cx + barW / 2 + 4}" y="${yActual - 7}" text-anchor="middle" font-size="10" fill="#9f1239" font-family="Noto Sans TC">${(actual / 1000000).toFixed(1)}</text>
       <text x="${cx}" y="${H - 18}" text-anchor="middle" font-size="12" fill="#1a1d24" font-weight="700">${warehouse.replace('倉', '')}</text>
       <circle cx="${cx}" cy="${yRate(rate)}" r="4" fill="#1d4ed8" stroke="white" stroke-width="2"></circle>
-      <text x="${cx}" y="${yRate(rate) - 10}" text-anchor="middle" font-size="11" fill="#1d4ed8" font-family="Courier New" font-weight="700">${rate.toFixed(1)}%</text>`;
+      <text x="${cx}" y="${yRate(rate) - 10}" text-anchor="middle" font-size="11" fill="#1d4ed8" font-family="Noto Sans TC" font-weight="700">${rate.toFixed(1)}%</text>`;
   }).join('');
 
   const ratePath = data.order.map((warehouse, index) => {
@@ -632,8 +632,8 @@ function renderFreightBudgetActualCombo() {
       <line x1="${padL}" y1="${padT + chartH}" x2="${padL + chartW}" y2="${padT + chartH}" stroke="#dde2ec"></line>
       <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + chartH}" stroke="#dde2ec"></line>
       <line x1="${padL + chartW}" y1="${padT}" x2="${padL + chartW}" y2="${padT + chartH}" stroke="#dde2ec" stroke-dasharray="3 3"></line>
-      <text x="${padL - 8}" y="${padT + 4}" text-anchor="end" font-size="10" fill="#5a6478" font-family="Courier New">${(maxValue / 1000000).toFixed(0)}M</text>
-      <text x="${padL - 8}" y="${padT + chartH + 4}" text-anchor="end" font-size="10" fill="#5a6478" font-family="Courier New">0</text>
+      <text x="${padL - 8}" y="${padT + 4}" text-anchor="end" font-size="10" fill="#5a6478" font-family="Noto Sans TC">${(maxValue / 1000000).toFixed(0)}M</text>
+      <text x="${padL - 8}" y="${padT + chartH + 4}" text-anchor="end" font-size="10" fill="#5a6478" font-family="Noto Sans TC">0</text>
       <path d="${ratePath}" fill="none" stroke="#1d4ed8" stroke-width="2.5"></path>
       ${bars}
     </svg>
@@ -1048,7 +1048,7 @@ function renderFreightReferenceDashboard() {
     { label:'實際', type:'actual', values:totalActualValues, total:totalActualAmount },
     { label:'動支', type:'rate', values:totalRateValues, total:totalBudgetAmount ? totalActualAmount / totalBudgetAmount * 100 : 0 },
   ].map((line, index) => `
-    <tr class="total matrix-${line.type} ${index === 0 ? 'work-start' : ''}">
+    <tr class="total matrix-${line.type} ${index === 0 ? 'work-start group-start' : ''}">
       ${index === 0 ? '<td rowspan="3" colspan="2" class="freight-ref-matrix-item">總計</td>' : ''}
       <td class="freight-ref-matrix-metric">${line.label}</td>
       ${line.values.map(value => matrixValue(value, line.type)).join('')}
@@ -1272,7 +1272,7 @@ function renderF009() {
   const areaD = pathD + ` L${padL + plotW},${padT + plotH} L${padL},${padT + plotH} Z`;
 
   const xLabels = data.map((d, i) => i % 4 === 0 || i === data.length - 1
-    ? `<text x="${padL + i * xStep}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#5a6478" font-family="Courier New, monospace">${d[0]}</text>`
+    ? `<text x="${padL + i * xStep}" y="${H - 10}" text-anchor="middle" font-size="10" fill="#5a6478" font-family="Noto Sans TC">${d[0]}</text>`
     : '').join('');
 
   const dots = data.map((d, i) =>
@@ -1283,7 +1283,7 @@ function renderF009() {
 
   const yTicks = [minCost, (minCost + maxCost) / 2, maxCost].map(v =>
     `<line x1="${padL}" y1="${yFor(v)}" x2="${padL + plotW}" y2="${yFor(v)}" stroke="#dde2ec" stroke-width="0.5" stroke-dasharray="3,3"/>
-     <text x="${padL - 8}" y="${yFor(v) + 3}" text-anchor="end" font-size="9" fill="#5a6478" font-family="Courier New, monospace">${(v/1000).toFixed(0)}K</text>`
+     <text x="${padL - 8}" y="${yFor(v) + 3}" text-anchor="end" font-size="9" fill="#5a6478" font-family="Noto Sans TC">${(v/1000).toFixed(0)}K</text>`
   ).join('');
 
   return `
@@ -1295,7 +1295,7 @@ function renderF009() {
     <svg class="chart-svg" viewBox="0 0 ${W} ${H}">
       ${yTicks}
       <line x1="${padL}" y1="${avgY}" x2="${padL + plotW}" y2="${avgY}" stroke="#e07855" stroke-width="1" stroke-dasharray="5,4"/>
-      <text x="${padL + plotW - 4}" y="${avgY - 4}" text-anchor="end" font-size="10" fill="#e07855" font-family="Courier New, monospace">平均 ${fmtMoney(Math.round(avgCost))}</text>
+      <text x="${padL + plotW - 4}" y="${avgY - 4}" text-anchor="end" font-size="10" fill="#e07855" font-family="Noto Sans TC">平均 ${fmtMoney(Math.round(avgCost))}</text>
       <path d="${areaD}" fill="#1e5ca8" fill-opacity="0.08"/>
       <path d="${pathD}" fill="none" stroke="#1e5ca8" stroke-width="2" stroke-linejoin="round"/>
       ${dots}
@@ -1569,13 +1569,15 @@ function renderT001() {
     '岡山倉': '#E07855',
   };
 
+  const toWan = (v) => `$${(Number(v || 0) / 10000).toLocaleString('zh-TW', { minimumFractionDigits: 1, maximumFractionDigits: 1 })}萬`;
+
   function card(stats, isAll) {
     const color = colors[stats.name];
     const rateColor = colorFor(stats.pct);
     return `
-    <div class="w s3">
+    <div class="w s3 t001-card">
       <div class="wh">
-        <div class="wl"><div class="wdot" style="background:${color}"></div>${isAll ? '🌐 全區' : stats.name}</div>
+        <div class="wl"><div class="wdot" style="background:${color}"></div>${isAll ? '全區' : stats.name}</div>
       </div>
       <span class="t001-status">${labelFor(stats.pct)}</span>
       <div class="t001-rate-row">
@@ -1583,19 +1585,18 @@ function renderT001() {
         <div class="t001-rate-unit" style="color:${rateColor}">%</div>
       </div>
       <div class="t001-cost-grid">
-        <div class="t001-detail-row">
+        <div class="t001-cost-col">
           <div class="mini-label">人力費用</div>
-          <div class="mono mini-value">${fmtMoney(stats.labor)}</div>
+          <div class="mono mini-value">${toWan(stats.labor)}</div>
         </div>
-        <div class="t001-detail-row">
+        <div class="t001-cost-col">
           <div class="mini-label">運務費用</div>
-          <div class="mono mini-value">${fmtMoney(stats.freight)}</div>
+          <div class="mono mini-value">${toWan(stats.freight)}</div>
         </div>
       </div>
-      <div class="t001-card-note">
-        <div class="t001-summary-label">本期總計</div>
-        <div class="t001-summary-row"><span>總實際</span><span>${fmtMoney(stats.total)}</span></div>
-        <div class="t001-summary-row"><span>總預算</span><span>${fmtMoney(Math.round(stats.budget))}</span></div>
+      <div class="t001-hover-card">
+        <div class="t001-hover-row"><span>總實際</span><span>${fmtMoney(stats.total)}</span></div>
+        <div class="t001-hover-row"><span>總預算</span><span>${fmtMoney(Math.round(stats.budget))}</span></div>
       </div>
     </div>`;
   }
@@ -1612,91 +1613,51 @@ function renderT002() {
   const all      = sumAll(rows);
   const warehouses = [daxi, dadu, gangshan, all];
 
-  const whColor = {
-    '大溪倉': 'var(--tbl-daxi)',
-    '大肚倉': 'var(--tbl-dadu)',
-    '岡山倉': 'var(--tbl-gangshan)',
-    '全區':   'var(--tbl-all)',
+  // 數值/動支率儲存格：沿用 freight-ref-matrix 樣式
+  const numCell = (v) => `<td class="freight-ref-matrix-number">${fmtMoney(Math.round(v || 0))}</td>`;
+  const rateCell = (pct) => {
+    const state = pct > 90 ? 'danger' : pct >= 75 ? 'warning' : 'safe';
+    return `<td class="freight-ref-matrix-number rate ${state}">${(pct || 0).toFixed(1)}%</td>`;
   };
 
-  const warehouseHeader = warehouses.map(w => {
-    const isAll = w.name === '全區';
-    return `<th class="t002-wh-head ${isAll ? 't002-wh-total' : ''}">${isAll ? '🌐 ' : ''}${w.name}</th>`;
+  const domains = [
+    { label:'人力', icon:'💰', key:{ b:'laborBudget',   a:'labor',   p:'laborPct'   } },
+    { label:'運務', icon:'🚚', key:{ b:'freightBudget', a:'freight', p:'freightPct' } },
+    { label:'合計', icon:'📊', key:{ b:'budget',        a:'total',   p:'pct'        } },
+  ];
+
+  const matrixRows = domains.map(d => {
+    const lines = [
+      { label:'預算', type:'budget', cells: warehouses.map(w => numCell(w[d.key.b])).join('') },
+      { label:'實際', type:'actual', cells: warehouses.map(w => numCell(w[d.key.a])).join('') },
+      { label:'動支', type:'rate',   cells: warehouses.map(w => rateCell(w[d.key.p])).join('') },
+    ];
+    return lines.map((line, i) => `
+      <tr class="matrix-${line.type} ${i === 0 ? 'work-start group-start' : ''}">
+        ${i === 0 ? `<td rowspan="3" class="freight-ref-matrix-category">${d.icon} ${d.label}</td>` : ''}
+        <td class="freight-ref-matrix-metric">${line.label}</td>
+        ${line.cells}
+      </tr>`).join('');
   }).join('');
 
-  function rateCell(pct, isTotal) {
-    const state = pct >= 100 ? 'danger' : pct >= 90 ? 'danger' : pct >= 75 ? 'warn' : 'safe';
-    const width = Math.max(2, Math.min(100, pct || 0));
-    return `<td class="num-right ${isTotal ? 'total-cell' : ''}">
-      <span class="t002-rate t002-rate-${state}">
-        <span class="t002-rate-top">
-          <span class="t002-rate-value">${pct.toFixed(1)}%</span>
-        </span>
-      </span>
-    </td>`;
-  }
-
-  function domainRows(domainLabel, domainIcon, domainKey, keyMap) {
-    const budgetCells = warehouses.map(w => {
-      return `<td class="mono num-right ${w.name === '全區' ? 'total-cell' : ''}">${fmtMoney(Math.round(w[keyMap.b]))}</td>`;
-    }).join('');
-
-    const actualCells = warehouses.map(w => {
-      return `<td class="mono num-right actual-strong ${w.name === '全區' ? 'total-cell' : ''}">${fmtMoney(w[keyMap.a])}</td>`;
-    }).join('');
-
-    const pctCells = warehouses.map(w => {
-      return rateCell(w[keyMap.p], w.name === '全區');
-    }).join('');
-
-    const domainCell = `<td rowspan="3" class="t002-domain-cell t002-domain-${domainKey}">
-      <div class="domain-icon">${domainIcon}</div>
-      <div class="domain-label">${domainLabel}</div>
-    </td>`;
-
-    return `
-      <tr class="t002-domain-start t002-domain-row-${domainKey}">
-        ${domainCell}
-        <td class="t002-item-cell">預算</td>
-        ${budgetCells}
-      </tr>
-      <tr class="t002-domain-row-${domainKey}">
-        <td class="t002-item-cell">實際</td>
-        ${actualCells}
-      </tr>
-      <tr class="t002-domain-row-${domainKey}">
-        <td class="t002-item-cell t002-item-strong">動支</td>
-        ${pctCells}
-      </tr>`;
-  }
-
-  const keyLabor   = { b:'laborBudget',   a:'labor',   p:'laborPct'   };
-  const keyFreight = { b:'freightBudget', a:'freight', p:'freightPct' };
-  const keyTotal   = { b:'budget',        a:'total',   p:'pct'        };
+  const matrixHeader = warehouses
+    .map(w => `<th>${w.name}</th>`)
+    .join('');
 
   return `
   <section class="t002-section">
-  <div class="t002-section-title">區間動支彙總</div>
-  <div class="w table-card">
-    <div class="wh">
-      <div class="wl"><div class="wdot"></div>T002 期間動支彙總</div>
-      <span class="wmeta">${DATA.dateFrom} ~ ${DATA.dateTo} · 共 ${selectedDispatchDayCount()} 天</span>
-    </div>
-    <div class="table-edge">
-      <div class="scroll-x">
-        <table class="tbl t002-table">
+    <div class="t002-section-title">區間動支彙總</div>
+    <article class="freight-ref-matrix-card t002-matrix-card">
+      <div class="freight-ref-matrix-scroll">
+        <table class="freight-ref-matrix t002-matrix">
           <thead>
-            <tr class="t002-head-row">
-              <th class="t002-head-domain">領域</th>
-              <th class="t002-head-item">項目</th>
-              ${warehouseHeader}
+            <tr>
+              <th>領域</th>
+              <th>項目</th>
+              ${matrixHeader}
             </tr>
           </thead>
-          <tbody>
-            ${domainRows('人力', '💰', 'labor', keyLabor)}
-            ${domainRows('運務', '🚚', 'freight', keyFreight)}
-            ${domainRows('合計', '📊', 'total', keyTotal)}
-          </tbody>
+          <tbody>${matrixRows}</tbody>
         </table>
       </div>
       <details class="table-note t002-note">
@@ -1707,8 +1668,7 @@ function renderT002() {
           <div>📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險</div>
         </div>
       </details>
-    </div>
-  </div>
+    </article>
   </section>`;
 }
 
@@ -1880,7 +1840,7 @@ function renderM025(labor, picks, code = 'M025') {
       <div class="wl"><div class="wdot"></div>${code} 工時區域人效矩陣</div>
       <span class="wmeta">${rows.length} 個作業區域</span>
     </div>
-    <div class="table-edge">
+    <div class="ops-table-frame">
       <table class="tbl ops-compact-table">
         <thead><tr>
           <th>作業區域</th>
@@ -1965,7 +1925,7 @@ function renderAnnualCharts(label, dotCls, totalBudget, totalActual, hasBudget, 
   const plotW = W - padL - padR, plotH = H - padT - padB;
   const xFor  = mi => padL + mi * (plotW / 11);
   const xLabels = Array(12).fill(0).map((_, mi) =>
-    `<text x="${xFor(mi).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#5a6478" font-family="Courier New,monospace">${mi + 1}月</text>`
+    `<text x="${xFor(mi).toFixed(1)}" y="${H - 8}" text-anchor="middle" font-size="10" fill="#5a6478" font-family="Noto Sans TC">${mi + 1}月</text>`
   ).join('');
 
   // Chart 1: 達成率折線

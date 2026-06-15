@@ -189,7 +189,7 @@ function renderSidebar() {
     <div class="sb-header-brand">
       <div class="sb-brand-badge">RY</div>
       <div>
-        <div class="sb-header-title">KPL 營運中控台</div>
+        <div class="sb-header-title">KPL 營運儀表板</div>
         <div class="sb-header-subtitle">Re-Yi Distribution</div>
       </div>
     </div>
@@ -220,9 +220,6 @@ function renderSidebar() {
           <span class="sb-category-icon">${group.icon}</span>
           <span class="sb-category-label">${group.label}</span>
         </span>
-        <svg class="sb-category-caret" width="10" height="6" viewBox="0 0 10 6" fill="currentColor" aria-hidden="true">
-          <path d="M0 0l5 6 5-6z"/>
-        </svg>
       </button>
       <div class="sb-pages">`;
 
@@ -384,7 +381,7 @@ function updateTopbarPageName(pageId) {
     const groupEl = document.getElementById('topbar-breadcrumb-group');
     const pageEl = document.getElementById('topbar-breadcrumb-page');
     if (groupEl) groupEl.textContent = 'KPL';
-    if (pageEl) pageEl.textContent = '營運中控台';
+    if (pageEl) pageEl.textContent = '營運儀表板';
     document.title = 'KPL 儀表板';
   }
 }
@@ -910,6 +907,58 @@ function setSidebarPinned(isPinned) {
 
 function toggleSidebarPinned() {
   setSidebarPinned(!document.body.classList.contains('sidebar-pinned'));
+}
+
+// ── 側邊欄寬度：可拖拉調整、記憶於 localStorage ──
+const SIDEBAR_WIDTH_KEY = 'kpl_sidebar_width';
+const SIDEBAR_WIDTH_MIN = 200;
+const SIDEBAR_WIDTH_MAX = 440;
+const SIDEBAR_WIDTH_DEFAULT = 260;
+
+function applySidebarWidth(px) {
+  const w = Math.min(SIDEBAR_WIDTH_MAX, Math.max(SIDEBAR_WIDTH_MIN, Math.round(px)));
+  document.documentElement.style.setProperty('--drawer-width', `${w}px`);
+  return w;
+}
+
+function initSidebarResize() {
+  const handle = document.getElementById('sidebar-resize-handle');
+  if (!handle) return;
+  const saved = Number(localStorage.getItem(SIDEBAR_WIDTH_KEY));
+  if (saved >= SIDEBAR_WIDTH_MIN && saved <= SIDEBAR_WIDTH_MAX) applySidebarWidth(saved);
+
+  let dragging = false;
+  const onMove = (e) => {
+    if (!dragging) return;
+    const x = e.touches ? e.touches[0].clientX : e.clientX;
+    const sidebar = document.getElementById('sidebar');
+    const sidebarLeft = sidebar ? sidebar.getBoundingClientRect().left : 0;
+    applySidebarWidth(x - sidebarLeft);
+    if (e.cancelable) e.preventDefault();
+  };
+  const onUp = () => {
+    if (!dragging) return;
+    dragging = false;
+    document.body.classList.remove('sidebar-resizing');
+    const w = parseInt(getComputedStyle(document.documentElement).getPropertyValue('--drawer-width'), 10);
+    if (w) localStorage.setItem(SIDEBAR_WIDTH_KEY, String(w));
+  };
+  const onDown = (e) => {
+    dragging = true;
+    document.body.classList.add('sidebar-resizing');
+    if (e.cancelable) e.preventDefault();
+  };
+  handle.addEventListener('mousedown', onDown);
+  handle.addEventListener('touchstart', onDown, { passive: false });
+  window.addEventListener('mousemove', onMove);
+  window.addEventListener('touchmove', onMove, { passive: false });
+  window.addEventListener('mouseup', onUp);
+  window.addEventListener('touchend', onUp);
+  // 雙擊把手還原預設寬度
+  handle.addEventListener('dblclick', () => {
+    applySidebarWidth(SIDEBAR_WIDTH_DEFAULT);
+    localStorage.setItem(SIDEBAR_WIDTH_KEY, String(SIDEBAR_WIDTH_DEFAULT));
+  });
 }
 
 function openSidebarPeek() {
@@ -1685,6 +1734,7 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   initThemeMode();
   initSidebarState();
+  initSidebarResize();
   applyTypographySettings();
 
   renderSidebar();
@@ -2826,7 +2876,7 @@ function updateStatus() {
   ];
 
   const dateCell = v => v
-    ? `<span style="font-family:monospace;font-size:13px">${v}</span>`
+    ? `<span style="font-family:var(--f-mono);font-size:13px">${v}</span>`
     : `<span style="color:#bbb;font-size:12px">—</span>`;
 
   document.getElementById('status-tbody').innerHTML = rows.map(r => {
@@ -2962,10 +3012,12 @@ function renderPicksPage() {
   <div class="w s12">
     <div class="gold-band">P005 · 📊 作業區域分析</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域揀次量 × 三倉</div><span class="wmeta">單位：次</span></div>
-    <table class="tbl ops-compact-table">
-      <thead><tr><th>作業區域</th><th style="text-align:right">大肚倉</th><th style="text-align:right">大溪倉</th><th style="text-align:right">岡山倉</th><th style="text-align:right">合計</th><th>佔比</th></tr></thead>
-      <tbody>${opRows}</tbody>
-    </table>
+    <div class="ops-table-frame">
+      <table class="tbl ops-compact-table">
+        <thead><tr><th>作業區域</th><th style="text-align:right">大肚倉</th><th style="text-align:right">大溪倉</th><th style="text-align:right">岡山倉</th><th style="text-align:right">合計</th><th>佔比</th></tr></thead>
+        <tbody>${opRows}</tbody>
+      </table>
+    </div>
   </div>`;
 
   const meta = document.getElementById('picks-meta');
@@ -3026,6 +3078,15 @@ function renderLaborPage() {
   const avgRate   = totalHrs > 0 ? Math.round(totalCost / totalHrs) : 0;
   const empCount  = new Set(data.map(r => r.empId)).size;
   const personDays = new Set(data.map(r => `${r.date}|${r.empId}`)).size;
+
+  // 數字格式：≥ 萬以「萬」顯示（最多 2 位小數），未達萬正常顯示
+  const wanNum = (v) => {
+    v = Number(v) || 0;
+    return v >= 10000
+      ? `${(v / 10000).toLocaleString('zh-TW', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}萬`
+      : v.toLocaleString('zh-TW', { maximumFractionDigits: 1 });
+  };
+  const wanMoney = (v) => `$${wanNum(v)}`;
   const laborDates = [...new Set(data.map(r => r.date))].sort();
   const laborPeriod = laborDates.length
     ? (() => {
@@ -3083,7 +3144,7 @@ function renderLaborPage() {
             <span class="labor-top-rank">${String(i + 1).padStart(2, '0')}</span>
             <span class="labor-top-swatch" style="background:${s.color}"></span>
             <span class="labor-top-name">${s.name}</span>
-            <span class="labor-top-value">${s.hrs.toFixed(1)}h · ${s.pct.toFixed(1)}%</span>
+            <span class="labor-top-value">${wanNum(s.hrs)}h · ${s.pct.toFixed(1)}%</span>
           </div>
         `).join('')}
       </div>
@@ -3100,9 +3161,9 @@ function renderLaborPage() {
     const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
     return `<tr>
       <td><b>${s}班</b></td>
-      <td style="text-align:right;font-family:var(--f-mono)">${it.hrs.toFixed(1)}</td>
-      <td style="text-align:right;font-family:var(--f-mono)">$${it.cost.toLocaleString()}</td>
-      <td style="text-align:right;font-family:var(--f-mono)">$${rate}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">${wanNum(it.hrs)}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">${wanMoney(it.cost)}</td>
+      <td style="text-align:right;font-family:var(--f-mono)">${wanMoney(rate)}</td>
     </tr>`;
   }).join('');
 
@@ -3121,9 +3182,9 @@ function renderLaborPage() {
       return `<tr>
         <td class="labor-dept-name">${v}</td>
         <td class="mono num-right">${it.emps.size}</td>
-        <td class="mono num-right">${it.hrs.toFixed(1)}</td>
-        <td class="mono num-right">$${it.cost.toLocaleString()}</td>
-        <td class="mono num-right">$${rate}</td>
+        <td class="mono num-right">${wanNum(it.hrs)}</td>
+        <td class="mono num-right">${wanMoney(it.cost)}</td>
+        <td class="mono num-right">${wanMoney(rate)}</td>
       </tr>`;
     }).join('');
 
@@ -3135,7 +3196,7 @@ function renderLaborPage() {
     <div class="gold-band">L001 · HOURS</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>總工時</div></div>
     <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-blue);line-height:1">${totalHrs.toFixed(1)}</div>
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-blue);line-height:1">${wanNum(totalHrs)}</div>
       <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">小時</div>
     </div>
   </div>
@@ -3143,7 +3204,7 @@ function renderLaborPage() {
     <div class="gold-band" style="background:var(--ry-gold);color:var(--ry-blue-dark)">L002 · COST</div>
     <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-gold)"></div>總費用</div></div>
     <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">$${totalCost.toLocaleString()}</div>
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${wanMoney(totalCost)}</div>
       <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">元</div>
     </div>
   </div>
@@ -3151,7 +3212,7 @@ function renderLaborPage() {
     <div class="gold-band" style="background:#2ea85a;color:white">L003 · RATE</div>
     <div class="wh"><div class="wl"><div class="wdot" style="background:#2ea85a"></div>平均時薪</div></div>
     <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:#2ea85a;line-height:1">$${avgRate}</div>
+      <div style="font-size:1.8rem;font-weight:900;color:#2ea85a;line-height:1">${wanMoney(avgRate)}</div>
       <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">元/小時</div>
     </div>
   </div>
@@ -3159,18 +3220,18 @@ function renderLaborPage() {
     <div class="gold-band" style="background:var(--ry-muted);color:white">L004 · PEOPLE</div>
     <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>出勤人日</div></div>
     <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${personDays.toLocaleString()}</div>
+      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${wanNum(personDays)}</div>
       <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">${empCount.toLocaleString()} 位員工</div>
     </div>
   </div>
-  <div class="w s6">
+  <div class="w s6 labor-struct-card">
     <div class="gold-band">L005 · ⚡ 工時結構 · 作業區域</div>
-    <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域工時佔比</div><span class="wmeta">總 ${totalHrs.toFixed(1)} h</span></div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域工時佔比</div><span class="wmeta">總 ${wanNum(totalHrs)} h</span></div>
     <div class="labor-pie-wrap">${structHtml}</div>
   </div>
   <div class="w s6 table-card labor-shift-card">
     <div class="gold-band">L006 · 🌙 班別工時分析</div>
-    <div class="wh"><div class="wl"><div class="wdot"></div>日班 / 中班 / 夜班</div></div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>班別成本</div></div>
     <table class="tbl">
       <thead><tr><th>班別</th><th style="text-align:right">工時(h)</th><th style="text-align:right">費用</th><th style="text-align:right">時薪</th></tr></thead>
       <tbody>${shiftRows || '<tr><td colspan="4" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
@@ -3179,7 +3240,7 @@ function renderLaborPage() {
   <div class="w s12 table-card labor-dept-card">
     <div class="gold-band">L007 · 🏢 課別工時彙總</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>各作業課別工時與費用</div></div>
-    <div class="table-edge labor-dept-edge">
+    <div class="ops-table-frame labor-dept-edge">
       <div class="scroll-x">
         <table class="tbl labor-dept-table ops-compact-table">
           <thead>

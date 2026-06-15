@@ -2,6 +2,7 @@
 .claude
 .vscode
 node_modules
+prototypes/
 database
 *.xlsx
 **/*.xlsx
