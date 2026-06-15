@@ -1802,9 +1802,15 @@ td.mono { font-family: var(--f-mono); }
 .freight-ref-matrix.t002-matrix td.freight-ref-matrix-metric {
   box-shadow: none;
 }
-.t002-matrix-card .table-note {
+.t002-matrix-card .table-note,
+.t003-matrix-card .table-note {
   border-top: 1px solid var(--app-border);
   padding: 10px 16px;
+}
+/* T003：最新匯入日期欄高亮（沿用 freight-ref-matrix） */
+.freight-ref-matrix th.t003-latest-head,
+.freight-ref-matrix td.t003-latest {
+  background: color-mix(in srgb, var(--app-primary) 12%, var(--app-surface)) !important;
 }
 
 .freight-ref-matrix tr.total td {

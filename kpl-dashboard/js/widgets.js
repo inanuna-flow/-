@@ -2485,85 +2485,75 @@ function renderT003() {
     }, { labor: 0, freight: 0 });
   }
 
-  function valueFor(row, w, domain, item) {
-    const budget = domain.budgetOf(w, row);
-    const actual = domain.actualOf(row, w);
-    if (item === '預算') return `<span class="mono">${fmtMoney(Math.round(budget))}</span>`;
-    if (item === '實際') return `<span class="mono t003-actual">${fmtMoney(actual)}</span>`;
-    const pct = budget ? actual / budget * 100 : 0;
-    return pctBadge(pct);
-  }
-
-  function matrixRows() {
-    return domains.map(domain => {
-      const domainRowspan = whDefs.length * 3;
-      return whDefs.map((w, whIndex) => {
-        return ['預算', '實際', '動支'].map((item, itemIndex) => {
-          const firstDomainCell = whIndex === 0 && itemIndex === 0
-            ? `<td rowspan="${domainRowspan}" class="t003-domain-cell" style="background:${domain.color}">
-                <div class="t003-domain-icon">${domain.icon}</div>${domain.label}
-              </td>`
-            : '';
-          const whCell = itemIndex === 0
-            ? `<td rowspan="3" class="t003-wh-cell ${w.name === '全區' ? 't003-wh-total' : ''}">${w.name}</td>`
-            : '';
-          const dateCells = rows.map(row => {
-            const full = dispatchRowFullDate(row);
-            const isLatest = full === getDispatchLatestUploadDate();
-            return `<td class="t003-date-cell ${isLatest ? 't003-latest' : ''}">${valueFor(row, w, domain, item)}</td>`;
-          }).join('');
-          return `<tr>
-            ${firstDomainCell}
-            ${whCell}
-            <td class="t003-item-cell">${item}</td>
-            ${dateCells}
-          </tr>`;
-        }).join('');
-      }).join('');
-    }).join('');
-  }
+  const numCell = (v, latest) => `<td class="freight-ref-matrix-number${latest ? ' t003-latest' : ''}">${fmtMoney(Math.round(v || 0))}</td>`;
+  const rateMatrixCell = (pct, latest) => {
+    const state = pct > 90 ? 'danger' : pct >= 75 ? 'warning' : 'safe';
+    return `<td class="freight-ref-matrix-number rate ${state}${latest ? ' t003-latest' : ''}">${(pct || 0).toFixed(1)}%</td>`;
+  };
 
   if (!rows.length) {
     return `
-  <div class="w s12 table-card">
-    <div class="wh">
-      <div class="wl"><div class="wdot t003-title-dot"></div>T003 每日動支明細</div>
-      <span class="wmeta">0 天 · 資料最新日期 ${getDispatchLatestUploadDate() || '尚未匯入'}</span>
-    </div>
-    <div class="t003-empty">此日期區間沒有總費用資料</div>
-  </div>`;
+  <section class="t002-section">
+    <div class="t002-section-title">每日動支明細</div>
+    <article class="freight-ref-matrix-card t003-matrix-card">
+      <div class="t003-empty">此日期區間沒有總費用資料</div>
+    </article>
+  </section>`;
   }
 
   const dateHeaders = rows.map(row => {
-    const full = dispatchRowFullDate(row);
-    const isLatest = full === getDispatchLatestUploadDate();
-    return `<th class="t003-date-head ${isLatest ? 't003-latest-head' : ''}">${dateLabel(row)}</th>`;
+    const isLatest = dispatchRowFullDate(row) === getDispatchLatestUploadDate();
+    return `<th class="${isLatest ? 't003-latest-head' : ''}">${dateLabel(row)}</th>`;
+  }).join('');
+
+  const matrixRows = domains.map(domain => {
+    const domainRowspan = whDefs.length * 3;
+    return whDefs.map((w, whIndex) => {
+      return ['預算', '實際', '動支'].map((item, itemIndex) => {
+        const isFirstDomainRow = whIndex === 0 && itemIndex === 0;
+        const type = item === '預算' ? 'budget' : item === '實際' ? 'actual' : 'rate';
+        const cells = rows.map(row => {
+          const latest = dispatchRowFullDate(row) === getDispatchLatestUploadDate();
+          const budget = domain.budgetOf(w, row);
+          const actual = domain.actualOf(row, w);
+          if (item === '預算') return numCell(budget, latest);
+          if (item === '實際') return numCell(actual, latest);
+          return rateMatrixCell(budget ? actual / budget * 100 : 0, latest);
+        }).join('');
+        return `<tr class="matrix-${type} ${itemIndex === 0 ? 'work-start' : ''} ${isFirstDomainRow ? 'group-start' : ''}">
+          ${isFirstDomainRow ? `<td rowspan="${domainRowspan}" class="freight-ref-matrix-category">${domain.icon} ${domain.label}</td>` : ''}
+          ${itemIndex === 0 ? `<td rowspan="3" class="freight-ref-matrix-item">${w.name}</td>` : ''}
+          <td class="freight-ref-matrix-metric">${item}</td>
+          ${cells}
+        </tr>`;
+      }).join('');
+    }).join('');
   }).join('');
 
   return `
-  <div class="w s12 table-card">
-    <div class="wh">
-      <div class="wl"><div class="wdot t003-title-dot"></div>T003 每日動支明細</div>
-      <span class="wmeta">${rows.length} 天 · 橫向日期 · 資料最新日期 ${getDispatchLatestUploadDate()}</span>
-    </div>
-    <div class="t003-shell">
-      <div class="t003-scroll">
-        <table class="tbl t003-table" style="min-width:${234 + rows.length * 136}px">
-          <thead class="t003-thead">
-            <tr class="t003-head-row">
-              <th class="t003-head-sticky t003-head-domain">領域</th>
-              <th class="t003-head-sticky t003-head-wh">倉別</th>
-              <th class="t003-head-sticky t003-head-item">項目</th>
+  <section class="t002-section">
+    <div class="t002-section-title">每日動支明細</div>
+    <article class="freight-ref-matrix-card t003-matrix-card">
+      <div class="freight-ref-matrix-scroll">
+        <table class="freight-ref-matrix">
+          <thead>
+            <tr>
+              <th>領域</th>
+              <th>倉別</th>
+              <th>項目</th>
               ${dateHeaders}
             </tr>
           </thead>
-          <tbody>${matrixRows()}</tbody>
+          <tbody>${matrixRows}</tbody>
         </table>
       </div>
-      <div class="t003-note">
-        📌 日期欄依篩選區間橫向展開 · 淺藍欄為目前已匯入資料最新日期 ${getDispatchLatestUploadDate() || '尚未匯入'}<br>
-        📌 動支率 = 當日實際 ÷ 單日預算 · 單日預算 = 月預算 ÷ ${daysInDispatchMonth()} 天
-      </div>
-    </div>
-  </div>`;
+      <details class="table-note t002-note">
+        <summary>說明</summary>
+        <div class="t002-note-content">
+          <div>📌 日期欄依篩選區間橫向展開 · 淺藍欄為已匯入資料最新日期 ${getDispatchLatestUploadDate() || '尚未匯入'}</div>
+          <div>📌 動支率 = 當日實際 ÷ 單日預算 · 單日預算 = 月預算 ÷ ${daysInDispatchMonth()} 天</div>
+        </div>
+      </details>
+    </article>
+  </section>`;
 }
