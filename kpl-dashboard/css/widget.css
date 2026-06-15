@@ -1802,6 +1802,18 @@ td.mono { font-family: var(--f-mono); }
 .freight-ref-matrix.t002-matrix td.freight-ref-matrix-metric {
   box-shadow: none;
 }
+/* 三倉 + 全區欄位等寬：固定表格佈局，標籤欄定寬、資料欄平均分配 */
+.freight-ref-matrix.t002-matrix {
+  table-layout: fixed;
+  width: 100%;
+  min-width: 0;
+}
+.freight-ref-matrix.t002-matrix thead th:nth-child(1) {
+  width: 96px;
+}
+.freight-ref-matrix.t002-matrix thead th:nth-child(2) {
+  width: 80px;
+}
 .t002-matrix-card .table-note,
 .t003-matrix-card .table-note {
   border-top: 1px solid var(--app-border);
