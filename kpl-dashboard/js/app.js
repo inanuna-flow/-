@@ -3552,10 +3552,10 @@ function renderLaborPage() {
     const it   = byShift[s];
     const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
     return `<tr>
-      <td><b>${s}班</b></td>
-      <td style="text-align:right;font-family:var(--f-mono)">${wanNum(it.hrs)}</td>
-      <td style="text-align:right;font-family:var(--f-mono)">${wanMoney(it.cost)}</td>
-      <td style="text-align:right;font-family:var(--f-mono)">${wanMoney(rate)}</td>
+      <td class="labor-shift-cell labor-shift-name"><b>${s}班</b></td>
+      <td class="labor-shift-cell" style="text-align:right;font-family:var(--f-mono)">${wanNum(it.hrs)}</td>
+      <td class="labor-shift-cell" style="text-align:right;font-family:var(--f-mono)">${wanMoney(it.cost)}</td>
+      <td class="labor-shift-cell" style="text-align:right;font-family:var(--f-mono)">${wanMoney(rate)}</td>
     </tr>`;
   }).join('');
 
@@ -3584,32 +3584,30 @@ function renderLaborPage() {
   if (fmeta) fmeta.textContent = `${data.length} 筆工時記錄`;
 
   document.getElementById('labor-grid').innerHTML = `
-  <div class="w s12">
-    <div class="labor-kpi-grid">
-      <div class="labor-kpi-card">
-        <div class="labor-kpi-icon" aria-hidden="true">⏱️</div>
-        <span class="labor-kpi-label">總工時</span>
-        <div class="labor-kpi-main" style="color:var(--ry-blue)">${wanNum(totalHrs)}</div>
-        <div class="labor-kpi-ctx">小時</div>
-      </div>
-      <div class="labor-kpi-card">
-        <div class="labor-kpi-icon" aria-hidden="true">💰</div>
-        <span class="labor-kpi-label">總費用</span>
-        <div class="labor-kpi-main">${wanMoney(totalCost)}</div>
-        <div class="labor-kpi-ctx">元</div>
-      </div>
-      <div class="labor-kpi-card">
-        <div class="labor-kpi-icon" aria-hidden="true">📈</div>
-        <span class="labor-kpi-label">平均時薪</span>
-        <div class="labor-kpi-main" style="color:var(--app-success)">${wanMoney(avgRate)}</div>
-        <div class="labor-kpi-ctx">元/小時</div>
-      </div>
-      <div class="labor-kpi-card">
-        <div class="labor-kpi-icon" aria-hidden="true">👥</div>
-        <span class="labor-kpi-label">出勤人日</span>
-        <div class="labor-kpi-main">${wanNum(personDays)}</div>
-        <div class="labor-kpi-ctx">${empCount.toLocaleString()} 位員工</div>
-      </div>
+  <div class="labor-kpi-grid" style="grid-column:1/-1">
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">⏱️</div>
+      <span class="labor-kpi-label">總工時</span>
+      <div class="labor-kpi-main" style="color:var(--ry-blue)">${wanNum(totalHrs)}</div>
+      <div class="labor-kpi-ctx">小時</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">💰</div>
+      <span class="labor-kpi-label">總費用</span>
+      <div class="labor-kpi-main">${wanMoney(totalCost)}</div>
+      <div class="labor-kpi-ctx">元</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">📈</div>
+      <span class="labor-kpi-label">平均時薪</span>
+      <div class="labor-kpi-main" style="color:var(--app-success)">${wanMoney(avgRate)}</div>
+      <div class="labor-kpi-ctx">元/小時</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">👥</div>
+      <span class="labor-kpi-label">出勤人日</span>
+      <div class="labor-kpi-main">${wanNum(personDays)}</div>
+      <div class="labor-kpi-ctx">${empCount.toLocaleString()} 位員工</div>
     </div>
   </div>
   <div class="w s6 labor-struct-card">
@@ -3620,8 +3618,13 @@ function renderLaborPage() {
   <div class="w s6 table-card labor-shift-card">
     <div class="gold-band">L006 · 🌙 班別工時分析</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>班別成本</div></div>
-    <table class="tbl">
-      <thead><tr><th>班別</th><th style="text-align:right">工時(h)</th><th style="text-align:right">費用</th><th style="text-align:right">時薪</th></tr></thead>
+    <table class="tbl labor-shift-table">
+      <thead><tr>
+        <th>班別</th>
+        <th style="text-align:right">工時(h)</th>
+        <th style="text-align:right">費用</th>
+        <th style="text-align:right">時薪</th>
+      </tr></thead>
       <tbody>${shiftRows || '<tr><td colspan="4" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
     </table>
   </div>
