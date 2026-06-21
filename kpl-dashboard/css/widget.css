@@ -1449,13 +1449,17 @@ td.mono { font-family: var(--f-mono); }
   margin: 6px auto 0;
   position: relative;
   overflow: hidden;
+  border-radius: 200px 200px 0 0;
+  /* 軌道：永遠可見的淡紫色底層 */
+  background: conic-gradient(from 270deg at 50% 100%, var(--freight-kpi-purple-soft) 0deg, var(--freight-kpi-purple-soft) 180deg, transparent 180deg);
 }
 .freight-ref-gauge::before {
   content: "";
   position: absolute;
   inset: 0;
   border-radius: 200px 200px 0 0;
-  background: conic-gradient(from 270deg at 50% 100%, var(--freight-kpi-purple) 0deg, var(--freight-kpi-purple) var(--gauge-deg, 0deg), var(--freight-kpi-purple-soft) var(--gauge-deg, 0deg), var(--freight-kpi-purple-soft) 180deg, transparent 180deg);
+  /* 填色層：最多 175deg，保留 5deg gap 確保軌道在 100% 時仍可見 */
+  background: conic-gradient(from 270deg at 50% 100%, var(--freight-kpi-purple) 0deg, var(--freight-kpi-purple) min(var(--gauge-deg, 0deg), 175deg), transparent min(var(--gauge-deg, 0deg), 175deg));
 }
 .freight-ref-gauge::after {
   content: "";
