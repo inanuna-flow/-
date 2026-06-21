@@ -2514,10 +2514,39 @@ td.mono { font-family: var(--f-mono); }
 }
 .labor-pie-chart {
   flex: 0 0 auto;
-  width: 180px;
-  max-width: 180px;
+  width: 220px;
+  max-width: 220px;
   aspect-ratio: 1;
   display: block;
+}
+.labor-pie-slice {
+  cursor: pointer;
+  transition: opacity .12s;
+}
+.labor-pie-slice:hover {
+  opacity: .82;
+}
+.labor-pie-tip {
+  position: fixed;
+  z-index: 9999;
+  pointer-events: none;
+  background: var(--app-surface);
+  border: 1px solid var(--app-border);
+  border-left: 3px solid var(--tip-color, #1e5ca8);
+  border-radius: 6px;
+  padding: 8px 14px 8px 10px;
+  font-size: 13px;
+  line-height: 1.7;
+  box-shadow: 0 4px 16px rgba(0,0,0,.12);
+  white-space: nowrap;
+  color: var(--app-text);
+}
+.labor-pie-tip[hidden] { display: none; }
+.labor-pie-tip b { font-size: 14px; font-weight: 600; display: block; }
+.labor-pie-tip-val {
+  font-family: var(--f-mono);
+  font-size: 12px;
+  color: var(--ry-muted);
 }
 .labor-top-list {
   flex: 1 1 256px;

@@ -3521,8 +3521,9 @@ function renderLaborPage() {
     const start = cursor;
     const share = totalHrs > 0 ? s.hrs / totalHrs : 0;
     cursor += share;
-    if (share >= 0.9999) return `<circle cx="120" cy="120" r="94" fill="${s.color}"></circle>`;
-    return `<path d="${pieSlicePath(120, 120, 94, start, cursor)}" fill="${s.color}"></path>`;
+    const da = `class="labor-pie-slice" data-name="${s.name}" data-hrs="${wanNum(s.hrs)}" data-pct="${s.pct.toFixed(1)}" data-color="${s.color}"`;
+    if (share >= 0.9999) return `<circle cx="120" cy="120" r="94" fill="${s.color}" ${da}></circle>`;
+    return `<path d="${pieSlicePath(120, 120, 94, start, cursor)}" fill="${s.color}" ${da}></path>`;
   }).join('');
 
   const structHtml = pieData.length ? `
@@ -3531,15 +3532,6 @@ function renderLaborPage() {
         ${pieSlices}
         <circle cx="120" cy="120" r="94" fill="none" stroke="var(--ry-paper)" stroke-width="2"></circle>
       </svg>
-      <div class="labor-top-list">
-        ${pieData.map((s, i) => `
-          <div class="labor-top-item">
-            <span class="labor-top-rank">${String(i + 1).padStart(2, '0')}</span>
-            <span class="labor-top-swatch" style="background:${s.color}"></span>
-            <span class="labor-top-name">${s.name}</span>
-            <span class="labor-top-value">${wanNum(s.hrs)}h · ${s.pct.toFixed(1)}%</span>
-          </div>`).join('')}
-      </div>
     </div>` : '<div style="color:var(--ry-muted);padding:16px;text-align:center">無資料</div>';
 
   const byShift = {};
@@ -3656,6 +3648,36 @@ function renderLaborPage() {
 
   const meta = document.getElementById('labor-meta');
   if (meta) meta.textContent = `資料：${DATA.dateFrom} ~ ${DATA.dateTo} · ${laborPeriod} · 全區各課 · ${personDays.toLocaleString()} 人日 · ${data.length.toLocaleString()} 筆明細`;
+
+  // Pie chart hover tooltip
+  let pieTip = document.getElementById('labor-pie-tip');
+  if (!pieTip) {
+    pieTip = document.createElement('div');
+    pieTip.id = 'labor-pie-tip';
+    pieTip.className = 'labor-pie-tip';
+    pieTip.hidden = true;
+    document.body.appendChild(pieTip);
+  }
+  const pieSvg = document.querySelector('#labor-grid .labor-pie-chart');
+  if (pieSvg) {
+    pieSvg.addEventListener('mouseover', e => {
+      const slice = e.target.closest('.labor-pie-slice');
+      if (!slice) return;
+      pieTip.style.setProperty('--tip-color', slice.dataset.color);
+      pieTip.innerHTML = `<b>${slice.dataset.name}</b><span class="labor-pie-tip-val">${slice.dataset.hrs}h &nbsp;·&nbsp; ${slice.dataset.pct}%</span>`;
+      pieTip.hidden = false;
+    });
+    pieSvg.addEventListener('mousemove', e => {
+      if (!pieTip.hidden) {
+        pieTip.style.left = (e.clientX + 16) + 'px';
+        pieTip.style.top  = (e.clientY - 8) + 'px';
+      }
+    });
+    pieSvg.addEventListener('mouseleave', () => { pieTip.hidden = true; });
+    pieSvg.addEventListener('mouseout', e => {
+      if (!pieSvg.contains(e.relatedTarget)) pieTip.hidden = true;
+    });
+  }
 }
 
 // ════════════════════════════════════════════
