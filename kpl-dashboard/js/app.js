@@ -553,12 +553,6 @@ const ACCOUNT_MANAGEMENT_PAGES = {
   accountIpRules: {
     icon: '🛡️',
     title: '後臺限制 IP 管理',
-    desc: '控管允許進入後台的公司網段、例外 IP 與阻擋紀錄。',
-    columns: ['規則名稱', 'IP / CIDR', '狀態', '備註'],
-    rows: [
-      ['登入頻率限制', '依目前來源 IP', '已啟用', 'server.js 目前已有 15 分鐘 10 次限制'],
-    ],
-    next: ['建立 ip_allowlist / ip_blocklist 資料表', '加入 Cloud Run x-forwarded-for 審計', '提供阻擋清單與臨時放行'],
   },
   accountLoginAudit: {
     icon: '📜',
@@ -661,6 +655,8 @@ function renderAccountManagementPage(pageId) {
     return;
   }
 
+  if (pageId === 'accountIpRules') { renderAccountIpRulesPage(); return; }
+
   const config = ACCOUNT_MANAGEMENT_PAGES[pageId];
   if (!config) return;
   const rows = config.rows.length
@@ -703,6 +699,187 @@ function renderAccountManagementPage(pageId) {
         </div>
       </div>
     </div>`;
+}
+
+// ════════════════════════════════════════════
+// 🛡️ 後臺限制 IP 管理（黑名單 CRUD）
+// ════════════════════════════════════════════
+
+function renderAccountIpRulesPage() {
+  const main = document.getElementById('main');
+  if (!main) return;
+  main.innerHTML = `
+    <div class="page-head">
+      <div class="page-eyebrow">帳號權限管理 &gt; 後臺限制 IP 管理</div>
+      <h1 class="page-h">🛡️ 後臺限制 IP 管理</h1>
+    </div>
+    <div class="grid">
+      <div class="w s12">
+        <div style="padding:10px 18px 0;color:var(--app-muted);font-size:13px;line-height:1.8">
+          黑名單邏輯：清單中的 IP 無法呼叫任何 API（靜態頁面不受影響）。支援 IPv4 單一位址或 CIDR 格式（例：10.0.0.0/8）。
+        </div>
+      </div>
+
+      <div class="w s12">
+        <div class="wh">
+          <div class="wl"><div class="wdot"></div>新增封鎖 IP</div>
+        </div>
+        <div style="padding:16px 18px">
+          <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+            <div style="flex:0 0 210px">
+              <label style="display:block;font-size:11px;font-weight:700;color:var(--app-muted);margin-bottom:6px;letter-spacing:.08em">IP 位址 / CIDR</label>
+              <input type="text" id="ip-new-cidr" placeholder="192.168.1.1 或 10.0.0.0/8"
+                style="width:100%;padding:10px 14px;border:1.5px solid var(--app-border);border-radius:4px;font-size:13px;background:var(--app-surface);color:var(--app-text);font-family:monospace">
+            </div>
+            <div style="flex:1;min-width:160px">
+              <label style="display:block;font-size:11px;font-weight:700;color:var(--app-muted);margin-bottom:6px;letter-spacing:.08em">備註說明</label>
+              <input type="text" id="ip-new-label" placeholder="例：惡意爬蟲、異常流量"
+                style="width:100%;padding:10px 14px;border:1.5px solid var(--app-border);border-radius:4px;font-size:13px;background:var(--app-surface);color:var(--app-text)">
+            </div>
+            <button onclick="addIpRule()"
+              style="padding:10px 22px;background:var(--app-danger);color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">
+              🚫 封鎖此 IP
+            </button>
+          </div>
+          <div id="ip-rules-msg" style="margin-top:10px;font-size:13px;display:none"></div>
+        </div>
+      </div>
+
+      <div class="w s12">
+        <div class="wh">
+          <div class="wl"><div class="wdot"></div>封鎖清單</div>
+          <span class="wmeta" id="ip-rules-count">載入中…</span>
+        </div>
+        <div class="admin-permission-table-frame" id="ip-rules-table-frame">
+          <div style="padding:28px;text-align:center;color:var(--app-muted);font-size:13px">載入中…</div>
+        </div>
+      </div>
+    </div>`;
+
+  loadIpRules();
+}
+
+async function loadIpRules() {
+  try {
+    const res = await fetch('/api/admin/ip-rules');
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.MSG);
+    renderIpRulesTable(data.rules);
+  } catch (err) {
+    const frame = document.getElementById('ip-rules-table-frame');
+    if (frame) frame.innerHTML = `<div style="padding:28px;text-align:center;color:var(--app-danger);font-size:13px">⚠️ 載入失敗：${escapeReleaseText(err.message)}</div>`;
+  }
+}
+
+function renderIpRulesTable(rules) {
+  const countEl = document.getElementById('ip-rules-count');
+  const frame = document.getElementById('ip-rules-table-frame');
+  if (!frame) return;
+  const active = rules.filter(r => r.is_active).length;
+  if (countEl) countEl.textContent = `共 ${rules.length} 條・封鎖中 ${active} 條`;
+
+  if (rules.length === 0) {
+    frame.innerHTML = `<div style="padding:28px;text-align:center;color:var(--app-muted);font-size:13px">目前無封鎖規則</div>`;
+    return;
+  }
+
+  const rows = rules.map(r => {
+    const ts = new Date(r.created_at).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false });
+    return `<tr>
+      <td class="mono" style="font-size:13px">${escapeReleaseText(r.ip_cidr)}</td>
+      <td style="color:var(--app-muted)">${escapeReleaseText(r.label || '—')}</td>
+      <td>
+        <label class="admin-toggle" title="${r.is_active ? '點擊停用' : '點擊啟用'}">
+          <input type="checkbox" ${r.is_active ? 'checked' : ''} onchange="toggleIpRule(${r.id}, this.checked)">
+          <span class="admin-toggle-slider"></span>
+        </label>
+        <span style="margin-left:8px;font-size:12px;color:${r.is_active ? 'var(--app-danger)' : 'var(--app-muted)'}">${r.is_active ? '封鎖中' : '已停用'}</span>
+      </td>
+      <td style="color:var(--app-muted);font-size:12px">${escapeReleaseText(r.created_by)}</td>
+      <td style="color:var(--app-muted);font-size:12px;white-space:nowrap">${ts}</td>
+      <td>
+        <button onclick="deleteIpRule(${r.id})"
+          style="padding:4px 12px;background:var(--app-danger-soft);color:var(--app-danger);border:1px solid var(--app-danger);border-radius:4px;font-size:12px;cursor:pointer">
+          刪除
+        </button>
+      </td>
+    </tr>`;
+  }).join('');
+
+  frame.innerHTML = `
+    <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">
+      <thead>
+        <tr>
+          <th>IP / CIDR</th><th>備註</th><th>狀態</th>
+          <th>建立者</th><th>建立時間</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody>${rows}</tbody>
+    </table>`;
+}
+
+async function addIpRule() {
+  const cidrEl  = document.getElementById('ip-new-cidr');
+  const labelEl = document.getElementById('ip-new-label');
+  const ipCidr  = cidrEl?.value.trim() || '';
+  const label   = labelEl?.value.trim() || '';
+  if (!ipCidr) { showIpRulesMsg('❌ 請輸入 IP 或 CIDR', 'error'); cidrEl?.focus(); return; }
+
+  try {
+    const res = await fetch('/api/admin/ip-rules', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip_cidr: ipCidr, label }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.MSG);
+    showIpRulesMsg('✅ 已新增封鎖規則', 'ok');
+    if (cidrEl)  cidrEl.value  = '';
+    if (labelEl) labelEl.value = '';
+    await loadIpRules();
+  } catch (err) {
+    showIpRulesMsg(`❌ 新增失敗：${err.message}`, 'error');
+  }
+}
+
+async function deleteIpRule(id) {
+  if (!confirm('確定刪除此封鎖規則？刪除後立即生效，該 IP 將可重新存取。')) return;
+  try {
+    const res = await fetch(`/api/admin/ip-rules/${id}`, { method: 'DELETE' });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.MSG);
+    showIpRulesMsg('✅ 已刪除', 'ok');
+    await loadIpRules();
+  } catch (err) {
+    showIpRulesMsg(`❌ 刪除失敗：${err.message}`, 'error');
+  }
+}
+
+async function toggleIpRule(id, isActive) {
+  try {
+    const res = await fetch(`/api/admin/ip-rules/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: isActive }),
+    });
+    const data = await res.json();
+    if (!data.ok) throw new Error(data.MSG);
+    showIpRulesMsg(isActive ? '✅ 已啟用封鎖' : '✅ 已停用（該 IP 可正常存取）', 'ok');
+    await loadIpRules();
+  } catch (err) {
+    showIpRulesMsg(`❌ 操作失敗：${err.message}`, 'error');
+    await loadIpRules();
+  }
+}
+
+function showIpRulesMsg(text, type) {
+  const el = document.getElementById('ip-rules-msg');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color = type === 'error' ? 'var(--app-danger)' : 'var(--app-success)';
+  el.textContent = text;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
 }
 
 async function savePermissions() {

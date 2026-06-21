@@ -146,6 +146,62 @@ function resetRateLimit(ip) {
   loginAttempts.delete(ip);
 }
 
+// ── IP 黑名單 ──
+let ipBlocklistCache = []; // { id, ipCidr, label }
+
+function ipToUint32(ip) {
+  const parts = ip.split('.');
+  if (parts.length !== 4) return null;
+  let n = 0;
+  for (const p of parts) {
+    const byte = parseInt(p, 10);
+    if (isNaN(byte) || byte < 0 || byte > 255) return null;
+    n = (n * 256 + byte) >>> 0;
+  }
+  return n;
+}
+
+function matchesCidr(clientIp, cidr) {
+  if (!cidr.includes('/')) return clientIp === cidr;
+  const [networkStr, prefixStr] = cidr.split('/');
+  const prefix = parseInt(prefixStr, 10);
+  if (isNaN(prefix) || prefix < 0 || prefix > 32) return false;
+  const clientNum = ipToUint32(clientIp);
+  const networkNum = ipToUint32(networkStr);
+  if (clientNum === null || networkNum === null) return false;
+  if (prefix === 0) return true;
+  const mask = (~0 << (32 - prefix)) >>> 0;
+  return (clientNum & mask) === (networkNum & mask);
+}
+
+function isIpBlocked(clientIp) {
+  return ipBlocklistCache.some(rule => matchesCidr(clientIp, rule.ipCidr));
+}
+
+function isValidIpOrCidr(value) {
+  if (!/^(\d{1,3}\.){3}\d{1,3}(\/\d{1,2})?$/.test(value)) return false;
+  const [ip, prefix] = value.split('/');
+  if (prefix !== undefined) {
+    const p = parseInt(prefix, 10);
+    if (isNaN(p) || p < 0 || p > 32) return false;
+  }
+  return ipToUint32(ip) !== null;
+}
+
+async function reloadIpBlocklistCache() {
+  const pool = getDbPool();
+  if (!pool) { ipBlocklistCache = []; return; }
+  try {
+    const { rows } = await pool.query(
+      `SELECT id, ip_cidr, label FROM ${DB_SCHEMA}.ip_blocklist WHERE is_active = true`
+    );
+    ipBlocklistCache = rows.map(r => ({ id: r.id, ipCidr: r.ip_cidr, label: r.label }));
+    console.log(`[ip-blocklist] 已載入 ${ipBlocklistCache.length} 條封鎖規則`);
+  } catch (err) {
+    console.error('[ip-blocklist] 載入失敗:', err.message);
+  }
+}
+
 // ── Session 管理 ──
 function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
@@ -1860,6 +1916,116 @@ function handleFreightGone(req, res) {
   });
 }
 
+// ── 後臺 IP 黑名單管理 API ──
+async function handleAdminIpRules(req, res, pathname) {
+  const session = getSession(req);
+  if (!session) { sendJson(res, 401, { ok: false, MSG: '401 請先登入' }); return; }
+  if (session.userId !== ADMIN_USER_ID) { sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' }); return; }
+
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 資料庫未設定' }); return; }
+
+  // GET — 列出所有規則
+  if (req.method === 'GET' && pathname === '/api/admin/ip-rules') {
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, ip_cidr, label, created_by, created_at, is_active
+         FROM ${DB_SCHEMA}.ip_blocklist
+         ORDER BY created_at DESC`
+      );
+      sendJson(res, 200, { ok: true, rules: rows });
+    } catch (err) {
+      console.error('[ip-rules] GET 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 查詢失敗' });
+    }
+    return;
+  }
+
+  // POST — 新增規則
+  if (req.method === 'POST' && pathname === '/api/admin/ip-rules') {
+    let body;
+    try {
+      const raw = await readRequestBody(req, 1024);
+      body = JSON.parse(raw || '{}');
+    } catch {
+      sendJson(res, 400, { ok: false, MSG: '999 資料格式錯誤' });
+      return;
+    }
+    const ipCidr = String(body.ip_cidr || '').trim();
+    const label  = String(body.label  || '').trim().slice(0, 100);
+    if (!ipCidr || !isValidIpOrCidr(ipCidr)) {
+      sendJson(res, 400, { ok: false, MSG: '400 IP / CIDR 格式不正確' });
+      return;
+    }
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO ${DB_SCHEMA}.ip_blocklist (ip_cidr, label, created_by)
+         VALUES ($1, $2, $3)
+         RETURNING id, ip_cidr, label, created_by, created_at, is_active`,
+        [ipCidr, label, session.userId]
+      );
+      await reloadIpBlocklistCache();
+      sendJson(res, 201, { ok: true, rule: rows[0] });
+    } catch (err) {
+      if (err.code === '23505') {
+        sendJson(res, 409, { ok: false, MSG: '409 此 IP / CIDR 已存在' });
+      } else {
+        console.error('[ip-rules] POST 失敗:', err.message);
+        sendJson(res, 500, { ok: false, MSG: '999 新增失敗' });
+      }
+    }
+    return;
+  }
+
+  // DELETE — 刪除規則
+  const deleteMatch = pathname.match(/^\/api\/admin\/ip-rules\/(\d+)$/);
+  if (req.method === 'DELETE' && deleteMatch) {
+    const ruleId = parseInt(deleteMatch[1], 10);
+    try {
+      const { rowCount } = await pool.query(
+        `DELETE FROM ${DB_SCHEMA}.ip_blocklist WHERE id = $1`, [ruleId]
+      );
+      if (rowCount === 0) { sendJson(res, 404, { ok: false, MSG: '404 規則不存在' }); return; }
+      await reloadIpBlocklistCache();
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      console.error('[ip-rules] DELETE 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 刪除失敗' });
+    }
+    return;
+  }
+
+  // PATCH — 切換啟用 / 停用
+  const patchMatch = pathname.match(/^\/api\/admin\/ip-rules\/(\d+)$/);
+  if (req.method === 'PATCH' && patchMatch) {
+    const ruleId = parseInt(patchMatch[1], 10);
+    let body;
+    try {
+      const raw = await readRequestBody(req, 256);
+      body = JSON.parse(raw || '{}');
+    } catch {
+      sendJson(res, 400, { ok: false, MSG: '999 資料格式錯誤' });
+      return;
+    }
+    const isActive = Boolean(body.is_active);
+    try {
+      const { rowCount } = await pool.query(
+        `UPDATE ${DB_SCHEMA}.ip_blocklist SET is_active = $1 WHERE id = $2`,
+        [isActive, ruleId]
+      );
+      if (rowCount === 0) { sendJson(res, 404, { ok: false, MSG: '404 規則不存在' }); return; }
+      await reloadIpBlocklistCache();
+      sendJson(res, 200, { ok: true });
+    } catch (err) {
+      console.error('[ip-rules] PATCH 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 更新失敗' });
+    }
+    return;
+  }
+
+  sendJson(res, 405, { ok: false, MSG: '405 Method Not Allowed' });
+}
+
 // 改用精確 pathname 比對，避免 startsWith 因新增端點而被誤路由
 // 例如：/api/data/freight 與 /api/data/freight-mainline 若用 startsWith 順序就敏感；用 === 則安全
 const ROUTES = {
@@ -1884,6 +2050,23 @@ const ROUTES = {
 const server = http.createServer((req, res) => {
   // 切掉 query string 取純路徑做比對
   const pathname = req.url.split('?')[0];
+  const clientIp = getClientIp(req);
+
+  // IP 黑名單檢查：封鎖 API 存取（ip-rules 管理端點不受限，確保管理員能解除封鎖）
+  if (pathname.startsWith('/api/') &&
+      pathname !== '/api/admin/ip-rules' &&
+      !pathname.startsWith('/api/admin/ip-rules/') &&
+      isIpBlocked(clientIp)) {
+    console.log(`[ip-blocklist] 封鎖 ${clientIp} → ${pathname}`);
+    sendJson(res, 403, { ok: false, MSG: '403 此 IP 已被封鎖，請聯絡管理員' });
+    return;
+  }
+
+  // IP 黑名單管理 API（GET / POST / DELETE / PATCH）
+  if (pathname === '/api/admin/ip-rules' || pathname.startsWith('/api/admin/ip-rules/')) {
+    handleAdminIpRules(req, res, pathname);
+    return;
+  }
 
   // page-permissions 需依 method 分流
   if (pathname === '/api/page-permissions') {
@@ -1910,4 +2093,5 @@ process.on('uncaughtException', (err) => {
 
 server.listen(PORT, () => {
   console.log(`KPL dashboard running at http://localhost:${PORT}/`);
+  reloadIpBlocklistCache().catch(err => console.error('[ip-blocklist] 啟動載入失敗:', err.message));
 });
