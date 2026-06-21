@@ -1484,6 +1484,63 @@ td.mono { font-family: var(--f-mono); }
   font-weight: 700;
   line-height: var(--typo-metric-line);
 }
+/* ── 人力頁 KPI 卡片（格式塔版，對齊 freight-ref-kpi 設計語言）── */
+.labor-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+}
+.labor-kpi-card {
+  padding: 14px 16px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface);
+  box-shadow: var(--app-shadow-sm);
+}
+.labor-kpi-icon {
+  width: 36px;
+  height: 36px;
+  display: inline-grid;
+  place-items: center;
+  border-radius: 50%;
+  font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
+  font-size: 20px;
+  line-height: 1;
+  margin-right: 7px;
+  flex-shrink: 0;
+  vertical-align: middle;
+}
+.labor-kpi-grid > :nth-child(1) .labor-kpi-icon { background: color-mix(in srgb, var(--ry-blue)     16%, transparent); }
+.labor-kpi-grid > :nth-child(2) .labor-kpi-icon { background: color-mix(in srgb, var(--ry-gold)     16%, transparent); }
+.labor-kpi-grid > :nth-child(3) .labor-kpi-icon { background: color-mix(in srgb, var(--app-success) 16%, transparent); }
+.labor-kpi-grid > :nth-child(4) .labor-kpi-icon { background: color-mix(in srgb, var(--ry-muted)    16%, transparent); }
+.labor-kpi-label {
+  display: inline-block;
+  vertical-align: middle;
+  color: var(--ry-muted);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
+}
+.labor-kpi-main {
+  margin-top: 14px;
+  font-family: var(--typo-metric-font);
+  font-size: var(--typo-metric-size);
+  font-weight: 700;
+  line-height: 1.1;
+  letter-spacing: -0.01em;
+  color: var(--app-text);
+}
+.labor-kpi-ctx {
+  margin-top: 6px;
+  font-size: var(--typo-widget-note-size);
+  color: var(--ry-muted);
+  line-height: 1.5;
+}
+@media (max-width: 900px) {
+  .labor-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+/* ── end 人力 KPI ── */
 .freight-ref-mini-line {
   width: 100%;
   height: 62px;

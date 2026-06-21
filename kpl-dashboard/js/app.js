@@ -3493,8 +3493,17 @@ function renderLaborPage() {
   const opStats = ops.map((o, i) => {
     const pct  = totalHrs > 0 ? (byOp[o].hrs / totalHrs * 100) : 0;
     const rate = byOp[o].hrs > 0 ? Math.round(byOp[o].cost / byOp[o].hrs) : 0;
-    return { name: o, hrs: byOp[o].hrs, pct, rate, color: COLORS[i % COLORS.length] };
+    return { name: o, hrs: byOp[o].hrs, pct, rate, color: COLORS[Math.min(i, COLORS.length - 1)] };
   });
+
+  // 前 6 類單獨顯示，其餘合併為「其他」，消除彩虹死星
+  const PIE_MAX = 6;
+  const pieTop  = opStats.slice(0, PIE_MAX);
+  const pieRest = opStats.slice(PIE_MAX);
+  const restHrs = pieRest.reduce((s, o) => s + o.hrs, 0);
+  const pieData = restHrs > 0
+    ? [...pieTop, { name: '其他', hrs: restHrs, pct: totalHrs > 0 ? restHrs / totalHrs * 100 : 0, color: '#c8ccd6' }]
+    : pieTop;
 
   function pieSlicePath(cx, cy, r, start, end) {
     const startAngle = start * Math.PI * 2 - Math.PI / 2;
@@ -3508,7 +3517,7 @@ function renderLaborPage() {
   }
 
   let cursor = 0;
-  const pieSlices = opStats.map(s => {
+  const pieSlices = pieData.map(s => {
     const start = cursor;
     const share = totalHrs > 0 ? s.hrs / totalHrs : 0;
     cursor += share;
@@ -3516,22 +3525,20 @@ function renderLaborPage() {
     return `<path d="${pieSlicePath(120, 120, 94, start, cursor)}" fill="${s.color}"></path>`;
   }).join('');
 
-  const structHtml = opStats.length ? `
+  const structHtml = pieData.length ? `
     <div class="labor-pie-layout">
       <svg class="labor-pie-chart" viewBox="0 0 240 240" role="img" aria-label="作業區域工時占比圓餅圖">
         ${pieSlices}
         <circle cx="120" cy="120" r="94" fill="none" stroke="var(--ry-paper)" stroke-width="2"></circle>
       </svg>
       <div class="labor-top-list">
-        <div class="labor-top-title">前五名</div>
-        ${opStats.slice(0, 5).map((s, i) => `
+        ${pieData.map((s, i) => `
           <div class="labor-top-item">
             <span class="labor-top-rank">${String(i + 1).padStart(2, '0')}</span>
             <span class="labor-top-swatch" style="background:${s.color}"></span>
             <span class="labor-top-name">${s.name}</span>
             <span class="labor-top-value">${wanNum(s.hrs)}h · ${s.pct.toFixed(1)}%</span>
-          </div>
-        `).join('')}
+          </div>`).join('')}
       </div>
     </div>` : '<div style="color:var(--ry-muted);padding:16px;text-align:center">無資料</div>';
 
@@ -3577,36 +3584,32 @@ function renderLaborPage() {
   if (fmeta) fmeta.textContent = `${data.length} 筆工時記錄`;
 
   document.getElementById('labor-grid').innerHTML = `
-  <div class="w s3 metric-card">
-    <div class="gold-band">L001 · HOURS</div>
-    <div class="wh"><div class="wl"><div class="wdot"></div>總工時</div></div>
-    <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-blue);line-height:1">${wanNum(totalHrs)}</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">小時</div>
-    </div>
-  </div>
-  <div class="w s3 metric-card">
-    <div class="gold-band" style="background:var(--ry-gold);color:var(--ry-blue-dark)">L002 · COST</div>
-    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-gold)"></div>總費用</div></div>
-    <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${wanMoney(totalCost)}</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">元</div>
-    </div>
-  </div>
-  <div class="w s3 metric-card">
-    <div class="gold-band" style="background:#2ea85a;color:white">L003 · RATE</div>
-    <div class="wh"><div class="wl"><div class="wdot" style="background:#2ea85a"></div>平均時薪</div></div>
-    <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:#2ea85a;line-height:1">${wanMoney(avgRate)}</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">元/小時</div>
-    </div>
-  </div>
-  <div class="w s3 metric-card">
-    <div class="gold-band" style="background:var(--ry-muted);color:white">L004 · PEOPLE</div>
-    <div class="wh"><div class="wl"><div class="wdot" style="background:var(--ry-muted)"></div>出勤人日</div></div>
-    <div style="padding:16px;text-align:center">
-      <div style="font-size:1.8rem;font-weight:900;color:var(--ry-ink);line-height:1">${wanNum(personDays)}</div>
-      <div style="font-size:var(--fs-xs);color:var(--ry-muted);margin-top:4px">${empCount.toLocaleString()} 位員工</div>
+  <div class="w s12">
+    <div class="labor-kpi-grid">
+      <div class="labor-kpi-card">
+        <div class="labor-kpi-icon" aria-hidden="true">⏱️</div>
+        <span class="labor-kpi-label">總工時</span>
+        <div class="labor-kpi-main" style="color:var(--ry-blue)">${wanNum(totalHrs)}</div>
+        <div class="labor-kpi-ctx">小時</div>
+      </div>
+      <div class="labor-kpi-card">
+        <div class="labor-kpi-icon" aria-hidden="true">💰</div>
+        <span class="labor-kpi-label">總費用</span>
+        <div class="labor-kpi-main">${wanMoney(totalCost)}</div>
+        <div class="labor-kpi-ctx">元</div>
+      </div>
+      <div class="labor-kpi-card">
+        <div class="labor-kpi-icon" aria-hidden="true">📈</div>
+        <span class="labor-kpi-label">平均時薪</span>
+        <div class="labor-kpi-main" style="color:var(--app-success)">${wanMoney(avgRate)}</div>
+        <div class="labor-kpi-ctx">元/小時</div>
+      </div>
+      <div class="labor-kpi-card">
+        <div class="labor-kpi-icon" aria-hidden="true">👥</div>
+        <span class="labor-kpi-label">出勤人日</span>
+        <div class="labor-kpi-main">${wanNum(personDays)}</div>
+        <div class="labor-kpi-ctx">${empCount.toLocaleString()} 位員工</div>
+      </div>
     </div>
   </div>
   <div class="w s6 labor-struct-card">
