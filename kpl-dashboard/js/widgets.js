@@ -1055,22 +1055,24 @@ function renderFreightReferenceDashboard() {
           <div class="freight-ref-kpi-icon" aria-hidden="true">💰</div>
           <div class="freight-ref-kpi-label">費用總計</div>
           <div class="freight-ref-kpi-main">$${(actualTotal / 10000).toFixed(2)}W</div>
-          <div class="freight-ref-kpi-sub">前月費用（${previousMonthDays} 天） ${previousMonthTotal ? `$${(previousMonthTotal / 10000).toFixed(2)}W` : '尚無資料'}</div>
-          <div class="freight-ref-pill good">前月差 ${previousMonthTotal ? `${fullMonthDifference < 0 ? '-' : '+'}$${Math.abs(fullMonthDifference / 10000).toFixed(2)}W` : '尚無資料'}</div>
+          <div class="freight-ref-kpi-ctx">
+            前月（${previousMonthDays}天）${previousMonthTotal ? `$${(previousMonthTotal / 10000).toFixed(2)}W` : '—'}${previousMonthTotal ? `<span class="freight-ref-delta ${fullMonthDifference <= 0 ? 'good' : 'bad'}">${fullMonthDifference < 0 ? '▼' : '▲'} $${Math.abs(fullMonthDifference / 10000).toFixed(2)}W</span>` : ''}
+          </div>
         </article>
         <article class="freight-ref-kpi">
           <div class="freight-ref-kpi-icon" aria-hidden="true">📊</div>
           <div class="freight-ref-kpi-label">動支率</div>
           <div class="freight-ref-kpi-main">${spendingRate.toFixed(1)}%</div>
           <div class="freight-ref-progress state-${spendingState}" data-tooltip="綠色：低於 75% 安全｜黃色：75–90% 注意｜紅色：高於 90% 危險"><i style="width:${Math.min(100, spendingRate)}%"></i></div>
-          <div class="freight-ref-scale"><span>0%</span><span>50%</span><span>100%</span></div>
+          <div class="freight-ref-kpi-ctx freight-ref-ctx-state-${spendingState}">${!budgetTotal ? '未設定預算' : spendingRate < 75 ? `安全 · < 75%` : spendingRate <= 90 ? `注意 · 75–90%` : `超支 · > 90%`}</div>
         </article>
         <article class="freight-ref-kpi">
           <div class="freight-ref-kpi-icon" aria-hidden="true">📦</div>
           <div class="freight-ref-kpi-label">配送筆數</div>
           <div class="freight-ref-kpi-main">${summary.totalOrders.toLocaleString()}</div>
-          <div class="freight-ref-kpi-sub">前月配送（${previousMonthDays} 天） ${previousMonthOrders ? `${previousMonthOrders.toLocaleString()} 筆` : '尚無資料'}</div>
-          <div class="freight-ref-pill good">前月差 ${previousMonthOrders ? `${orderDifference < 0 ? '-' : '+'}${Math.abs(orderDifference).toLocaleString()} 筆` : '尚無資料'}</div>
+          <div class="freight-ref-kpi-ctx">
+            前月（${previousMonthDays}天）${previousMonthOrders ? `${previousMonthOrders.toLocaleString()} 筆` : '—'}${previousMonthOrders ? `<span class="freight-ref-delta neutral">${orderDifference < 0 ? '▼' : '▲'} ${Math.abs(orderDifference).toLocaleString()} 筆</span>` : ''}
+          </div>
         </article>
         <article class="freight-ref-kpi gauge">
           <div class="freight-ref-kpi-icon" aria-hidden="true">🚚</div>
@@ -1078,7 +1080,7 @@ function renderFreightReferenceDashboard() {
           <div class="freight-ref-gauge" style="--gauge-deg:${Math.min(180, nonMainlineRatio * 1.8)}deg">
             <div class="freight-ref-gauge-value">${nonMainlineRatio.toFixed(1)}%</div>
           </div>
-          <div class="freight-ref-kpi-status freight-ref-kpi-status-neutral">專車 ${specialTruckCount.toLocaleString()} / 非主線 ${nonMainlineDetails.length.toLocaleString()} 筆</div>
+          <div class="freight-ref-kpi-ctx">非主線 ${nonMainlineDetails.length.toLocaleString()} 筆 · 其中專車 ${specialTruckCount.toLocaleString()} 筆</div>
         </article>
       </div>
     </div>

@@ -1295,8 +1295,8 @@ td.mono { font-family: var(--f-mono); }
   line-height: var(--typo-widget-title-line);
 }
 .freight-ref-kpi-main {
-  margin-top: 18px;
-  text-align: center;
+  margin-top: 12px;
+  text-align: left;
   color: var(--freight-kpi-value);
   font-family: var(--typo-metric-font);
   font-size: var(--typo-metric-size);
@@ -1304,9 +1304,38 @@ td.mono { font-family: var(--f-mono); }
   line-height: var(--typo-metric-line);
   letter-spacing: 0;
 }
+/* 簡化次要資訊：合併 sub + pill 成一行 ctx */
+.freight-ref-kpi-ctx {
+  margin-top: 8px;
+  text-align: left;
+  color: var(--freight-kpi-muted);
+  font-family: var(--typo-widget-note-font);
+  font-size: var(--typo-widget-note-size);
+  font-weight: var(--typo-widget-note-weight);
+  line-height: 1.5;
+}
+/* 行內趨勢指示（取代 pill） */
+.freight-ref-delta {
+  display: inline-block;
+  margin-left: 6px;
+  font-size: var(--typo-badge-size);
+  font-weight: 700;
+  vertical-align: baseline;
+}
+.freight-ref-delta.good    { color: var(--freight-kpi-success); }
+.freight-ref-delta.bad     { color: var(--app-danger); }
+.freight-ref-delta.neutral { color: var(--freight-kpi-muted); }
+/* 動支率狀態文字顏色 */
+.freight-ref-ctx-state-safe    { color: var(--app-success); }
+.freight-ref-ctx-state-warning { color: var(--app-warning); }
+.freight-ref-ctx-state-danger  { color: var(--app-danger); }
+.freight-ref-ctx-state-muted   { color: var(--freight-kpi-muted); }
+/* 非主線占比 gauge card: ctx 置中對齊 */
+.freight-ref-kpi.gauge .freight-ref-kpi-ctx { text-align: center; }
+/* 保留舊 sub 樣式供過渡期使用 */
 .freight-ref-kpi-sub {
-  margin-top: 10px;
-  text-align: center;
+  margin-top: 8px;
+  text-align: left;
   color: var(--freight-kpi-muted);
   font-family: var(--typo-widget-note-font);
   font-size: var(--typo-widget-note-size);
@@ -1377,16 +1406,7 @@ td.mono { font-family: var(--f-mono); }
 .freight-ref-kpi:has(.freight-ref-progress:hover) {
   z-index: 2;
 }
-.freight-ref-scale {
-  display: flex;
-  justify-content: space-between;
-  margin-top: 7px;
-  color: var(--freight-kpi-muted);
-  font-family: var(--typo-badge-font);
-  font-size: var(--typo-badge-size);
-  font-weight: var(--typo-badge-weight);
-  line-height: var(--typo-badge-line);
-}
+.freight-ref-scale { display: none; }
 .freight-ref-kpi-status {
   margin-top: 15px;
   text-align: center;
