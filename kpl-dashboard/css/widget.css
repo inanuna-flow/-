@@ -1464,10 +1464,10 @@ td.mono { font-family: var(--f-mono); }
 .freight-ref-gauge::after {
   content: "";
   position: absolute;
-  left: 34px;
-  right: 34px;
-  bottom: -66px;
-  height: 132px;
+  left: 14px;
+  right: 14px;
+  bottom: -86px;
+  height: 172px;
   border-radius: 50%;
   background: var(--freight-kpi-surface);
 }
@@ -1475,13 +1475,13 @@ td.mono { font-family: var(--f-mono); }
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 16px;
+  bottom: 10px;
   z-index: 1;
   text-align: center;
   color: var(--freight-kpi-purple);
   font-family: var(--typo-metric-font);
   font-size: var(--typo-metric-size);
-  font-weight: var(--typo-metric-weight);
+  font-weight: 700;
   line-height: var(--typo-metric-line);
 }
 .freight-ref-mini-line {
