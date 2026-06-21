@@ -1811,20 +1811,21 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // 載入頁面權限（管理員也載入，用於顯示哪些頁面被隱藏）
   await loadPagePermissions();
-  await Promise.all([
-    loadCloudBudgetData(),
-    loadCloudLaborData(),
-    loadCloudPicksData(),
-    loadCloudFreightData(),
-  ]);
 
-  // 預設日期：本月 1 日 → 今天
+  // 預設日期必須在 cloud data load 之前設定，否則 API 收到空日期參數
   const _now = new Date();
   const _y = _now.getFullYear();
   const _m = String(_now.getMonth() + 1).padStart(2, '0');
   const _d = String(_now.getDate()).padStart(2, '0');
   DATA.dateFrom = `${_y}-${_m}-01`;
   DATA.dateTo   = `${_y}-${_m}-${_d}`;
+
+  await Promise.all([
+    loadCloudBudgetData(),
+    loadCloudLaborData(),
+    loadCloudPicksData(),
+    loadCloudFreightData(),
+  ]);
 
   initThemeMode();
   initSidebarState();
