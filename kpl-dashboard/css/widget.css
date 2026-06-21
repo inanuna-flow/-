@@ -2593,22 +2593,9 @@ td.mono { font-family: var(--f-mono); }
   display: flex;
   flex-direction: column;
 }
-/* 班別成本 table 撐滿卡片高度，三行平均分配 */
 .labor-shift-card .labor-shift-table {
-  flex: 1;
   width: 100%;
-  border-collapse: collapse;
-}
-.labor-shift-card .labor-shift-table tbody {
-  height: 100%;
-}
-.labor-shift-cell {
-  padding: 0 16px;
-  font-size: 15px;
-  height: 33.33%;
-}
-.labor-shift-name {
-  font-size: 16px;
+  margin-top: 4px;
 }
 .labor-top-value {
   font-family: var(--f-mono);

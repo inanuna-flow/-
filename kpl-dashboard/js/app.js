@@ -3544,10 +3544,10 @@ function renderLaborPage() {
     const it   = byShift[s];
     const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
     return `<tr>
-      <td class="labor-shift-cell labor-shift-name"><b>${s}班</b></td>
-      <td class="labor-shift-cell" style="text-align:right;font-family:var(--f-mono)">${wanNum(it.hrs)}</td>
-      <td class="labor-shift-cell" style="text-align:right;font-family:var(--f-mono)">${wanMoney(it.cost)}</td>
-      <td class="labor-shift-cell" style="text-align:right;font-family:var(--f-mono)">${wanMoney(rate)}</td>
+      <td><b>${s}班</b></td>
+      <td class="mono num-right">${wanNum(it.hrs)}</td>
+      <td class="mono num-right">${wanMoney(it.cost)}</td>
+      <td class="mono num-right">${wanMoney(rate)}</td>
     </tr>`;
   }).join('');
 
@@ -3610,12 +3610,12 @@ function renderLaborPage() {
   <div class="w s6 table-card labor-shift-card">
     <div class="gold-band">L006 · 🌙 班別工時分析</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>班別成本</div></div>
-    <table class="tbl labor-shift-table">
+    <table class="tbl labor-shift-table ops-compact-table">
       <thead><tr>
         <th>班別</th>
-        <th style="text-align:right">工時(h)</th>
-        <th style="text-align:right">費用</th>
-        <th style="text-align:right">時薪</th>
+        <th class="num-right">工時(h)</th>
+        <th class="num-right">費用</th>
+        <th class="num-right">時薪</th>
       </tr></thead>
       <tbody>${shiftRows || '<tr><td colspan="4" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
     </table>
