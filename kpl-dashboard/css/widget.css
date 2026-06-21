@@ -1277,32 +1277,42 @@ td.mono { font-family: var(--f-mono); }
   position: relative;
 }
 .freight-ref-kpi-icon {
-  width: 28px;
-  height: 28px;
+  width: 36px;
+  height: 36px;
   display: inline-grid;
   place-items: center;
+  border-radius: 50%;
   font-family: "Apple Color Emoji", "Segoe UI Emoji", "Noto Color Emoji", sans-serif;
   font-size: 20px;
   line-height: 1;
-  margin-right: 8px;
+  margin-right: 7px;
+  flex-shrink: 0;
+  vertical-align: middle;
 }
+/* Common Region + Similarity: 各卡片圖示圓底獨立色調 */
+.freight-ref-kpis > :nth-child(1) .freight-ref-kpi-icon { background: color-mix(in srgb, var(--freight-kpi-blue)   16%, transparent); }
+.freight-ref-kpis > :nth-child(2) .freight-ref-kpi-icon { background: color-mix(in srgb, var(--app-success)        16%, transparent); }
+.freight-ref-kpis > :nth-child(3) .freight-ref-kpi-icon { background: color-mix(in srgb, var(--ry-orange)          16%, transparent); }
+.freight-ref-kpis > :nth-child(4) .freight-ref-kpi-icon { background: color-mix(in srgb, var(--freight-kpi-purple) 16%, transparent); }
 .freight-ref-kpi-label {
   display: inline-block;
-  color: var(--freight-kpi-label);
+  color: var(--freight-kpi-muted);
   font-family: var(--typo-widget-title-font);
-  font-size: var(--typo-widget-title-size);
-  font-weight: var(--typo-widget-title-weight);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.03em;
   line-height: var(--typo-widget-title-line);
+  vertical-align: middle;
 }
 .freight-ref-kpi-main {
-  margin-top: 12px;
+  margin-top: 14px;
   text-align: left;
   color: var(--freight-kpi-value);
   font-family: var(--typo-metric-font);
   font-size: var(--typo-metric-size);
-  font-weight: var(--typo-metric-weight);
+  font-weight: 700;
   line-height: var(--typo-metric-line);
-  letter-spacing: 0;
+  letter-spacing: -0.01em;
 }
 /* 簡化次要資訊：合併 sub + pill 成一行 ctx */
 .freight-ref-kpi-ctx {
