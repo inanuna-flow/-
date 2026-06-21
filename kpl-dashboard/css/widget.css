@@ -3603,13 +3603,18 @@ html[data-theme="night"] .tbl.t002-table th.t002-head-item,
 html[data-theme="night"] .freight-matrix-title,
 html[data-theme="night"] .labor-dept-table thead tr,
 html[data-theme="night"] .labor-dept-table th {
-  background: #1e293b;
-  color: #f8fafc;
+  background: #2a3848;
+  color: #d4d4d4;
 }
 
 html[data-theme="night"] .btn-outline {
   border-color: var(--app-border);
   color: var(--app-text);
+}
+
+html[data-theme="night"] .freight-date-filter .filter-label,
+html[data-theme="night"] .freight-options-filter .filter-label {
+  color: var(--app-muted);
 }
 
 /* Demo-inspired content surfaces */

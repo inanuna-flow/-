@@ -82,11 +82,19 @@ const PAGES = [
     ]
   },
   {
+    group: '🔐 帳號權限管理',
+    items: [
+      { id:'accountPermissions', icon:'👥', label:'帳號權限',         status:'ready', adminOnly: true },
+      { id:'accountIpRules',     icon:'🛡️', label:'後臺限制 IP 管理', status:'ready', adminOnly: true },
+      { id:'accountLoginAudit',  icon:'📜', label:'系統登入日誌',     status:'ready', adminOnly: true },
+      { id:'accountErrorAudit',  icon:'🚨', label:'全域錯誤例外日誌', status:'ready', adminOnly: true },
+    ]
+  },
+  {
     group: '⚙️ 系統設定',
     items: [
       { id:'org',          icon:'🏢', label:'組織設定',     status:'ready' },
       { id:'typography',   icon:'🔤', label:'文字樣式設定', status:'ready' },
-      { id:'admin',        icon:'🔐', label:'頁面權限設定', status:'ready', adminOnly: true },
     ]
   },
 ];
@@ -98,6 +106,7 @@ const SIDEBAR_GROUP_META = [
   { label: '效率分析',   icon: '⚡' },
   { label: '預算規劃',   icon: '📈' },
   { label: '資料管理',   icon: '📁' },
+  { label: '帳號權限管理', icon: '🔐' },
   { label: '系統設定',   icon: '⚙️' },
 ];
 const THEME_STORAGE_KEY = 'kplThemeMode';
@@ -398,11 +407,15 @@ function updatePageBreadcrumb(pageId) {
 function loadPage(pageId) {
   updateTopbarPageName(pageId);
 
-  // 管理員頁面不需要 template
+  // 舊 admin 路由轉址到新頁面
   if (pageId === 'admin') {
+    navigate(null, 'accountPermissions');
+    return;
+  }
+
+  if (pageId.startsWith('account')) {
     if (!isAdmin()) { navigate(null, 'daily'); return; }
-    document.getElementById('main').innerHTML = '';
-    renderAdminPage();
+    renderAccountManagementPage(pageId);
     return;
   }
 
@@ -437,7 +450,6 @@ function loadPage(pageId) {
   else if (pageId === 'productivity') initProductivityPage();
   else if (pageId === 'monthly') initMonthlyPage();
   else if (pageId === 'annual')  renderAnnualPage();
-  else if (pageId === 'admin')   renderAdminPage();
 
   normalizeDateFilterBars();
 }
@@ -536,79 +548,161 @@ function dateInSelectedRange(dateStr) {
 // ════════════════════════════════════════════
 // 🔐 管理員頁面：頁面權限設定
 // ════════════════════════════════════════════
-function renderAdminPage() {
+
+const ACCOUNT_MANAGEMENT_PAGES = {
+  accountIpRules: {
+    icon: '🛡️',
+    title: '後臺限制 IP 管理',
+    desc: '控管允許進入後台的公司網段、例外 IP 與阻擋紀錄。',
+    columns: ['規則名稱', 'IP / CIDR', '狀態', '備註'],
+    rows: [
+      ['登入頻率限制', '依目前來源 IP', '已啟用', 'server.js 目前已有 15 分鐘 10 次限制'],
+    ],
+    next: ['建立 ip_allowlist / ip_blocklist 資料表', '加入 Cloud Run x-forwarded-for 審計', '提供阻擋清單與臨時放行'],
+  },
+  accountLoginAudit: {
+    icon: '📜',
+    title: '系統登入日誌',
+    desc: '查詢登入成功、登入失敗、頻率限制與 Session 到期事件。',
+    columns: ['時間', '帳號', '來源 IP', '結果', '訊息'],
+    rows: [],
+    next: ['建立 login_audit_logs 資料表', '把 /api/check-user 成功與失敗寫入日誌', '提供日期、帳號、IP 篩選'],
+  },
+  accountErrorAudit: {
+    icon: '🚨',
+    title: '全域錯誤例外日誌',
+    desc: '集中查看後端 API 例外、前端錯誤與資料匯入失敗。',
+    columns: ['時間', '來源', '嚴重度', '錯誤摘要', '處理狀態'],
+    rows: [],
+    next: ['建立 error_audit_logs 資料表', '捕捉 server.js API 例外', '前端加入 window error / unhandledrejection 回報'],
+  },
+};
+
+function renderAccountManagementPage(pageId) {
   if (!isAdmin()) return;
   const main = document.getElementById('main');
+  if (!main) return;
 
-  const allItems = PAGES.flatMap(g => g.items).filter(item => !item.adminOnly);
-  const rows = allItems.map(item => {
-    const isOn = pagePermissions[item.id] !== false;
-    return `
-    <tr>
-      <td>${item.icon} ${item.label}</td>
-      <td class="mono text-muted-strong">${item.id}</td>
-      <td>
-        <label class="admin-toggle">
-          <input type="checkbox" id="perm-${item.id}" ${isOn ? 'checked' : ''}>
-          <span class="admin-toggle-slider"></span>
-        </label>
-      </td>
-    </tr>`;
-  }).join('');
+  if (pageId === 'accountPermissions') {
+    const allItems = PAGES.flatMap(g => g.items).filter(item => !item.adminOnly);
+    const rows = allItems.map(item => {
+      const isOn = pagePermissions[item.id] !== false;
+      return `<tr>
+        <td>${item.icon} ${item.label}</td>
+        <td class="mono text-muted-strong">${item.id}</td>
+        <td>
+          <label class="admin-toggle">
+            <input type="checkbox" id="perm-${item.id}" ${isOn ? 'checked' : ''}>
+            <span class="admin-toggle-slider"></span>
+          </label>
+        </td>
+      </tr>`;
+    }).join('');
+
+    main.innerHTML = `
+      <div class="page-head">
+        <div class="page-eyebrow">帳號權限管理 &gt; 帳號權限</div>
+        <h1 class="page-h">👥 頁面權限設定</h1>
+      </div>
+      <div class="grid">
+        <div class="w s12">
+          <div class="wh">
+            <div class="wl"><div class="wdot"></div>一般帳號可見頁面</div>
+            <span class="wmeta">管理員設定</span>
+          </div>
+          <div style="padding:12px 18px 4px;font-size:13px;color:var(--app-muted)">
+            控制一般帳號可以看到哪些頁面。管理員帳號（inari）永遠可以看到全部頁面。
+          </div>
+          <div class="admin-permission-table-frame">
+            <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">
+              <thead><tr><th>頁面名稱</th><th>頁面 ID</th><th>一般帳號可見</th></tr></thead>
+              <tbody>${rows}</tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="w s12">
+          <div class="wh">
+            <div class="wl"><div class="wdot"></div>儲存設定</div>
+          </div>
+          <div id="admin-save-area" style="padding:16px 18px">
+            <div style="margin-bottom:12px;padding:12px 14px;background:#fff8e6;border-radius:8px;border:1px solid #f5c400;font-size:13px;color:#7a6000">
+              ⚠️ 儲存前需輸入您的密碼重新驗證身份，確保安全。
+            </div>
+            <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
+              <div style="flex:1;min-width:200px">
+                <label style="display:block;font-size:11px;font-weight:700;color:var(--app-muted);margin-bottom:6px;letter-spacing:.08em">確認密碼</label>
+                <input type="password" id="admin-psw" placeholder="請輸入您的登入密碼"
+                  style="width:100%;padding:10px 14px;border:1.5px solid var(--app-border);border-radius:4px;font-size:13px;background:var(--app-surface);color:var(--app-text)">
+              </div>
+              <button onclick="savePermissions()"
+                style="padding:10px 28px;background:#1e5ca8;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap">
+                💾 儲存設定
+              </button>
+            </div>
+            <div id="admin-msg" style="margin-top:10px;font-size:13px;display:none"></div>
+          </div>
+        </div>
+      </div>
+
+      <style>
+      .admin-toggle { position:relative;display:inline-block;width:44px;height:24px; }
+      .admin-toggle input { opacity:0;width:0;height:0; }
+      .admin-toggle-slider {
+        position:absolute;inset:0;background:#ccc;border-radius:24px;cursor:pointer;transition:.2s;
+      }
+      .admin-toggle-slider:before {
+        content:'';position:absolute;width:18px;height:18px;left:3px;bottom:3px;
+        background:#fff;border-radius:50%;transition:.2s;
+      }
+      .admin-toggle input:checked + .admin-toggle-slider { background:#1e5ca8; }
+      .admin-toggle input:checked + .admin-toggle-slider:before { transform:translateX(20px); }
+      </style>`;
+    return;
+  }
+
+  const config = ACCOUNT_MANAGEMENT_PAGES[pageId];
+  if (!config) return;
+  const rows = config.rows.length
+    ? config.rows.map(row => `<tr>${row.map(cell => `<td>${escapeReleaseText(cell)}</td>`).join('')}</tr>`).join('')
+    : `<tr><td colspan="${config.columns.length}" style="text-align:center;color:var(--app-muted);padding:28px 12px">尚未接 Cloud SQL，沒有可稽核資料。</td></tr>`;
 
   main.innerHTML = `
-  <div style="max-width:680px;margin:32px auto;padding:0 16px">
-    <div style="margin-bottom:24px">
-      <div style="font-size:22px;font-weight:900;color:#1a1d24">🔐 頁面權限設定</div>
-      <div style="font-size:13px;color:#888;margin-top:4px">控制一般帳號可以看到哪些頁面。管理員帳號（inari）永遠可以看到全部頁面。</div>
+    <div class="page-head">
+      <div class="page-eyebrow">帳號權限管理 &gt; ${escapeReleaseText(config.title)}</div>
+      <h1 class="page-h">${config.icon} ${escapeReleaseText(config.title)}</h1>
     </div>
-
-    <div class="admin-permission-table-frame">
-      <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">
-        <thead>
-          <tr>
-            <th>頁面名稱</th>
-            <th>頁面 ID</th>
-            <th>一般帳號可見</th>
-          </tr>
-        </thead>
-        <tbody>${rows}</tbody>
-      </table>
-    </div>
-
-    <div style="margin-top:20px;padding:16px;background:#fff8e6;border-radius:8px;border:1px solid #f5c400;font-size:13px;color:#7a6000">
-      ⚠️ 儲存前需輸入您的密碼重新驗證身份，確保安全。
-    </div>
-
-    <div id="admin-save-area" style="margin-top:20px">
-      <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap">
-        <div style="flex:1;min-width:200px">
-          <label style="display:block;font-size:11px;font-weight:700;color:#666;margin-bottom:6px;letter-spacing:.08em">確認密碼</label>
-          <input type="password" id="admin-psw" placeholder="請輸入您的登入密碼"
-            style="width:100%;padding:10px 14px;border:1.5px solid #dde2ec;border-radius:4px;font-size:13px">
+    <div class="grid">
+      <div class="w s12">
+        <div class="wh">
+          <div class="wl"><div class="wdot"></div>管理範圍</div>
+          <span class="wmeta">管理員設定</span>
         </div>
-        <button onclick="savePermissions()"
-          style="padding:10px 28px;background:#1e5ca8;color:#fff;border:none;border-radius:4px;font-size:14px;font-weight:700;cursor:pointer;white-space:nowrap">
-          💾 儲存設定
-        </button>
+        <div style="padding:18px;color:var(--app-muted);font-size:13px;line-height:1.8">
+          ${escapeReleaseText(config.desc)}
+          <div style="margin-top:12px;padding:12px 14px;border:1px solid var(--app-border);border-left:3px solid var(--app-accent);border-radius:8px;background:var(--app-surface-soft);color:var(--app-text)">
+            第一版先補齊管理入口與資訊架構。涉及帳號、IP、稽核日誌的正式資料保存需 Cloud SQL schema，需少佐另外同意 migration 後才會實作。
+          </div>
+        </div>
       </div>
-      <div id="admin-msg" style="margin-top:10px;font-size:13px;display:none"></div>
-    </div>
-  </div>
-
-  <style>
-  .admin-toggle { position:relative;display:inline-block;width:44px;height:24px; }
-  .admin-toggle input { opacity:0;width:0;height:0; }
-  .admin-toggle-slider {
-    position:absolute;inset:0;background:#ccc;border-radius:24px;cursor:pointer;transition:.2s;
-  }
-  .admin-toggle-slider:before {
-    content:'';position:absolute;width:18px;height:18px;left:3px;bottom:3px;
-    background:#fff;border-radius:50%;transition:.2s;
-  }
-  .admin-toggle input:checked + .admin-toggle-slider { background:#1e5ca8; }
-  .admin-toggle input:checked + .admin-toggle-slider:before { transform:translateX(20px); }
-  </style>`;
+      <div class="w s12">
+        <div class="wh"><div class="wl"><div class="wdot"></div>目前資料</div></div>
+        <div class="admin-permission-table-frame">
+          <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">
+            <thead><tr>${config.columns.map(col => `<th>${escapeReleaseText(col)}</th>`).join('')}</tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+      <div class="w s12">
+        <div class="wh"><div class="wl"><div class="wdot"></div>後續需接上的正式能力</div></div>
+        <div style="padding:16px 18px">
+          <ul style="margin-left:18px;color:var(--app-muted);font-size:13px;line-height:1.9">
+            ${config.next.map(item => `<li>${escapeReleaseText(item)}</li>`).join('')}
+          </ul>
+        </div>
+      </div>
+    </div>`;
 }
 
 async function savePermissions() {
@@ -1876,6 +1970,8 @@ function setupFreightMonthShell() {
       </select>
       <div class="filter-divider"></div>
       <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
+      <div class="filter-divider"></div>
+      <button class="btn btn-ghost" onclick="downloadPageReport('freight')" title="下載 Excel">↓ 匯出</button>
       <span class="filter-meta">以月度檢視運費損益</span>
     `;
   }
@@ -2064,6 +2160,107 @@ function downloadImportTemplate(type) {
   }
 
   XLSX.writeFile(wb, `${importTypeLabel(type)}_匯入範本.xlsx`);
+}
+
+function downloadPageReport(page) {
+  const wb = XLSX.utils.book_new();
+  const addSheet = (name, rows) => {
+    const ws = XLSX.utils.aoa_to_sheet(rows);
+    ws['!cols'] = rows[0].map(h => ({ wch: Math.max(12, String(h).length * 2 + 2) }));
+    XLSX.utils.book_append_sheet(wb, ws, name);
+  };
+
+  const from = DATA.dateFrom || '';
+  const to   = DATA.dateTo   || '';
+  const labels = { dispatch: '總費用動支率', freight: '運費損益', labor: '人力工時', picks: '揀次分析' };
+  const filename = `KPL_${labels[page]}_${from}~${to}.xlsx`;
+
+  if (page === 'freight') {
+    if (!DATA.freight?.details?.length) {
+      toast('⚠️ 運費資料尚未載入，請稍候再匯出');
+      return;
+    }
+    const wh = DATA.freightSelectedWarehouse || document.getElementById('freight-warehouse')?.value || 'all';
+    let data = DATA.freight.details;
+    if (wh !== 'all') data = data.filter(r => r.budgetWarehouse === wh);
+    addSheet('明細', [
+      ['日期', '倉別', '廠商', '路線', '派車原因', '預計費用', '計費結果', '到點費用', '大分類', '小分類', '來源類型'],
+      ...data.map(r => [r.fullDate, r.budgetWarehouse, r.vendor, r.route, r.reason,
+                        r.estimated, r.actual, r.point, r.categoryL1, r.categoryL2, r.sourceType])
+    ]);
+
+  } else if (page === 'labor') {
+    const shiftFilter = document.getElementById('labor-shift')?.value || '';
+    const deptFilter  = document.getElementById('labor-vendor')?.value || '';
+    let data = (LABOR_RAW || []).filter(r =>
+      dateInSelectedRange(r.date) && r.opArea !== '午休時間' && r.hours > 0
+    );
+    if (shiftFilter) data = data.filter(r => r.shift === shiftFilter);
+    if (deptFilter)  data = data.filter(r => r.dept === deptFilter);
+
+    addSheet('明細', [
+      ['倉別', '日期', '廠商', '班別', '員編', '作業課別', '姓名', '作業區域', '作業時數', '裝箱時數', '夜間時數', '正常時數', '費用'],
+      ...data.map(r => [r.wh, r.date, r.vendor, r.shift, r.empId, r.dept,
+                        r.name, r.opArea, r.hours, r.boxHours, r.nightHrs, r.normHrs, r.cost])
+    ]);
+
+    const byDept = {};
+    data.forEach(r => {
+      const k = r.dept || '未分類';
+      if (!byDept[k]) byDept[k] = { hrs: 0, cost: 0, emps: new Set() };
+      byDept[k].hrs  += r.hours;
+      byDept[k].cost += r.cost;
+      byDept[k].emps.add(r.empId);
+    });
+    addSheet('彙總', [
+      ['課別', '人次', '工時(H)', '費用', '時薪'],
+      ...Object.entries(byDept)
+        .sort((a, b) => b[1].hrs - a[1].hrs)
+        .map(([dept, v]) => [dept, v.emps.size, v.hrs, v.cost,
+                             v.hrs > 0 ? Math.round(v.cost / v.hrs) : 0])
+    ]);
+
+  } else if (page === 'dispatch') {
+    const rows = (DATA.dispatch.daily || []).filter(r => dateInSelectedRange(r[7]));
+    addSheet('每日明細', [
+      ['日期', '大溪_人力', '大溪_運務', '大肚_人力', '大肚_運務', '岡山_人力', '岡山_運務', '日合計'],
+      ...rows.map(r => {
+        const total = r[1] + r[2] + r[3] + r[4] + r[5] + r[6];
+        return [r[7], r[1], r[2], r[3], r[4], r[5], r[6], total];
+      })
+    ]);
+
+  } else if (page === 'picks') {
+    const wh = document.getElementById('picks-wh')?.value || '';
+    const op = document.getElementById('picks-op')?.value || '';
+    let data = (PICKS_RAW || []).filter(r => dateInSelectedRange(r.date));
+    if (wh) data = data.filter(r => r.wh === wh);
+    if (op) data = data.filter(r => r.op === op);
+
+    addSheet('明細', [
+      ['日期', '倉別', '業務類別', '作業區', '工時區域', '揀次'],
+      ...data.map(r => [r.date, r.wh, r.biz, r.area, r.op, r.picks])
+    ]);
+
+    const allWhs = [...new Set(data.map(r => r.wh))].sort();
+    const byOp = {};
+    data.forEach(r => {
+      if (!byOp[r.op]) byOp[r.op] = { total: 0 };
+      byOp[r.op][r.wh] = (byOp[r.op][r.wh] || 0) + r.picks;
+      byOp[r.op].total += r.picks;
+    });
+    addSheet('彙總', [
+      ['作業區域', ...allWhs, '合計'],
+      ...Object.entries(byOp)
+        .sort((a, b) => b[1].total - a[1].total)
+        .map(([op, v]) => [op, ...allWhs.map(w => v[w] || 0), v.total])
+    ]);
+
+  } else {
+    return;
+  }
+
+  XLSX.writeFile(wb, filename);
 }
 
 function parseBudget(wb, fileName) {

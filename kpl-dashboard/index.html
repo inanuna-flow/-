@@ -228,6 +228,8 @@
   <input type="date" class="filter-input" id="dispatch-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDispatchFilter()">套用</button>
+  <div class="filter-divider"></div>
+  <button class="btn btn-ghost" onclick="downloadPageReport('dispatch')" title="下載 Excel">↓ 匯出</button>
   <span class="filter-meta">🔗 與其他頁共用日期設定</span>
 </div>
 <div class="grid" id="dispatch-grid"></div>
@@ -522,6 +524,8 @@
   <input type="date" class="filter-input" id="picks-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDashboardDateFilter('picks')">套用</button>
+  <div class="filter-divider"></div>
+  <button class="btn btn-ghost" onclick="downloadPageReport('picks')" title="下載 Excel">↓ 匯出</button>
   <span class="filter-meta" id="picks-date-meta"></span>
 </div>
 <div class="filter-bar">
@@ -568,6 +572,8 @@
   <input type="date" class="filter-input" id="labor-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDashboardDateFilter('labor')">套用</button>
+  <div class="filter-divider"></div>
+  <button class="btn btn-ghost" onclick="downloadPageReport('labor')" title="下載 Excel">↓ 匯出</button>
   <span class="filter-meta" id="labor-date-meta"></span>
 </div>
 <div class="filter-bar">
