@@ -1970,9 +1970,8 @@ function setupFreightMonthShell() {
       </select>
       <div class="filter-divider"></div>
       <button class="btn btn-primary" onclick="applyFreightFilter()">套用</button>
-      <div class="filter-divider"></div>
-      <button class="btn btn-ghost" onclick="downloadPageReport('freight')" title="下載 Excel">↓ 匯出</button>
       <span class="filter-meta">以月度檢視運費損益</span>
+      <button class="btn btn-ghost export-btn" onclick="downloadPageReport('freight')" title="下載 Excel">↓ 匯出</button>
     `;
   }
   lockFreightToMonth(getFreightMonthValue());

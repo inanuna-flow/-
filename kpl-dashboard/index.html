@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="css/base.css?v=20260613-1">
 <link rel="stylesheet" href="css/theme.css?v=20260608-2">
 <link rel="stylesheet" href="css/layout.css?v=20260613-3">
-<link rel="stylesheet" href="css/widget.css?v=20260613-22">
+<link rel="stylesheet" href="css/widget.css?v=20260621-1">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 
 <!-- 開機載入畫面：在 CSS/JS 還沒下載完前就顯示，避免空白頁 -->
@@ -228,9 +228,8 @@
   <input type="date" class="filter-input" id="dispatch-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDispatchFilter()">套用</button>
-  <div class="filter-divider"></div>
-  <button class="btn btn-ghost" onclick="downloadPageReport('dispatch')" title="下載 Excel">↓ 匯出</button>
   <span class="filter-meta">🔗 與其他頁共用日期設定</span>
+  <button class="btn btn-ghost export-btn" onclick="downloadPageReport('dispatch')" title="下載 Excel">↓ 匯出</button>
 </div>
 <div class="grid" id="dispatch-grid"></div>
 </script>
@@ -524,9 +523,8 @@
   <input type="date" class="filter-input" id="picks-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDashboardDateFilter('picks')">套用</button>
-  <div class="filter-divider"></div>
-  <button class="btn btn-ghost" onclick="downloadPageReport('picks')" title="下載 Excel">↓ 匯出</button>
   <span class="filter-meta" id="picks-date-meta"></span>
+  <button class="btn btn-ghost export-btn" onclick="downloadPageReport('picks')" title="下載 Excel">↓ 匯出</button>
 </div>
 <div class="filter-bar">
   <span class="filter-label">倉庫</span>
@@ -540,20 +538,32 @@
   <span class="filter-label">作業區域</span>
   <select class="filter-input" id="picks-op" onchange="renderPicksPage()">
     <option value="">全部</option>
-    <option value="夜配理貨">夜配理貨</option>
-    <option value="夜配裝箱">夜配裝箱</option>
-    <option value="日配理貨">日配理貨</option>
-    <option value="日配裝箱">日配裝箱</option>
-    <option value="分揀理貨">分揀理貨</option>
-    <option value="人工驗收">人工驗收</option>
-    <option value="自動驗收">自動驗收</option>
-    <option value="O2O理貨">O2O理貨</option>
-    <option value="店訂理貨">店訂理貨</option>
-    <option value="團預購理貨">團預購理貨</option>
-    <option value="EC店退">EC店退</option>
-    <option value="EC廠退">EC廠退</option>
-    <option value="一般品退貨">一般品退貨</option>
-    <option value="大夜作業">大夜作業</option>
+    <optgroup label="── 夜配">
+      <option value="夜配理貨">夜配理貨</option>
+      <option value="夜配裝箱">夜配裝箱</option>
+    </optgroup>
+    <optgroup label="── 日配">
+      <option value="日配理貨">日配理貨</option>
+      <option value="日配裝箱">日配裝箱</option>
+    </optgroup>
+    <optgroup label="── 分揀 / 店訂">
+      <option value="分揀理貨">分揀理貨</option>
+      <option value="O2O理貨">O2O理貨</option>
+      <option value="店訂理貨">店訂理貨</option>
+      <option value="團預購理貨">團預購理貨</option>
+    </optgroup>
+    <optgroup label="── 驗收">
+      <option value="人工驗收">人工驗收</option>
+      <option value="自動驗收">自動驗收</option>
+    </optgroup>
+    <optgroup label="── 退貨">
+      <option value="EC店退">EC店退</option>
+      <option value="EC廠退">EC廠退</option>
+      <option value="一般品退貨">一般品退貨</option>
+    </optgroup>
+    <optgroup label="── 其他">
+      <option value="大夜作業">大夜作業</option>
+    </optgroup>
   </select>
 </div>
 <div class="grid" id="picks-grid"></div>
@@ -572,9 +582,8 @@
   <input type="date" class="filter-input" id="labor-to">
   <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDashboardDateFilter('labor')">套用</button>
-  <div class="filter-divider"></div>
-  <button class="btn btn-ghost" onclick="downloadPageReport('labor')" title="下載 Excel">↓ 匯出</button>
   <span class="filter-meta" id="labor-date-meta"></span>
+  <button class="btn btn-ghost export-btn" onclick="downloadPageReport('labor')" title="下載 Excel">↓ 匯出</button>
 </div>
 <div class="filter-bar">
   <span class="filter-label">班別</span>

@@ -41,6 +41,28 @@
   font-weight: var(--typo-form-hint-weight);
   line-height: var(--typo-form-hint-line);
 }
+
+/* F-Pattern + 接近性: 匯出按鈕固定在篩選列最右側，用左邊框與篩選條件分群 */
+.export-btn {
+  border-left: 1px solid var(--app-border);
+  padding-left: 16px !important;
+  margin-left: 6px;
+  white-space: nowrap;
+}
+
+/* 接近性 Proximity + 共同區域 Common Region:
+   連續兩列篩選列合併為同一視覺卡片，讓使用者知道它們屬於同一組控件 */
+.filter-bar:has(+ .filter-bar) {
+  border-bottom-left-radius: 0;
+  border-bottom-right-radius: 0;
+  border-bottom: none;
+  margin-bottom: 0;
+}
+.filter-bar + .filter-bar {
+  border-top-left-radius: 0;
+  border-top-right-radius: 0;
+  border-top: 1px solid var(--app-border);
+}
 .freight-date-filter,
 .freight-options-filter {
   align-items: center;
