@@ -3610,15 +3610,17 @@ function renderLaborPage() {
   <div class="w s6 table-card labor-shift-card">
     <div class="gold-band">L006 · 🌙 班別工時分析</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>班別成本</div></div>
-    <table class="tbl labor-shift-table ops-compact-table">
-      <thead><tr>
-        <th>班別</th>
-        <th class="num-right">工時(h)</th>
-        <th class="num-right">費用</th>
-        <th class="num-right">時薪</th>
-      </tr></thead>
-      <tbody>${shiftRows || '<tr><td colspan="4" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
-    </table>
+    <div class="ops-table-frame labor-dept-edge">
+      <table class="tbl labor-shift-table ops-compact-table">
+        <thead><tr>
+          <th>班別</th>
+          <th class="num-right">工時(h)</th>
+          <th class="num-right">費用</th>
+          <th class="num-right">時薪</th>
+        </tr></thead>
+        <tbody>${shiftRows || '<tr><td colspan="4" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
+      </table>
+    </div>
   </div>
   <div class="w s12 table-card labor-dept-card">
     <div class="gold-band">L007 · 🏢 課別工時彙總</div>
