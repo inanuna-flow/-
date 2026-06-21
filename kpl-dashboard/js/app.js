@@ -718,6 +718,10 @@ function renderAccountIpRulesPage() {
         <div style="padding:10px 18px 0;color:var(--app-muted);font-size:13px;line-height:1.8">
           黑名單邏輯：清單中的 IP 無法呼叫任何 API（靜態頁面不受影響）。支援 IPv4 單一位址或 CIDR 格式（例：10.0.0.0/8）。
         </div>
+        <div id="ip-my-ip-banner" style="margin:10px 18px 0;padding:10px 14px;border-radius:8px;border:1px solid var(--app-warning);background:var(--app-warning-soft);font-size:13px;color:var(--app-text)">
+          ⚠️ 您目前的來源 IP：<strong id="ip-my-ip" style="font-family:monospace">偵測中…</strong>
+          &ensp;—&ensp;封鎖自己的 IP 或 CIDR 後，Session 到期前可進入管理頁解除；Session 到期後將無法登入，需透過 Cloud SQL 直接刪除記錄。
+        </div>
       </div>
 
       <div class="w s12">
@@ -757,6 +761,10 @@ function renderAccountIpRulesPage() {
     </div>`;
 
   loadIpRules();
+  fetch('/api/admin/my-ip').then(r => r.json()).then(d => {
+    const el = document.getElementById('ip-my-ip');
+    if (el && d.ok) el.textContent = d.ip;
+  }).catch(() => {});
 }
 
 async function loadIpRules() {
@@ -833,7 +841,8 @@ async function addIpRule() {
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.MSG);
-    showIpRulesMsg('✅ 已新增封鎖規則', 'ok');
+    const msg = data.cacheStale ? '✅ 已新增（DB 快取暫時無法更新，請稍後重整）' : '✅ 已新增封鎖規則';
+    showIpRulesMsg(msg, 'ok');
     if (cidrEl)  cidrEl.value  = '';
     if (labelEl) labelEl.value = '';
     await loadIpRules();
@@ -848,7 +857,8 @@ async function deleteIpRule(id) {
     const res = await fetch(`/api/admin/ip-rules/${id}`, { method: 'DELETE' });
     const data = await res.json();
     if (!data.ok) throw new Error(data.MSG);
-    showIpRulesMsg('✅ 已刪除', 'ok');
+    const msg = data.cacheStale ? '✅ 已刪除（DB 快取暫時無法更新，請稍後重整）' : '✅ 已刪除';
+    showIpRulesMsg(msg, 'ok');
     await loadIpRules();
   } catch (err) {
     showIpRulesMsg(`❌ 刪除失敗：${err.message}`, 'error');
@@ -864,7 +874,8 @@ async function toggleIpRule(id, isActive) {
     });
     const data = await res.json();
     if (!data.ok) throw new Error(data.MSG);
-    showIpRulesMsg(isActive ? '✅ 已啟用封鎖' : '✅ 已停用（該 IP 可正常存取）', 'ok');
+    const base = isActive ? '✅ 已啟用封鎖' : '✅ 已停用（該 IP 可正常存取）';
+    showIpRulesMsg(data.cacheStale ? `${base}（快取暫時無法更新）` : base, 'ok');
     await loadIpRules();
   } catch (err) {
     showIpRulesMsg(`❌ 操作失敗：${err.message}`, 'error');

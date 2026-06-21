@@ -123,10 +123,17 @@ function parseCookies(req) {
   return cookies;
 }
 
-// 取得客戶端真實 IP（Cloud Run 前面有 load balancer，真實 IP 在 x-forwarded-for）
+// 取得客戶端真實 IP
+// Cloud Run 的 proxy 會將真實 IP「附加」到 XFF 末端（rightmost）；
+// 用 [0]（leftmost）會讀到客戶端可偽造的值，改取最後一段以防繞過黑名單。
+// 另外，雙棧 Linux 上 socket.remoteAddress 可能是 ::ffff:x.x.x.x，
+// 去掉前綴才能讓 ipToUint32 正確解析。
 function getClientIp(req) {
-  return String(req.headers['x-forwarded-for'] || req.socket.remoteAddress || 'unknown')
-    .split(',')[0].trim();
+  const xff = String(req.headers['x-forwarded-for'] || '').trim();
+  const raw = xff
+    ? xff.split(',').at(-1).trim()
+    : String(req.socket.remoteAddress || 'unknown').trim();
+  return raw.startsWith('::ffff:') ? raw.slice(7) : raw;
 }
 
 // ── 登入頻率限制 ──
@@ -193,12 +200,16 @@ async function reloadIpBlocklistCache() {
   if (!pool) { ipBlocklistCache = []; return; }
   try {
     const { rows } = await pool.query(
-      `SELECT id, ip_cidr, label FROM ${DB_SCHEMA}.ip_blocklist WHERE is_active = true`
+      `SELECT id, ip_cidr, label FROM ${schemaTable('ip_blocklist')} WHERE is_active = true`
     );
     ipBlocklistCache = rows.map(r => ({ id: r.id, ipCidr: r.ip_cidr, label: r.label }));
     console.log(`[ip-blocklist] 已載入 ${ipBlocklistCache.length} 條封鎖規則`);
   } catch (err) {
-    console.error('[ip-blocklist] 載入失敗:', err.message);
+    // 讀取失敗時清空快取（fail-open）：
+    // 寧可暫時不封鎖，也不要讓已刪除的規則繼續留在記憶體裡
+    ipBlocklistCache = [];
+    console.error('[ip-blocklist] 載入失敗，快取已清空:', err.message);
+    throw err;
   }
 }
 
@@ -1930,7 +1941,7 @@ async function handleAdminIpRules(req, res, pathname) {
     try {
       const { rows } = await pool.query(
         `SELECT id, ip_cidr, label, created_by, created_at, is_active
-         FROM ${DB_SCHEMA}.ip_blocklist
+         FROM ${schemaTable('ip_blocklist')}
          ORDER BY created_at DESC`
       );
       sendJson(res, 200, { ok: true, rules: rows });
@@ -1959,13 +1970,14 @@ async function handleAdminIpRules(req, res, pathname) {
     }
     try {
       const { rows } = await pool.query(
-        `INSERT INTO ${DB_SCHEMA}.ip_blocklist (ip_cidr, label, created_by)
+        `INSERT INTO ${schemaTable('ip_blocklist')} (ip_cidr, label, created_by)
          VALUES ($1, $2, $3)
          RETURNING id, ip_cidr, label, created_by, created_at, is_active`,
         [ipCidr, label, session.userId]
       );
-      await reloadIpBlocklistCache();
-      sendJson(res, 201, { ok: true, rule: rows[0] });
+      let cacheStale = false;
+      try { await reloadIpBlocklistCache(); } catch { cacheStale = true; }
+      sendJson(res, 201, { ok: true, rule: rows[0], cacheStale });
     } catch (err) {
       if (err.code === '23505') {
         sendJson(res, 409, { ok: false, MSG: '409 此 IP / CIDR 已存在' });
@@ -1983,11 +1995,12 @@ async function handleAdminIpRules(req, res, pathname) {
     const ruleId = parseInt(deleteMatch[1], 10);
     try {
       const { rowCount } = await pool.query(
-        `DELETE FROM ${DB_SCHEMA}.ip_blocklist WHERE id = $1`, [ruleId]
+        `DELETE FROM ${schemaTable('ip_blocklist')} WHERE id = $1`, [ruleId]
       );
       if (rowCount === 0) { sendJson(res, 404, { ok: false, MSG: '404 規則不存在' }); return; }
-      await reloadIpBlocklistCache();
-      sendJson(res, 200, { ok: true });
+      let cacheStale = false;
+      try { await reloadIpBlocklistCache(); } catch { cacheStale = true; }
+      sendJson(res, 200, { ok: true, cacheStale });
     } catch (err) {
       console.error('[ip-rules] DELETE 失敗:', err.message);
       sendJson(res, 500, { ok: false, MSG: '999 刪除失敗' });
@@ -2007,15 +2020,16 @@ async function handleAdminIpRules(req, res, pathname) {
       sendJson(res, 400, { ok: false, MSG: '999 資料格式錯誤' });
       return;
     }
-    const isActive = Boolean(body.is_active);
+    const isActive = body.is_active === true; // 嚴格型別比對，避免 Boolean("false") === true
     try {
       const { rowCount } = await pool.query(
-        `UPDATE ${DB_SCHEMA}.ip_blocklist SET is_active = $1 WHERE id = $2`,
+        `UPDATE ${schemaTable('ip_blocklist')} SET is_active = $1 WHERE id = $2`,
         [isActive, ruleId]
       );
       if (rowCount === 0) { sendJson(res, 404, { ok: false, MSG: '404 規則不存在' }); return; }
-      await reloadIpBlocklistCache();
-      sendJson(res, 200, { ok: true });
+      let cacheStale = false;
+      try { await reloadIpBlocklistCache(); } catch { cacheStale = true; }
+      sendJson(res, 200, { ok: true, cacheStale });
     } catch (err) {
       console.error('[ip-rules] PATCH 失敗:', err.message);
       sendJson(res, 500, { ok: false, MSG: '999 更新失敗' });
@@ -2024,6 +2038,14 @@ async function handleAdminIpRules(req, res, pathname) {
   }
 
   sendJson(res, 405, { ok: false, MSG: '405 Method Not Allowed' });
+}
+
+// 讓管理員在封鎖 IP 前看到自己目前的 IP，避免誤鎖自己
+async function handleAdminMyIp(req, res) {
+  const session = getSession(req);
+  if (!session) { sendJson(res, 401, { ok: false, MSG: '401 請先登入' }); return; }
+  if (session.userId !== ADMIN_USER_ID) { sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' }); return; }
+  sendJson(res, 200, { ok: true, ip: getClientIp(req) });
 }
 
 // 改用精確 pathname 比對，避免 startsWith 因新增端點而被誤路由
@@ -2065,6 +2087,11 @@ const server = http.createServer((req, res) => {
   // IP 黑名單管理 API（GET / POST / DELETE / PATCH）
   if (pathname === '/api/admin/ip-rules' || pathname.startsWith('/api/admin/ip-rules/')) {
     handleAdminIpRules(req, res, pathname);
+    return;
+  }
+
+  if (pathname === '/api/admin/my-ip') {
+    handleAdminMyIp(req, res);
     return;
   }
 
