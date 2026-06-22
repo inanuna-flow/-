@@ -2409,13 +2409,33 @@ function downloadPageReport(page) {
     ]);
 
   } else if (page === 'dispatch') {
-    const rows = (DATA.dispatch.daily || []).filter(r => dateInSelectedRange(r[7]));
-    addSheet('每日明細', [
+    const rows = getDispatchDailyFiltered();
+
+    // 分頁 1：區間動支彙總
+    const pct = v => v ? `${v.toFixed(1)}%` : '-';
+    const whSums = [0, 1, 2].map(i => sumWarehouse(rows, i));
+    const allSum = sumAll(rows);
+    addSheet('區間動支彙總', [
+      ['倉別', '人力費用', '人力預算', '人力動支率', '運務費用', '運務預算', '運務動支率', '合計費用', '合計預算', '動支率'],
+      ...whSums.map(w => [
+        w.name, w.labor, w.laborBudget, pct(w.laborPct),
+        w.freight, w.freightBudget, pct(w.freightPct),
+        w.total, w.budget, pct(w.pct),
+      ]),
+      [
+        '全區合計', allSum.labor, allSum.laborBudget, pct(allSum.laborPct),
+        allSum.freight, allSum.freightBudget, pct(allSum.freightPct),
+        allSum.total, allSum.budget, pct(allSum.pct),
+      ],
+    ]);
+
+    // 分頁 2：每日動支明細
+    addSheet('每日動支明細', [
       ['日期', '大溪_人力', '大溪_運務', '大肚_人力', '大肚_運務', '岡山_人力', '岡山_運務', '日合計'],
       ...rows.map(r => {
         const total = r[1] + r[2] + r[3] + r[4] + r[5] + r[6];
         return [r[7], r[1], r[2], r[3], r[4], r[5], r[6], total];
-      })
+      }),
     ]);
 
   } else if (page === 'picks') {
