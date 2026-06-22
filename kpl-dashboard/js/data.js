@@ -23,6 +23,13 @@ const DATA = {
     freightRows: [],
   },
 
+  // M015 全年月份彙總（不受日期篩選器限制）
+  m015: {
+    year: '',
+    laborRows: [],    // { date, wh, hours, cost }
+    freightRows: [],  // [mmdd, daxi, dadu, gangshan, fullDate]
+  },
+
   // 運費資料（F001-F009）
   freight: {
     totalCost:       0,

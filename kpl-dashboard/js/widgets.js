@@ -101,13 +101,12 @@ function renderM012() {
 
 // 每月動支率時序列
 function renderM015(selectedYear) {
-  // 固定用全量原始資料（不受日期篩選器限制，顯示整年時序）
-  const allLabor = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
-    .filter(r => r.hours > 0 && r.opArea !== '午休時間' && r.date);
-  const freightSource = DATA.freight.dailyByWarehouse || [];
-  const hasFreight = freightSource.length > 0;
+  // 用 DATA.m015（全年彙總，不受日期篩選器限制）
+  const laborSource   = DATA.m015?.laborRows   || [];
+  const freightSource = DATA.m015?.freightRows || [];
+  const hasData = laborSource.length > 0 || freightSource.length > 0;
 
-  if (!allLabor.length && !hasFreight) {
+  if (!hasData) {
     return `
   <div class="w s12 table-card m015-card">
     <div class="wh"><div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || '每月動支率時序列'}</div></div>
@@ -115,15 +114,16 @@ function renderM015(selectedYear) {
   </div>`;
   }
 
-  // 依月份彙總人力費用（全量）
+  // 依月份彙總人力費用
   const laborByMonth = {};
-  allLabor.forEach(r => {
+  laborSource.forEach(r => {
+    if (!r.date) return;
     const ym = r.date.slice(0, 7);
     if (!laborByMonth[ym]) laborByMonth[ym] = 0;
     laborByMonth[ym] += r.cost;
   });
 
-  // 依月份彙總運務費用（全量）
+  // 依月份彙總運務費用
   const freightByMonth = {};
   freightSource.forEach(r => {
     const fullDate = r[4] || shortToFreightFullDate(r[0]);
@@ -138,7 +138,7 @@ function renderM015(selectedYear) {
   // 可用年份清單（降序）；預設取日期篩選器的年份，找不到則取最新
   const years = [...new Set(allMonths.map(ym => ym.slice(0, 4)))].sort().reverse();
   const filterYear = (DATA.dateFrom || '').slice(0, 4);
-  const activeYear = selectedYear || (years.includes(filterYear) ? filterYear : years[0]) || '';
+  const activeYear = selectedYear || DATA.m015?.year || (years.includes(filterYear) ? filterYear : years[0]) || '';
 
   // 篩選選定年份的月份（倒序：12月→1月）
   const months = allMonths.filter(ym => ym.startsWith(activeYear)).reverse();

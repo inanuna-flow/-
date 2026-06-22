@@ -461,10 +461,12 @@ async function initDailyPage() {
   DATA.dailySummary.dateTo = DATA.dateTo;
   DATA.dailySummary.laborRows = [];
   DATA.dailySummary.freightRows = [];
+  const filterYear = (DATA.dateFrom || '').slice(0, 4);
   await Promise.all([
     loadCloudBudgetData(),
     loadCloudLaborData({ summary: true }),
     loadCloudFreightData({ summary: true }),
+    loadM015YearData(filterYear),
   ]);
   if (currentPageId === 'daily') renderDailyPage();
 }
@@ -1697,6 +1699,35 @@ async function loadCloudFreightData({ summary = false } = {}) {
   }
 }
 
+// M015 專用：拉整年資料（不受日期篩選器限制）
+async function loadM015YearData(year) {
+  if (!year || DATA.m015.year === year) return; // 已快取同一年，不重複拉
+  const from = `${year}-01-01`;
+  const to   = `${year}-12-31`;
+  try {
+    const [lRes, fRes] = await Promise.all([
+      fetch(`/api/data/labor?date_from=${from}&date_to=${to}&summary=1`),
+      fetch(`/api/data/freight?date_from=${from}&date_to=${to}&summary=1`),
+    ]);
+    const [lData, fData] = await Promise.all([lRes.json(), fRes.json()]);
+    if (lData.ok) {
+      DATA.m015.laborRows = (lData.rows || []).map(row => ({
+        wh: row.wh || '',
+        date: normalizeCloudDate(row.date),
+        hours: Number(row.hours) || 0,
+        cost: Number(row.cost) || 0,
+      })).filter(r => r.date && r.wh);
+    }
+    if (fData.ok) {
+      DATA.m015.freightRows = (fData.dailyCosts || []).map(r => {
+        const mmdd = `${r.date.slice(5, 7)}/${r.date.slice(8, 10)}`;
+        return [mmdd, r.daxi || 0, r.dadu || 0, r.gangshan || 0, r.date];
+      });
+    }
+    DATA.m015.year = year;
+  } catch { /* ignore */ }
+}
+
 function applyCloudFreightData(data) {
   const dailyCosts = data.dailyCosts || [];
   const details    = data.details    || [];
@@ -2058,7 +2089,10 @@ function renderDailyPage(m015Year) {
 
   const sel = document.getElementById('m015-year-select');
   if (sel) {
-    sel.addEventListener('change', () => renderDailyPage(sel.value));
+    sel.addEventListener('change', async () => {
+      await loadM015YearData(sel.value);
+      renderDailyPage(sel.value);
+    });
   }
 
   const now = new Date();
