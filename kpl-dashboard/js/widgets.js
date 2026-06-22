@@ -1870,6 +1870,76 @@ function renderM025(labor, picks, code = 'M025') {
   </div>`;
 }
 
+// 倉別 × 業務類別 揀次矩陣
+function renderLaborBizMatrix(picks, code = 'L011') {
+  const WHS = ['大溪倉', '大肚倉', '岡山倉'];
+  const bizSet = [...new Set(picks.map(r => r.biz).filter(Boolean))].sort();
+
+  if (!picks.length || !bizSet.length) {
+    return `
+  <div class="w s12 table-card">
+    <div class="wh"><div class="wl"><div class="wdot"></div>${code} 倉別 × 業務類別揀次</div></div>
+    <div class="ops-table-frame">
+      <div style="padding:24px;text-align:center;color:var(--ry-muted)">尚無揀次資料</div>
+    </div>
+  </div>`;
+  }
+
+  // grid[wh][biz] = picks 加總
+  const grid = {};
+  WHS.forEach(w => { grid[w] = {}; bizSet.forEach(b => grid[w][b] = 0); });
+  picks.forEach(r => {
+    if (grid[r.wh] && r.biz) grid[r.wh][r.biz] += r.picks;
+  });
+
+  const colTotals = {}; bizSet.forEach(b => colTotals[b] = 0);
+  let grandTotal = 0;
+
+  const bodyRows = WHS.map(w => {
+    const rowTotal = bizSet.reduce((s, b) => s + grid[w][b], 0);
+    grandTotal += rowTotal;
+    const cells = bizSet.map(b => {
+      colTotals[b] += grid[w][b];
+      return `<td class="mono num-right">${grid[w][b] ? grid[w][b].toLocaleString() : '—'}</td>`;
+    }).join('');
+    return `<tr>
+      <td style="font-weight:700">${w}</td>
+      ${cells}
+      <td class="mono num-right actual-strong">${rowTotal.toLocaleString()}</td>
+    </tr>`;
+  }).join('');
+
+  const totalCells = bizSet.map(b =>
+    `<td class="mono num-right">${colTotals[b].toLocaleString()}</td>`).join('');
+  const totalRow = `<tr class="biz-matrix-total">
+    <td style="font-weight:800">合計</td>
+    ${totalCells}
+    <td class="mono num-right actual-strong">${grandTotal.toLocaleString()}</td>
+  </tr>`;
+
+  const headCols = bizSet.map(b => `<th class="num-right">${b}</th>`).join('');
+
+  return `
+  <div class="w s12 table-card">
+    <div class="wh"><div class="wl"><div class="wdot"></div>${code} 倉別 × 業務類別揀次</div><span class="wmeta">單位：次</span></div>
+    <div class="ops-table-frame">
+      <div class="scroll-x">
+        <table class="tbl ops-compact-table">
+          <thead><tr>
+            <th>倉別</th>
+            ${headCols}
+            <th class="num-right">合計</th>
+          </tr></thead>
+          <tbody>${bodyRows}${totalRow}</tbody>
+        </table>
+      </div>
+      <div class="table-note">
+        📌 依揀次資料「倉別 × 業務類別」交叉彙總，數值為揀次數量
+      </div>
+    </div>
+  </div>`;
+}
+
 // ════════════════════════════════════════════
 // 月度結算共用工具
 // ════════════════════════════════════════════

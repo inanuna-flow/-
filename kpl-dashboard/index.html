@@ -250,24 +250,6 @@
 <div class="grid" id="freight-grid"></div>
 </script>
 
-<script id="tpl-productivity" type="text/html">
-<div class="page-head">
-  <div class="page-eyebrow">PICKING PRODUCTIVITY · 揀次人效分析</div>
-  <h1 class="page-h">揀次人效分析</h1>
-  <div class="page-p" id="productivity-meta">整合揀次、工時、成本與區域效率</div>
-</div>
-<div class="filter-bar date-range-filter">
-  <span class="filter-label">日期區間</span>
-  <input type="date" class="filter-input" id="productivity-from">
-  <span class="range-arrow">→</span>
-  <input type="date" class="filter-input" id="productivity-to">
-  <div class="filter-divider"></div>
-  <button class="btn btn-primary" onclick="applyDashboardDateFilter('productivity')">套用</button>
-  <span class="filter-meta" id="productivity-date-meta"></span>
-</div>
-<div class="grid" id="productivity-grid"></div>
-</script>
-
 <script id="tpl-monthly" type="text/html">
 <div class="page-head">
   <div class="page-eyebrow">MONTHLY SETTLEMENT · 月度結算</div>
@@ -510,65 +492,6 @@
 <div class="grid" id="typography-grid"></div>
 </script>
 
-<script id="tpl-picks" type="text/html">
-<div class="page-head">
-  <div class="page-eyebrow">PICKS ANALYSIS · 揀次分析</div>
-  <h1 class="page-h">揀次分析</h1>
-  <div class="page-p" id="picks-meta">載入中…</div>
-</div>
-<div class="filter-bar date-range-filter">
-  <span class="filter-label">日期區間</span>
-  <input type="date" class="filter-input" id="picks-from">
-  <span class="range-arrow">→</span>
-  <input type="date" class="filter-input" id="picks-to">
-  <div class="filter-divider"></div>
-  <button class="btn btn-primary" onclick="applyDashboardDateFilter('picks')">套用</button>
-  <span class="filter-meta" id="picks-date-meta"></span>
-  <button class="btn btn-ghost export-btn" onclick="downloadPageReport('picks')" title="下載 Excel">↓ 匯出</button>
-</div>
-<div class="filter-bar">
-  <span class="filter-label">倉庫</span>
-  <select class="filter-input" id="picks-wh" onchange="renderPicksPage()">
-    <option value="">全部倉庫</option>
-    <option value="大肚倉">大肚倉</option>
-    <option value="大溪倉">大溪倉</option>
-    <option value="岡山倉">岡山倉</option>
-  </select>
-  <div class="filter-divider"></div>
-  <span class="filter-label">作業區域</span>
-  <select class="filter-input" id="picks-op" onchange="renderPicksPage()">
-    <option value="">全部</option>
-    <optgroup label="── 夜配">
-      <option value="夜配理貨">夜配理貨</option>
-      <option value="夜配裝箱">夜配裝箱</option>
-    </optgroup>
-    <optgroup label="── 日配">
-      <option value="日配理貨">日配理貨</option>
-      <option value="日配裝箱">日配裝箱</option>
-    </optgroup>
-    <optgroup label="── 分揀 / 店訂">
-      <option value="分揀理貨">分揀理貨</option>
-      <option value="O2O理貨">O2O理貨</option>
-      <option value="店訂理貨">店訂理貨</option>
-      <option value="團預購理貨">團預購理貨</option>
-    </optgroup>
-    <optgroup label="── 驗收">
-      <option value="人工驗收">人工驗收</option>
-      <option value="自動驗收">自動驗收</option>
-    </optgroup>
-    <optgroup label="── 退貨">
-      <option value="EC店退">EC店退</option>
-      <option value="EC廠退">EC廠退</option>
-      <option value="一般品退貨">一般品退貨</option>
-    </optgroup>
-    <optgroup label="── 其他">
-      <option value="大夜作業">大夜作業</option>
-    </optgroup>
-  </select>
-</div>
-<div class="grid" id="picks-grid"></div>
-</script>
-
 <script id="tpl-labor" type="text/html">
 <div class="page-head">
   <div class="page-eyebrow">LABOR ANALYSIS · 人力工時結構</div>
@@ -616,9 +539,7 @@ const PAGE_TEMPLATES = {
   daily:          document.getElementById('tpl-daily').innerHTML,
   dispatch:       document.getElementById('tpl-dispatch').innerHTML,
   freight:        document.getElementById('tpl-freight').innerHTML,
-  picks:          document.getElementById('tpl-picks').innerHTML,
   labor:          document.getElementById('tpl-labor').innerHTML,
-  productivity:   document.getElementById('tpl-productivity').innerHTML,
   monthly:        document.getElementById('tpl-monthly').innerHTML,
   annual:         document.getElementById('tpl-annual').innerHTML,
   import:         document.getElementById('tpl-import').innerHTML,
