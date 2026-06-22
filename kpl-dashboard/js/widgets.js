@@ -1940,7 +1940,7 @@ function renderCostTrendCard() {
     </label>`).join('');
 
   return `
-  <section class="freight-budget-trend-card" style="background:var(--app-surface);border:1px solid var(--app-border);border-radius:var(--app-radius);padding:18px">
+  <section class="freight-budget-trend-card" style="grid-column:1/-1;background:var(--app-surface);border:1px solid var(--app-border);border-radius:var(--app-radius);padding:18px">
     <div class="freight-ref-card-title">每日費用趨勢</div>
     <div class="freight-trend-legend">
       <span><i class="mainline"></i>主線</span>
