@@ -3609,7 +3609,9 @@ function renderLaborPage() {
     byOp[r.opArea].cost += r.cost;
   });
   const ops = Object.keys(byOp).sort((a, b) => byOp[b].hrs - byOp[a].hrs);
-  const COLORS = ['#1e5ca8', '#f5c400', '#d9401b', '#2ea85a', '#e07855', '#5a6478'];
+  // 低飽和 dark theme palette（避免高飽和紅黃藍的 Excel 圖表感）
+  const COLORS = ['#5b8fb9', '#6ea88a', '#c9a368', '#b97f6e', '#8f86c2', '#7e8aa0'];
+  const REST_COLOR = '#5a6172';
 
   const opStats = ops.map((o, i) => {
     const pct  = totalHrs > 0 ? (byOp[o].hrs / totalHrs * 100) : 0;
@@ -3617,13 +3619,13 @@ function renderLaborPage() {
     return { name: o, hrs: byOp[o].hrs, pct, rate, color: COLORS[Math.min(i, COLORS.length - 1)] };
   });
 
-  // 前 6 類單獨顯示，其餘合併為「其他」，消除彩虹死星
-  const PIE_MAX = 6;
+  // 前 5 類單獨顯示，其餘合併為「其他」
+  const PIE_MAX = 5;
   const pieTop  = opStats.slice(0, PIE_MAX);
   const pieRest = opStats.slice(PIE_MAX);
   const restHrs = pieRest.reduce((s, o) => s + o.hrs, 0);
   const pieData = restHrs > 0
-    ? [...pieTop, { name: '其他', hrs: restHrs, pct: totalHrs > 0 ? restHrs / totalHrs * 100 : 0, color: '#c8ccd6' }]
+    ? [...pieTop, { name: '其他', hrs: restHrs, pct: totalHrs > 0 ? restHrs / totalHrs * 100 : 0, color: REST_COLOR }]
     : pieTop;
 
   function pieSlicePath(cx, cy, r, start, end) {
@@ -3647,12 +3649,26 @@ function renderLaborPage() {
     return `<path d="${pieSlicePath(120, 120, 94, start, cursor)}" fill="${s.color}" ${da}></path>`;
   }).join('');
 
+  const legendItems = pieData.map((s, i) => `
+    <div class="labor-legend-item">
+      <span class="labor-legend-dot" style="background:${s.color}"></span>
+      <span class="labor-legend-name" title="${s.name}">${s.name}</span>
+      <span class="labor-legend-hrs">${wanNum(s.hrs)} h</span>
+      <span class="labor-legend-pct">${s.pct.toFixed(1)}%</span>
+    </div>`).join('');
+
   const structHtml = pieData.length ? `
     <div class="labor-pie-layout">
       <svg class="labor-pie-chart" viewBox="0 0 240 240" role="img" aria-label="作業區域工時占比圓餅圖">
         ${pieSlices}
-        <circle cx="120" cy="120" r="94" fill="none" stroke="var(--ry-paper)" stroke-width="2"></circle>
+        <circle cx="120" cy="120" r="58" fill="var(--app-surface)"></circle>
+        <text x="120" y="113" text-anchor="middle" class="labor-pie-center-num">${wanNum(totalHrs)}</text>
+        <text x="120" y="133" text-anchor="middle" class="labor-pie-center-lbl">總工時 (h)</text>
       </svg>
+      <div class="labor-legend">
+        <div class="labor-legend-title">作業區排行</div>
+        ${legendItems}
+      </div>
     </div>` : '<div style="color:var(--ry-muted);padding:16px;text-align:center">無資料</div>';
 
   const byShift = {};
@@ -3661,15 +3677,30 @@ function renderLaborPage() {
     byShift[r.shift].hrs  += r.hours;
     byShift[r.shift].cost += r.cost;
   });
+  const SHIFT_META = {
+    '日': { label: '日班', color: '#c9a368' },
+    '中': { label: '中班', color: '#5b8fb9' },
+    '夜': { label: '夜班', color: '#8f86c2' },
+  };
+  const shiftTotalHrs = ['日', '中', '夜'].reduce((s, k) => s + (byShift[k]?.hrs || 0), 0);
   const shiftRows = ['日', '中', '夜'].filter(s => byShift[s]).map(s => {
-    const it   = byShift[s];
-    const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
-    return `<tr>
-      <td><b>${s}班</b></td>
-      <td class="mono num-right">${wanNum(it.hrs)}</td>
-      <td class="mono num-right">${wanMoney(it.cost)}</td>
-      <td class="mono num-right">${wanMoney(rate)}</td>
-    </tr>`;
+    const it    = byShift[s];
+    const rate  = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
+    const share = shiftTotalHrs > 0 ? it.hrs / shiftTotalHrs * 100 : 0;
+    const meta  = SHIFT_META[s];
+    return `
+      <div class="labor-shift-row">
+        <div class="labor-shift-row-head">
+          <span class="labor-shift-name"><span class="labor-shift-dot" style="background:${meta.color}"></span>${meta.label}</span>
+          <span class="labor-shift-share">${share.toFixed(1)}%</span>
+        </div>
+        <div class="labor-shift-bar"><span style="width:${share.toFixed(1)}%;background:${meta.color}"></span></div>
+        <div class="labor-shift-metrics">
+          <div class="labor-shift-metric"><span class="lsm-lbl">工時</span><span class="lsm-val mono">${wanNum(it.hrs)}</span></div>
+          <div class="labor-shift-metric"><span class="lsm-lbl">費用</span><span class="lsm-val mono">${wanMoney(it.cost)}</span></div>
+          <div class="labor-shift-metric"><span class="lsm-lbl">時薪</span><span class="lsm-val mono">${wanMoney(rate)}</span></div>
+        </div>
+      </div>`;
   }).join('');
 
   const byDept = {};
@@ -3723,24 +3754,16 @@ function renderLaborPage() {
       <div class="labor-kpi-ctx">${empCount.toLocaleString()} 位員工</div>
     </div>
   </div>
-  <div class="w s6 labor-struct-card">
+  <div class="w s6 labor-struct-card labor-analysis-card">
     <div class="gold-band">L005 · ⚡ 工時結構 · 作業區域</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>各作業區域工時佔比</div><span class="wmeta">總 ${wanNum(totalHrs)} h</span></div>
     <div class="labor-pie-wrap">${structHtml}</div>
   </div>
-  <div class="w s6 table-card labor-shift-card">
+  <div class="w s6 labor-shift-card labor-analysis-card">
     <div class="gold-band">L006 · 🌙 班別工時分析</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>班別成本</div></div>
-    <div class="ops-table-frame labor-dept-edge">
-      <table class="tbl labor-shift-table ops-compact-table">
-        <thead><tr>
-          <th>班別</th>
-          <th class="num-right">工時(h)</th>
-          <th class="num-right">費用</th>
-          <th class="num-right">時薪</th>
-        </tr></thead>
-        <tbody>${shiftRows || '<tr><td colspan="4" style="text-align:center;color:var(--ry-muted)">無資料</td></tr>'}</tbody>
-      </table>
+    <div class="labor-shift-list">
+      ${shiftRows || '<div style="text-align:center;color:var(--ry-muted);padding:24px">無資料</div>'}
     </div>
   </div>
   <div class="w s12 table-card labor-dept-card">
