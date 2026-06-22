@@ -3540,6 +3540,12 @@ function renderLaborPage() {
   // 各作業區揀次總量（跨課別共用，picks 無課別維度）
   const picksByArea = {};
   picksData.forEach(r => { picksByArea[r.op] = (picksByArea[r.op] || 0) + r.picks; });
+  // 各作業區「全部課別」工時總量（用於計算區域整體 PPH，避免單一課別工時當分母虛高）
+  const laborHoursByArea = {};
+  data.forEach(r => {
+    const area = r.opArea || '未分類';
+    laborHoursByArea[area] = (laborHoursByArea[area] || 0) + r.hours;
+  });
 
   const byDept = {};
   data.forEach(r => {
@@ -3570,13 +3576,15 @@ function renderLaborPage() {
       const subRows = Object.entries(it.byArea)
         .sort((a, b) => b[1].hrs - a[1].hrs)
         .map(([area, a]) => {
-          const picks = picksByArea[area] || 0;
-          const pph   = a.hrs > 0 && picks > 0 ? (picks / a.hrs) : 0;
+          const picks    = picksByArea[area] || 0;
+          const areaHrs  = laborHoursByArea[area] || 0;
+          // 工時/揀次/PPH 統一用「該作業區整體（跨課別）」口徑，與 E007 矩陣一致
+          const pph      = areaHrs > 0 && picks > 0 ? (picks / areaHrs) : 0;
           return `<tr class="labor-dept-sub">
             <td class="labor-dept-subname">${area}</td>
             <td class="mono num-right">—</td>
-            <td class="mono num-right">${wanNum(a.hrs)}</td>
-            <td class="mono num-right">${picks > 0 ? picks.toLocaleString() : '—'}</td>
+            <td class="mono num-right">${wanNum(areaHrs)}</td>
+            <td class="mono num-right">${picks > 0 ? wanNum(picks) : '—'}</td>
             <td class="mono num-right">${pph > 0 ? pph.toFixed(1) : '—'}</td>
           </tr>`;
         }).join('');
@@ -3657,8 +3665,8 @@ function renderLaborPage() {
       </div>
       <div class="table-note labor-formula-note">
         📌 課別：依 Excel「作業課別」欄位分組 · 人次：不重複員編 · 時薪：費用 ÷ 工時<br>
-        📌 展開後子列＝該課別底下各作業區：費用 / 揀次 / PPH(揀次÷工時)<br>
-        📌 揀次為該作業區三倉合計、跨課別共用，不分攤到單一課別（僅供產能參考）
+        📌 展開後子列＝各作業區整體效率（工時 / 揀次 / PPH 皆為該作業區「跨課別合計」口徑）<br>
+        📌 PPH = 該作業區總揀次 ÷ 該作業區總工時，與下方人效矩陣同義（揀次無課別維度）
       </div>
     </div>
   </div>

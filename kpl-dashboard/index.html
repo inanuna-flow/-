@@ -509,17 +509,17 @@
   <button class="btn btn-ghost export-btn" onclick="downloadPageReport('labor')" title="下載 Excel">↓ 匯出</button>
 </div>
 <div class="filter-bar">
+  <span class="filter-label">課別</span>
+  <select class="filter-input" id="labor-vendor" onchange="renderLaborPage()">
+    <option value="">全部課別</option>
+  </select>
+  <div class="filter-divider"></div>
   <span class="filter-label">班別</span>
   <select class="filter-input" id="labor-shift" onchange="renderLaborPage()">
     <option value="">全部班別</option>
     <option value="日">日班</option>
     <option value="中">中班</option>
     <option value="夜">夜班</option>
-  </select>
-  <div class="filter-divider"></div>
-  <span class="filter-label">課別</span>
-  <select class="filter-input" id="labor-vendor" onchange="renderLaborPage()">
-    <option value="">全部課別</option>
   </select>
   <div class="filter-divider"></div>
   <span class="filter-meta" id="labor-filter-meta"></span>
