@@ -10,6 +10,20 @@ const STATIC_ROOT = path.join(ROOT, 'kpl-dashboard');
 const EIP_CHECK_USER_URL = 'https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId';
 const PERMISSIONS_FILE = path.join(ROOT, 'page_permissions.json');
 const ADMIN_USER_ID = (process.env.ADMIN_USER_ID || 'inari').toLowerCase();
+
+// 本地帳號：格式 "帳號:密碼:角色,帳號2:密碼2:角色2"，角色填 admin 或 user
+const LOCAL_ACCOUNTS = (() => {
+  const raw = process.env.LOCAL_ACCOUNTS || '';
+  const map = new Map();
+  for (const entry of raw.split(',')) {
+    const [u, p, role] = entry.trim().split(':');
+    if (!u || !p) continue;
+    const salt = 'kpl-local-' + u.toLowerCase();
+    const hash = crypto.pbkdf2Sync(p, salt, 10000, 32, 'sha256').toString('hex');
+    map.set(u.toLowerCase(), { hash, isAdmin: role === 'admin' });
+  }
+  return map;
+})();
 const DB_SCHEMA = process.env.DB_SCHEMA || 'kpl_dashboard';
 const DB_INSTANCE_CONNECTION_NAME = process.env.DB_INSTANCE_CONNECTION_NAME || '';
 const DB_NAME = process.env.DB_NAME || process.env.PGDATABASE || '';
@@ -259,10 +273,11 @@ function handleSession(req, res) {
   }
   const session = requireSession(req, res);
   if (!session) return;
+  const localAcc = LOCAL_ACCOUNTS.get(session.userId);
   sendJson(res, 200, {
     ok: true,
     userId: session.userId,
-    isAdmin: session.userId === ADMIN_USER_ID,
+    isAdmin: localAcc ? localAcc.isAdmin : session.userId === ADMIN_USER_ID,
   });
 }
 
@@ -559,6 +574,28 @@ async function handleCheckUser(req, res) {
   if (!userId || !password) {
     sendJson(res, 400, { ok: false, MSG: '999 請輸入帳號與密碼' });
     return;
+  }
+
+  // 先查本地帳號，命中則跳過 EIP
+  const localAccount = LOCAL_ACCOUNTS.get(userId.toLowerCase());
+  if (localAccount) {
+    const salt = 'kpl-local-' + userId.toLowerCase();
+    const inputHash = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256').toString('hex');
+    if (inputHash === localAccount.hash) {
+      resetRateLimit(ip);
+      const token = createSession(userId.toLowerCase());
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Set-Cookie': sessionCookieHeader(token),
+        ...SECURITY_HEADERS,
+      });
+      res.end(JSON.stringify({ ok: true, MSG: '000 登入成功' }));
+      return;
+    } else {
+      sendJson(res, 200, { ok: false, MSG: '001 帳號或密碼錯誤' });
+      return;
+    }
   }
 
   try {
