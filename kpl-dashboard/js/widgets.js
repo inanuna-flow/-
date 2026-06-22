@@ -101,18 +101,11 @@ function renderM012() {
 
 // 每月動支率時序列
 function renderM015(selectedYear) {
-  const summaryMatchesRange = DATA.dailySummary?.dateFrom === DATA.dateFrom &&
-    DATA.dailySummary?.dateTo === DATA.dateTo;
-  const laborSource = summaryMatchesRange
-    ? DATA.dailySummary.laborRows
-    : (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : []);
-  const freightSource = summaryMatchesRange
-    ? DATA.dailySummary.freightRows
-    : DATA.freight.dailyByWarehouse;
-  const allLabor = laborSource
+  // 固定用全量原始資料（不受日期篩選器限制，顯示整年時序）
+  const allLabor = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
     .filter(r => r.hours > 0 && r.opArea !== '午休時間' && r.date);
-  const hasFreight = freightSource?.length > 0 ||
-                     DATA.freight.dailyTrend?.length > 0;
+  const freightSource = DATA.freight.dailyByWarehouse || [];
+  const hasFreight = freightSource.length > 0;
 
   if (!allLabor.length && !hasFreight) {
     return `
@@ -122,7 +115,7 @@ function renderM015(selectedYear) {
   </div>`;
   }
 
-  // 依月份彙總人力費用
+  // 依月份彙總人力費用（全量）
   const laborByMonth = {};
   allLabor.forEach(r => {
     const ym = r.date.slice(0, 7);
@@ -130,7 +123,7 @@ function renderM015(selectedYear) {
     laborByMonth[ym] += r.cost;
   });
 
-  // 依月份彙總運務費用
+  // 依月份彙總運務費用（全量）
   const freightByMonth = {};
   freightSource.forEach(r => {
     const fullDate = r[4] || shortToFreightFullDate(r[0]);
@@ -142,9 +135,10 @@ function renderM015(selectedYear) {
 
   const allMonths = [...new Set([...Object.keys(laborByMonth), ...Object.keys(freightByMonth)])].sort();
 
-  // 可用年份清單（降序）
+  // 可用年份清單（降序）；預設取日期篩選器的年份，找不到則取最新
   const years = [...new Set(allMonths.map(ym => ym.slice(0, 4)))].sort().reverse();
-  const activeYear = selectedYear || years[0] || '';
+  const filterYear = (DATA.dateFrom || '').slice(0, 4);
+  const activeYear = selectedYear || (years.includes(filterYear) ? filterYear : years[0]) || '';
 
   // 篩選選定年份的月份（倒序：12月→1月）
   const months = allMonths.filter(ym => ym.startsWith(activeYear)).reverse();
@@ -181,13 +175,12 @@ function renderM015(selectedYear) {
 
   return `
   <div class="w s12 table-card m015-card">
-    <div class="wh">
-      <div class="wl">
-        <div class="wdot dot-freight"></div>
-        ${DATA.widgetLabels?.m015 || '每月動支率時序列'}
-        <select id="m015-year-select" class="filter-select" style="margin-left:10px;font-size:.85rem">${yearOpts}</select>
-      </div>
-      <span class="wmeta">${months.length} 個月份</span>
+    <div class="freight-ref-matrix-heading" style="padding:0 0 10px 0">
+      <div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || '每月動支率時序列'}</div>
+      <label class="freight-ref-matrix-view">
+        <span>年份</span>
+        <select class="filter-input" id="m015-year-select">${yearOpts}</select>
+      </label>
     </div>
     <div class="ops-table-frame">
       <table class="tbl ops-compact-table">
