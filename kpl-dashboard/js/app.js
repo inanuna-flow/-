@@ -2052,9 +2052,14 @@ document.addEventListener('DOMContentLoaded', async () => {
 // ════════════════════════════════════════════
 // Daily Page 邏輯
 // ════════════════════════════════════════════
-function renderDailyPage() {
+function renderDailyPage(m015Year) {
   const grid = document.getElementById('daily-grid');
-  grid.innerHTML = [renderM012(), renderM015()].join('');
+  grid.innerHTML = [renderM012(), renderM015(m015Year)].join('');
+
+  const sel = document.getElementById('m015-year-select');
+  if (sel) {
+    sel.addEventListener('change', () => renderDailyPage(sel.value));
+  }
 
   const now = new Date();
   document.getElementById('page-meta').textContent =

@@ -99,8 +99,8 @@ function renderM012() {
   </div>`;
 }
 
-// M015 每月動支率時序列
-function renderM015() {
+// 每月動支率時序列
+function renderM015(selectedYear) {
   const summaryMatchesRange = DATA.dailySummary?.dateFrom === DATA.dateFrom &&
     DATA.dailySummary?.dateTo === DATA.dateTo;
   const laborSource = summaryMatchesRange
@@ -117,7 +117,7 @@ function renderM015() {
   if (!allLabor.length && !hasFreight) {
     return `
   <div class="w s12 table-card m015-card">
-    <div class="wh"><div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div></div>
+    <div class="wh"><div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || '每月動支率時序列'}</div></div>
     <div class="empty-state">請先匯入人力費用資料</div>
   </div>`;
   }
@@ -125,12 +125,12 @@ function renderM015() {
   // 依月份彙總人力費用
   const laborByMonth = {};
   allLabor.forEach(r => {
-    const ym = r.date.slice(0, 7); // 'YYYY-MM'
+    const ym = r.date.slice(0, 7);
     if (!laborByMonth[ym]) laborByMonth[ym] = 0;
     laborByMonth[ym] += r.cost;
   });
 
-  // 依月份彙總運費
+  // 依月份彙總運務費用
   const freightByMonth = {};
   freightSource.forEach(r => {
     const fullDate = r[4] || shortToFreightFullDate(r[0]);
@@ -140,7 +140,18 @@ function renderM015() {
     freightByMonth[ym] += (r[1] || 0) + (r[2] || 0) + (r[3] || 0);
   });
 
-  const months = [...new Set([...Object.keys(laborByMonth), ...Object.keys(freightByMonth)])].sort();
+  const allMonths = [...new Set([...Object.keys(laborByMonth), ...Object.keys(freightByMonth)])].sort();
+
+  // 可用年份清單（降序）
+  const years = [...new Set(allMonths.map(ym => ym.slice(0, 4)))].sort().reverse();
+  const activeYear = selectedYear || years[0] || '';
+
+  // 篩選選定年份的月份（倒序：12月→1月）
+  const months = allMonths.filter(ym => ym.startsWith(activeYear)).reverse();
+
+  const yearOpts = years.map(y =>
+    `<option value="${y}" ${y === activeYear ? 'selected' : ''}>${y}年</option>`
+  ).join('');
 
   const rows = months.map(ym => {
     const labor   = laborByMonth[ym]   || 0;
@@ -171,7 +182,11 @@ function renderM015() {
   return `
   <div class="w s12 table-card m015-card">
     <div class="wh">
-      <div class="wl"><div class="wdot dot-freight"></div>${DATA.widgetLabels?.m015 || 'M015 每月動支率時序列'}</div>
+      <div class="wl">
+        <div class="wdot dot-freight"></div>
+        ${DATA.widgetLabels?.m015 || '每月動支率時序列'}
+        <select id="m015-year-select" class="filter-select" style="margin-left:10px;font-size:.85rem">${yearOpts}</select>
+      </div>
       <span class="wmeta">${months.length} 個月份</span>
     </div>
     <div class="ops-table-frame">
@@ -179,7 +194,7 @@ function renderM015() {
         <thead><tr>
           <th>月份</th>
           <th class="num-right">人力費用</th>
-          <th class="num-right">運費</th>
+          <th class="num-right">運務費用</th>
           <th class="num-right">合計實際</th>
           <th class="num-right">月預算</th>
           <th class="num-right">動支率</th>
