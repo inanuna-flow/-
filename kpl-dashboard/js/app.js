@@ -3612,6 +3612,18 @@ function renderLaborPage() {
       <div class="labor-kpi-main">${wanNum(personDays)}</div>
       <div class="labor-kpi-ctx">${empCount.toLocaleString()} 位員工</div>
     </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">⚡</div>
+      <span class="labor-kpi-label">每小時揀次 PPH</span>
+      <div class="labor-kpi-main" style="color:var(--ry-blue)">${prodT.pph.toFixed(1)}</div>
+      <div class="labor-kpi-ctx">${prodT.picks.toLocaleString()} 揀次 ÷ ${prodT.hrs.toFixed(1)} h</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">📦</div>
+      <span class="labor-kpi-label">單次揀貨成本</span>
+      <div class="labor-kpi-main">${prodT.cpp.toFixed(2)}</div>
+      <div class="labor-kpi-ctx">元/揀次 · ${fmtMoney(Math.round(prodT.cost))} ÷ ${prodT.picks.toLocaleString()} 次</div>
+    </div>
   </div>
   <div class="w s6 labor-struct-card labor-analysis-card">
     <div class="gold-band">L005 · ⚡ 工時結構 · 作業區域</div>
@@ -3625,8 +3637,6 @@ function renderLaborPage() {
       ${shiftRows || '<div style="text-align:center;color:var(--ry-muted);padding:24px">無資料</div>'}
     </div>
   </div>
-  ${renderM019(prodT, 'L008', 's6')}
-  ${renderM020(prodT, 'L009', 's6')}
   <div class="w s12 table-card labor-dept-card">
     <div class="gold-band">L007 · 🏢 課別工時彙總</div>
     <div class="wh"><div class="wl"><div class="wdot"></div>作業區效率</div><span class="wmeta">點課別列展開作業區明細</span></div>
