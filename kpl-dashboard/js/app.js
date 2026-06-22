@@ -3360,7 +3360,7 @@ function updateStatus() {
 // ════════════════════════════════════════════
 // Labor Page 人力工時結構
 // ════════════════════════════════════════════
-let laborExpandedDepts = new Set();
+let laborDeptView = 'dept'; // 'dept' = 依課別 / 'area' = 依作業區
 
 function initLaborPage() {
   syncLaborDeptOptions();
@@ -3552,57 +3552,55 @@ function renderLaborPage() {
     empsByArea[area].add(r.empId);
   });
 
+  // 依課別彙總
   const byDept = {};
   data.forEach(r => {
     const dept = deptDisplayName(r.dept) || r.dept || '未分類';
-    if (!byDept[dept]) byDept[dept] = { hrs: 0, cost: 0, emps: new Set(), byArea: {} };
+    if (!byDept[dept]) byDept[dept] = { hrs: 0, cost: 0, emps: new Set() };
     byDept[dept].hrs  += r.hours;
     byDept[dept].cost += r.cost;
     byDept[dept].emps.add(r.empId);
-    const area = r.opArea || '未分類';
-    if (!byDept[dept].byArea[area]) byDept[dept].byArea[area] = { hrs: 0, cost: 0 };
-    byDept[dept].byArea[area].hrs  += r.hours;
-    byDept[dept].byArea[area].cost += r.cost;
   });
-  const deptRows = Object.entries(byDept)
-    .sort((a, b) => b[1].hrs - a[1].hrs)
-    .map(([v, it]) => {
-      const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
-      const expanded = laborExpandedDepts.has(v);
-      const caret = expanded ? '▾' : '▸';
-      const mainRow = `<tr class="labor-dept-row" data-dept="${v}">
-        <td class="labor-dept-name"><span class="labor-dept-caret">${caret}</span>${v}</td>
-        <td class="mono num-right">${it.emps.size}</td>
-        <td class="mono num-right">${wanNum(it.hrs)}</td>
-        <td class="mono num-right">—</td>
-        <td class="mono num-right">—</td>
-        <td class="mono num-right">—</td>
-        <td class="mono num-right">${wanMoney(rate)}</td>
-      </tr>`;
-      if (!expanded) return mainRow;
-      const subRows = Object.entries(it.byArea)
-        .sort((a, b) => b[1].hrs - a[1].hrs)
-        .map(([area]) => {
-          const picks    = picksByArea[area] || 0;
-          const areaHrs  = laborHoursByArea[area] || 0;
-          const areaCost = laborCostByArea[area] || 0;
-          // 工時/揀次/PPH/CPP/時薪 統一用「該作業區整體（跨課別）」口徑，與 E007 矩陣一致
-          const pph      = areaHrs > 0 && picks > 0 ? (picks / areaHrs) : 0;
-          const cpp      = picks > 0 ? (areaCost / picks) : 0;
-          const areaRate = areaHrs > 0 ? Math.round(areaCost / areaHrs) : 0;
-          const areaEmps = empsByArea[area] ? empsByArea[area].size : 0;
-          return `<tr class="labor-dept-sub">
-            <td class="labor-dept-subname">${area}</td>
-            <td class="mono num-right">${areaEmps || '—'}</td>
-            <td class="mono num-right">${wanNum(areaHrs)}</td>
-            <td class="mono num-right">${picks > 0 ? wanNum(picks) : '—'}</td>
-            <td class="mono num-right">${pph > 0 ? pph.toFixed(1) : '—'}</td>
-            <td class="mono num-right">${cpp > 0 ? cpp.toFixed(2) : '—'}</td>
-            <td class="mono num-right">${wanMoney(areaRate)}</td>
-          </tr>`;
-        }).join('');
-      return mainRow + subRows;
-    }).join('');
+
+  // 兩種檢視模式的列（依下拉 laborDeptView 切換）
+  let deptRows;
+  if (laborDeptView === 'area') {
+    // 依作業區：人次 / 工時 / 總揀次 / 每小時揀次 / 單次揀貨成本 / 人員時薪（皆作業區整體口徑）
+    deptRows = Object.keys(laborHoursByArea)
+      .sort((a, b) => (laborHoursByArea[b] || 0) - (laborHoursByArea[a] || 0))
+      .map(area => {
+        const picks    = picksByArea[area] || 0;
+        const areaHrs  = laborHoursByArea[area] || 0;
+        const areaCost = laborCostByArea[area] || 0;
+        const pph      = areaHrs > 0 && picks > 0 ? (picks / areaHrs) : 0;
+        const cpp      = picks > 0 ? (areaCost / picks) : 0;
+        const areaRate = areaHrs > 0 ? Math.round(areaCost / areaHrs) : 0;
+        const areaEmps = empsByArea[area] ? empsByArea[area].size : 0;
+        return `<tr>
+          <td class="labor-dept-name">${area}</td>
+          <td class="mono num-right">${areaEmps || '—'}</td>
+          <td class="mono num-right">${wanNum(areaHrs)}</td>
+          <td class="mono num-right">${picks > 0 ? wanNum(picks) : '—'}</td>
+          <td class="mono num-right">${pph > 0 ? pph.toFixed(1) : '—'}</td>
+          <td class="mono num-right">${cpp > 0 ? cpp.toFixed(2) : '—'}</td>
+          <td class="mono num-right">${wanMoney(areaRate)}</td>
+        </tr>`;
+      }).join('');
+  } else {
+    // 依課別：人次 / 工時 / 費用 / 人員時薪（揀次無課別維度，不顯示揀次欄）
+    deptRows = Object.entries(byDept)
+      .sort((a, b) => b[1].hrs - a[1].hrs)
+      .map(([v, it]) => {
+        const rate = it.hrs > 0 ? Math.round(it.cost / it.hrs) : 0;
+        return `<tr>
+          <td class="labor-dept-name">${v}</td>
+          <td class="mono num-right">${it.emps.size}</td>
+          <td class="mono num-right">${wanNum(it.hrs)}</td>
+          <td class="mono num-right">${wanMoney(it.cost)}</td>
+          <td class="mono num-right">${wanMoney(rate)}</td>
+        </tr>`;
+      }).join('');
+  }
 
   const fmeta = document.getElementById('labor-filter-meta');
   if (fmeta) fmeta.textContent = `${data.length} 筆工時記錄`;
@@ -3659,29 +3657,46 @@ function renderLaborPage() {
     </div>
   </div>
   <div class="w s12 table-card labor-dept-card">
-    <div class="gold-band">L007 · 🏢 課別工時彙總</div>
-    <div class="wh"><div class="wl"><div class="wdot"></div>作業區效率</div><span class="wmeta">點課別列展開作業區明細</span></div>
+    <div class="freight-ref-matrix-heading" style="padding:0 0 10px 0">
+      <div class="wl"><div class="wdot"></div>作業區效率</div>
+      <label class="freight-ref-matrix-view">
+        <span>檢視</span>
+        <select class="filter-input" id="labor-dept-view">
+          <option value="dept" ${laborDeptView === 'dept' ? 'selected' : ''}>依課別</option>
+          <option value="area" ${laborDeptView === 'area' ? 'selected' : ''}>依作業區</option>
+        </select>
+      </label>
+    </div>
     <div class="ops-table-frame labor-dept-edge">
       <div class="scroll-x">
         <table class="tbl labor-dept-table ops-compact-table">
           <thead>
             <tr>
-              <th>課別 / 作業區</th>
+              ${laborDeptView === 'area' ? `
+              <th>作業區</th>
               <th class="num-right">人次</th>
               <th class="num-right">工時(H)</th>
               <th class="num-right">總揀次</th>
               <th class="num-right">每小時揀次</th>
               <th class="num-right">單次揀貨成本</th>
-              <th class="num-right">人員時薪</th>
+              <th class="num-right">人員時薪</th>` : `
+              <th>課別</th>
+              <th class="num-right">人次</th>
+              <th class="num-right">工時(H)</th>
+              <th class="num-right">費用</th>
+              <th class="num-right">人員時薪</th>`}
             </tr>
           </thead>
-          <tbody>${deptRows || '<tr><td colspan="7" class="labor-dept-empty">無資料</td></tr>'}</tbody>
+          <tbody>${deptRows || `<tr><td colspan="${laborDeptView === 'area' ? 7 : 5}" class="labor-dept-empty">無資料</td></tr>`}</tbody>
         </table>
       </div>
       <div class="table-note labor-formula-note">
-        📌 課別主列：人次 / 工時 / 時薪（揀次相關欄需展開看各作業區，揀次無課別維度）<br>
-        📌 展開後子列＝各作業區整體：工時 / 總揀次 / 每小時揀次(PPH) / 單次揀貨成本(費用÷揀次) / 時薪，皆為該作業區「跨課別合計」口徑<br>
-        📌 每小時揀次 = 該作業區總揀次 ÷ 該作業區總工時，與下方人效矩陣同義
+        ${laborDeptView === 'area' ? `
+        📌 依作業區（跨課別合計）：人次 / 工時 / 總揀次 / 每小時揀次(PPH) / 單次揀貨成本 / 時薪<br>
+        📌 每小時揀次 = 總揀次 ÷ 總工時 · 單次揀貨成本 = 費用 ÷ 總揀次 · 時薪 = 費用 ÷ 工時<br>
+        📌 揀次「—」表示該作業區無對應揀次資料` : `
+        📌 依課別：人次（不重複員編）/ 工時 / 費用 / 時薪（費用 ÷ 工時）<br>
+        📌 揀次相關指標請切換「依作業區」檢視（揀次資料無課別維度）`}
       </div>
     </div>
   </div>
@@ -3721,15 +3736,14 @@ function renderLaborPage() {
     });
   }
 
-  // 課別表展開／收合
-  document.querySelectorAll('#labor-grid .labor-dept-row[data-dept]').forEach(row => {
-    row.addEventListener('click', () => {
-      const d = row.dataset.dept;
-      if (laborExpandedDepts.has(d)) laborExpandedDepts.delete(d);
-      else laborExpandedDepts.add(d);
+  // 作業區效率：依課別 / 依作業區 切換
+  const deptViewSel = document.getElementById('labor-dept-view');
+  if (deptViewSel) {
+    deptViewSel.addEventListener('change', () => {
+      laborDeptView = deptViewSel.value;
       renderLaborPage();
     });
-  });
+  }
 }
 
 // ════════════════════════════════════════════

@@ -2772,35 +2772,6 @@ td.mono { font-family: var(--f-mono); }
   font-weight: 800;
   color: var(--ry-ink);
 }
-/* 可展開課別列 */
-.tbl.labor-dept-table tr.labor-dept-row {
-  cursor: pointer;
-}
-.labor-dept-caret {
-  display: inline-block;
-  width: 16px;
-  color: var(--ry-muted);
-  font-size: 11px;
-}
-/* 作業區子列：縮排、淡底、無斑馬交替 */
-.tbl.labor-dept-table tr.labor-dept-sub td {
-  background: var(--app-surface-muted) !important;
-  font-size: 12px;
-  color: var(--ry-muted);
-}
-.tbl.labor-dept-table tr.labor-dept-sub:hover td {
-  background: var(--app-surface-muted) !important;
-}
-.labor-dept-subname {
-  padding-left: 38px !important;
-  position: relative;
-}
-.labor-dept-subname::before {
-  content: '└';
-  position: absolute;
-  left: 20px;
-  color: var(--ry-line);
-}
 .labor-dept-empty {
   text-align: center;
   color: var(--ry-muted);
