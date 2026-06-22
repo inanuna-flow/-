@@ -793,6 +793,40 @@ function apportionFreightBudget(total, weights) {
   return result;
 }
 
+// 人力預算每日分攤（與運務同機制，獨立權重）
+const LABOR_BUDGET_WEIGHT_DEFAULTS = { mon:1, tue:1.4, wed:1.4, thu:1.4, fri:1, sat:0.6, sun:0.5 };
+let laborBudgetWeights = { ...LABOR_BUDGET_WEIGHT_DEFAULTS };
+let laborBudgetHolidays = [];
+
+function laborBudgetDayWeight(date) {
+  if (laborBudgetHolidays.includes(date)) return laborBudgetWeights.sun;
+  const day = new Date(`${date}T00:00:00`).getDay();
+  return [
+    laborBudgetWeights.sun,
+    laborBudgetWeights.mon,
+    laborBudgetWeights.tue,
+    laborBudgetWeights.wed,
+    laborBudgetWeights.thu,
+    laborBudgetWeights.fri,
+    laborBudgetWeights.sat,
+  ][day];
+}
+
+// 取某月某日的人力預算（月預算按該月每日權重分攤後，取當日值）
+function laborDailyBudgetFromMonthly(monthlyLabor, dateStr) {
+  const d = new Date(`${dateStr}T00:00:00`);
+  if (Number.isNaN(d.getTime())) return 0;
+  const year = d.getFullYear();
+  const month = d.getMonth(); // 0-based
+  const days = new Date(year, month + 1, 0).getDate();
+  const monthDates = [];
+  for (let i = 1; i <= days; i++) {
+    monthDates.push(`${year}-${String(month + 1).padStart(2, '0')}-${String(i).padStart(2, '0')}`);
+  }
+  const apportioned = apportionFreightBudget(monthlyLabor, monthDates.map(laborBudgetDayWeight));
+  return apportioned[d.getDate() - 1] || 0;
+}
+
 function toggleFreightBudgetPanel() {
   const body = document.getElementById('freight-budget-panel-body');
   const arrow = document.getElementById('freight-budget-panel-arrow');
@@ -829,6 +863,34 @@ function rerenderBudgetTrendHost() {
   } else {
     renderFreightPage();
   }
+}
+
+function applyLaborBudgetWeights() {
+  const keys = ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'];
+  keys.forEach(key => {
+    const value = Number(document.getElementById(`labor-weight-${key}`)?.value);
+    if (Number.isFinite(value) && value >= 0) laborBudgetWeights[key] = value;
+  });
+  laborBudgetHolidays = String(document.getElementById('labor-budget-holidays')?.value || '')
+    .split(/[,\s]+/)
+    .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value));
+  rerenderBudgetTrendHost();
+  toast('✅ 已更新人力每日預算分攤（總費用動支率頁的人力預算已套用）');
+}
+
+function resetLaborBudgetWeights() {
+  laborBudgetWeights = { ...LABOR_BUDGET_WEIGHT_DEFAULTS };
+  laborBudgetHolidays = [];
+  rerenderBudgetTrendHost();
+  toast('↺ 已還原人力預算分攤預設值');
+}
+
+function toggleLaborBudgetPanel() {
+  const body = document.getElementById('labor-budget-panel-body');
+  const arrow = document.getElementById('labor-budget-panel-arrow');
+  if (!body) return;
+  body.hidden = !body.hidden;
+  if (arrow) arrow.textContent = body.hidden ? '▼ 展開' : '▲ 收合';
 }
 
 function renderFreightReferenceDashboard() {
@@ -1101,38 +1163,6 @@ function renderFreightReferenceDashboard() {
         </article>
       </div>
     </div>
-
-    <section class="freight-budget-trend-card">
-      <div class="freight-ref-card-title">每日費用趨勢</div>
-      <div class="freight-trend-legend">
-        <span><i class="mainline"></i>主線</span>
-        <span><i class="nonmainline"></i>非主線</span>
-        <span><i class="budget"></i>每日預算分攤</span>
-      </div>
-      <svg class="freight-budget-trend-chart" viewBox="0 0 ${trendW} ${trendH}">
-        ${trendGrid}
-        ${trendBars}
-        <path d="${budgetTrendPath}" fill="none" stroke="var(--app-warning)" stroke-width="2" stroke-dasharray="6 4"></path>
-      </svg>
-      <button type="button" class="freight-budget-panel-toggle" onclick="toggleFreightBudgetPanel()">
-        <span><strong>⚙️ 預算分攤控制台</strong>　物流量集中在非國定假日的週二～四，權重可調</span>
-        <span id="freight-budget-panel-arrow">▼ 展開</span>
-      </button>
-      <div class="freight-budget-panel-body" id="freight-budget-panel-body" hidden>
-        <p>每日預算 ＝ 月預算 × 當日權重 ÷ 全月權重總和。國定假日採週日權重；僅影響本頁預算分攤顯示，不修改資料庫預算。</p>
-        <div class="freight-budget-weights">${weightInputs}</div>
-        <div class="freight-budget-actions">
-          <label>
-            <span>國定假日（YYYY-MM-DD，逗號或換行分隔）</span>
-            <textarea id="freight-budget-holidays">${freightBudgetHolidays.join('\n')}</textarea>
-          </label>
-          <div>
-            <button class="btn btn-primary" onclick="applyFreightBudgetWeights()">套用</button>
-            <button class="btn btn-ghost" onclick="resetFreightBudgetWeights()">還原預設</button>
-          </div>
-        </div>
-      </div>
-    </section>
 
     <section class="freight-ref-matrix-section">
       <div class="freight-ref-matrix-heading">
@@ -1492,7 +1522,8 @@ function dailyDispatchBudget(warehouse, dateStr) {
   const monthly = monthlyDispatchBudget(warehouse, monthIndexFromDate(dateStr));
   const days = daysInMonthFor(dateStr);
   return {
-    labor: monthly.labor / days,
+    // 人力：按每日權重分攤（週二～四加重，假日減少）；運務：仍維持均分
+    labor: laborDailyBudgetFromMonthly(monthly.labor, dateStr),
     freight: monthly.freight / days,
   };
 }
@@ -1938,6 +1969,11 @@ function renderCostTrendCard() {
       <span>${label}</span>
       <input type="number" min="0" step="0.1" id="freight-weight-${key}" value="${freightBudgetWeights[key]}">
     </label>`).join('');
+  const laborWeightInputs = weightLabels.map(([key, label]) => `
+    <label class="freight-budget-weight">
+      <span>${label}</span>
+      <input type="number" min="0" step="0.1" id="labor-weight-${key}" value="${laborBudgetWeights[key]}">
+    </label>`).join('');
 
   return `
   <section class="freight-budget-trend-card" style="grid-column:1/-1;background:var(--app-surface);border:1px solid var(--app-border);border-radius:var(--app-radius);padding:18px">
@@ -1967,6 +2003,26 @@ function renderCostTrendCard() {
         <div>
           <button class="btn btn-primary" onclick="applyFreightBudgetWeights()">套用</button>
           <button class="btn btn-ghost" onclick="resetFreightBudgetWeights()">還原預設</button>
+        </div>
+      </div>
+    </div>
+  </section>
+  <section class="freight-budget-trend-card" style="grid-column:1/-1;background:var(--app-surface);border:1px solid var(--app-border);border-radius:var(--app-radius);padding:18px">
+    <button type="button" class="freight-budget-panel-toggle" onclick="toggleLaborBudgetPanel()">
+      <span><strong>👥 人力預算分攤控制台</strong>　調整後自動套用到「總費用動支率」的人力預算</span>
+      <span id="labor-budget-panel-arrow">▼ 展開</span>
+    </button>
+    <div class="freight-budget-panel-body" id="labor-budget-panel-body" hidden>
+      <p>人力每日預算 ＝ 月人力預算 × 當日權重 ÷ 全月權重總和。國定假日採週日權重；套用後「總費用動支率」頁的人力每日／區間預算即按此分攤。</p>
+      <div class="freight-budget-weights">${laborWeightInputs}</div>
+      <div class="freight-budget-actions">
+        <label>
+          <span>國定假日（YYYY-MM-DD，逗號或換行分隔）</span>
+          <textarea id="labor-budget-holidays">${laborBudgetHolidays.join('\n')}</textarea>
+        </label>
+        <div>
+          <button class="btn btn-primary" onclick="applyLaborBudgetWeights()">套用</button>
+          <button class="btn btn-ghost" onclick="resetLaborBudgetWeights()">還原預設</button>
         </div>
       </div>
     </div>
