@@ -68,15 +68,10 @@ const PAGES = [
     ]
   },
   {
-    group: '📁 資料管理',
+    group: '📁 後台',
     items: [
       { id:'import',       icon:'📤', label:'資料匯入',     status:'ready' },
       { id:'versions',     icon:'🕘', label:'版本資訊',     status:'ready' },
-    ]
-  },
-  {
-    group: '🔐 帳號權限管理',
-    items: [
       { id:'accountPermissions', icon:'👥', label:'帳號權限',         status:'ready', adminOnly: true },
       { id:'accountIpRules',     icon:'🛡️', label:'後臺限制 IP 管理', status:'ready', adminOnly: true },
       { id:'accountLoginAudit',  icon:'📜', label:'系統登入日誌',     status:'ready', adminOnly: true },
