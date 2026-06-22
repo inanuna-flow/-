@@ -3615,14 +3615,14 @@ function renderLaborPage() {
     <div class="labor-kpi-card">
       <div class="labor-kpi-icon" aria-hidden="true">⚡</div>
       <span class="labor-kpi-label">每小時揀次 PPH</span>
-      <div class="labor-kpi-main" style="color:var(--ry-blue)">${prodT.pph.toFixed(1)}</div>
-      <div class="labor-kpi-ctx">${prodT.picks.toLocaleString()} 揀次 ÷ ${prodT.hrs.toFixed(1)} h</div>
+      <div class="labor-kpi-main" style="color:var(--ry-blue)">${prodT.pph.toFixed(1)}<span class="labor-kpi-unit">次/h</span></div>
+      <div class="labor-kpi-ctx">${wanNum(prodT.picks)} 揀次 ÷ ${wanNum(prodT.hrs)} h</div>
     </div>
     <div class="labor-kpi-card">
       <div class="labor-kpi-icon" aria-hidden="true">📦</div>
       <span class="labor-kpi-label">單次揀貨成本</span>
-      <div class="labor-kpi-main">${prodT.cpp.toFixed(2)}</div>
-      <div class="labor-kpi-ctx">元/揀次 · ${fmtMoney(Math.round(prodT.cost))} ÷ ${prodT.picks.toLocaleString()} 次</div>
+      <div class="labor-kpi-main">${prodT.cpp.toFixed(2)}<span class="labor-kpi-unit">元/次</span></div>
+      <div class="labor-kpi-ctx">${wanMoney(prodT.cost)} ÷ ${wanNum(prodT.picks)} 次</div>
     </div>
   </div>
   <div class="w s6 labor-struct-card labor-analysis-card">

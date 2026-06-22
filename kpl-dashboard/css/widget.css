@@ -1491,7 +1491,7 @@ td.mono { font-family: var(--f-mono); }
   gap: 14px;
 }
 .labor-kpi-card {
-  padding: 14px 16px 12px;
+  padding: 13px 13px 11px;
   border: 1px solid var(--app-border);
   border-radius: 8px;
   background: var(--app-surface);
@@ -1524,20 +1524,34 @@ td.mono { font-family: var(--f-mono); }
   font-weight: 400;
   letter-spacing: 0.03em;
 }
+.labor-kpi-card {
+  min-width: 0;
+}
 .labor-kpi-main {
-  margin-top: 14px;
+  margin-top: 12px;
   font-family: var(--typo-metric-font);
-  font-size: var(--typo-metric-size);
-  font-weight: 700;
-  line-height: 1.1;
-  letter-spacing: -0.01em;
+  font-size: 25px;
+  font-weight: 800;
+  line-height: 1.15;
+  letter-spacing: -0.02em;
   color: var(--app-text);
+  white-space: nowrap;
+}
+.labor-kpi-unit {
+  margin-left: 5px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--ry-muted);
+  letter-spacing: 0;
 }
 .labor-kpi-ctx {
-  margin-top: 6px;
-  font-size: var(--typo-widget-note-size);
+  margin-top: 5px;
+  font-size: 11px;
   color: var(--ry-muted);
-  line-height: 1.5;
+  line-height: 1.45;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 @media (max-width: 1200px) {
   .labor-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
