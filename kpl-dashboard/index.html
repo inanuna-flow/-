@@ -250,6 +250,24 @@
 <div class="grid" id="freight-grid"></div>
 </script>
 
+<script id="tpl-costtrend" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">COST TREND · 每日費用趨勢</div>
+  <h1 class="page-h">每日費用趨勢</h1>
+  <div class="page-p" id="costtrend-meta">載入中…</div>
+</div>
+<div class="filter-bar date-range-filter">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="costtrend-from">
+  <span class="range-arrow">→</span>
+  <input type="date" class="filter-input" id="costtrend-to">
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDashboardDateFilter('costtrend')">套用</button>
+  <span class="filter-meta" id="costtrend-date-meta"></span>
+</div>
+<div class="grid" id="costtrend-grid"></div>
+</script>
+
 <script id="tpl-monthly" type="text/html">
 <div class="page-head">
   <div class="page-eyebrow">MONTHLY SETTLEMENT · 月度結算</div>
@@ -532,13 +550,14 @@
 <script src="js/labor_data.js?v=20260504-3"></script>
 <script src="js/data.js?v=20260609-2"></script>
 <script src="js/utils.js?v=20260609-1"></script>
-<script src="js/widgets.js?v=20260613-12"></script>
+<script src="js/widgets.js?v=20260622-1"></script>
 <script>
 // 從 <script type="text/html"> 讀取模板
 const PAGE_TEMPLATES = {
   daily:          document.getElementById('tpl-daily').innerHTML,
   dispatch:       document.getElementById('tpl-dispatch').innerHTML,
   freight:        document.getElementById('tpl-freight').innerHTML,
+  costtrend:      document.getElementById('tpl-costtrend').innerHTML,
   labor:          document.getElementById('tpl-labor').innerHTML,
   monthly:        document.getElementById('tpl-monthly').innerHTML,
   annual:         document.getElementById('tpl-annual').innerHTML,
@@ -547,6 +566,6 @@ const PAGE_TEMPLATES = {
   typography:     document.getElementById('tpl-typography').innerHTML,
 };
 </script>
-<script src="js/app.js?v=20260613-6"></script>
+<script src="js/app.js?v=20260622-1"></script>
 </body>
 </html>

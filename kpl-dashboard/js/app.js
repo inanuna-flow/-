@@ -62,16 +62,27 @@ const PAGES = [
     ]
   },
   {
+    group: '⚡ 效率分析',
+    items: [
+      { id:'costtrend',    icon:'📈', label:'每日費用趨勢', status:'ready' },
+    ]
+  },
+  {
     group: '📋 預算規劃',
     items: [
       { id:'annual',       icon:'📋', label:'年度規劃分析', status:'ready' },
     ]
   },
   {
-    group: '📁 後台',
+    group: '📁 資料管理',
     items: [
       { id:'import',       icon:'📤', label:'資料匯入',     status:'ready' },
       { id:'versions',     icon:'🕘', label:'版本資訊',     status:'ready' },
+    ]
+  },
+  {
+    group: '🔐 後台管理',
+    items: [
       { id:'accountPermissions', icon:'👥', label:'帳號權限',         status:'ready', adminOnly: true },
       { id:'accountIpRules',     icon:'🛡️', label:'後臺限制 IP 管理', status:'ready', adminOnly: true },
       { id:'accountLoginAudit',  icon:'📜', label:'系統登入日誌',     status:'ready', adminOnly: true },
@@ -94,7 +105,7 @@ const SIDEBAR_GROUP_META = [
   { label: '效率分析',   icon: '⚡' },
   { label: '預算規劃',   icon: '📈' },
   { label: '資料管理',   icon: '📁' },
-  { label: '帳號權限管理', icon: '🔐' },
+  { label: '後台管理',   icon: '🔐' },
   { label: '系統設定',   icon: '⚙️' },
 ];
 const THEME_STORAGE_KEY = 'kplThemeMode';
@@ -430,6 +441,7 @@ function loadPage(pageId) {
   if (pageId === 'daily')        initDailyPage();
   else if (pageId === 'dispatch') initDispatchPage();
   else if (pageId === 'freight') initFreightPage();
+  else if (pageId === 'costtrend') initCostTrendPage();
   else if (pageId === 'labor')   initLaborPage();
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'org')     initOrgPage();
@@ -472,6 +484,23 @@ async function initFreightPage() {
   await Promise.all([loadCloudBudgetData(), loadCloudFreightData()]);
   if (currentPageId === 'freight') renderFreightPage();
 }
+
+async function initCostTrendPage() {
+  renderCostTrendPage();
+  await Promise.all([loadCloudBudgetData(), loadCloudFreightData()]);
+  if (currentPageId === 'costtrend') renderCostTrendPage();
+}
+
+function renderCostTrendPage() {
+  syncDashboardDateInputs('costtrend');
+  const grid = document.getElementById('costtrend-grid');
+  if (grid) grid.innerHTML = renderCostTrendCard();
+  const ffrom = document.getElementById('costtrend-from'); if (ffrom) ffrom.value = DATA.dateFrom;
+  const fto   = document.getElementById('costtrend-to');   if (fto)   fto.value   = DATA.dateTo;
+  const meta = document.getElementById('costtrend-meta');
+  if (meta) meta.textContent = `資料區間：${DATA.dateFrom} ~ ${DATA.dateTo}`;
+  normalizeDateFilterBars();
+}
 async function initImportPage() {
   await loadCloudDataRange();
   updateStatus();
@@ -481,6 +510,7 @@ const DASHBOARD_DATE_FILTERS = {
   daily:        { from:'filter-from',        to:'filter-to',        meta:'filter-meta' },
   dispatch:     { from:'dispatch-from',     to:'dispatch-to',     meta:null },
   freight:      { from:'freight-from',      to:'freight-to',      meta:null },
+  costtrend:    { from:'costtrend-from',    to:'costtrend-to',    meta:'costtrend-date-meta' },
   labor:        { from:'labor-from',        to:'labor-to',        meta:'labor-date-meta' },
   monthly:      { from:'monthly-from',      to:'monthly-to',      meta:'monthly-date-meta' },
 };
@@ -581,7 +611,7 @@ function renderAccountManagementPage(pageId) {
 
     main.innerHTML = `
       <div class="page-head">
-        <div class="page-eyebrow">帳號權限管理 &gt; 帳號權限</div>
+        <div class="page-eyebrow">後台管理 &gt; 帳號權限</div>
         <h1 class="page-h">👥 頁面權限設定</h1>
       </div>
       <div class="grid">
@@ -651,7 +681,7 @@ function renderAccountManagementPage(pageId) {
 
   main.innerHTML = `
     <div class="page-head">
-      <div class="page-eyebrow">帳號權限管理 &gt; ${escapeReleaseText(config.title)}</div>
+      <div class="page-eyebrow">後台管理 &gt; ${escapeReleaseText(config.title)}</div>
       <h1 class="page-h">${config.icon} ${escapeReleaseText(config.title)}</h1>
     </div>
     <div class="grid">
@@ -696,7 +726,7 @@ function renderAccountIpRulesPage() {
   if (!main) return;
   main.innerHTML = `
     <div class="page-head">
-      <div class="page-eyebrow">帳號權限管理 &gt; 後臺限制 IP 管理</div>
+      <div class="page-eyebrow">後台管理 &gt; 後臺限制 IP 管理</div>
       <h1 class="page-h">🛡️ 後臺限制 IP 管理</h1>
     </div>
     <div class="grid">
@@ -1112,6 +1142,7 @@ function rerenderDashboardPage(pageId = currentPageId) {
   if (pageId === 'daily') renderDailyPage();
   else if (pageId === 'dispatch') renderDispatchPage();
   else if (pageId === 'freight') renderFreightPage();
+  else if (pageId === 'costtrend') renderCostTrendPage();
   else if (pageId === 'labor') renderLaborPage();
   else if (pageId === 'monthly') renderMonthlyPage();
   else if (pageId === 'annual') renderAnnualPage();
@@ -3694,9 +3725,7 @@ function renderLaborPage() {
         📌 揀次相關指標請切換「依作業區」檢視（揀次資料無課別維度）`}
       </div>
     </div>
-  </div>
-  ${renderM025(data, picksData, 'L010')}
-  ${renderLaborBizMatrix(picksData, 'L011')}`;
+  </div>`;
 
   const meta = document.getElementById('labor-meta');
   if (meta) meta.textContent = `資料：${DATA.dateFrom} ~ ${DATA.dateTo} · ${laborPeriod} · 全區各課 · ${personDays.toLocaleString()} 人日 · ${data.length.toLocaleString()} 筆明細`;

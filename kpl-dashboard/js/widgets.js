@@ -811,15 +811,24 @@ function applyFreightBudgetWeights() {
   freightBudgetHolidays = String(document.getElementById('freight-budget-holidays')?.value || '')
     .split(/[,\s]+/)
     .filter(value => /^\d{4}-\d{2}-\d{2}$/.test(value));
-  renderFreightPage();
-  toast('✅ 已更新運費每日預算分攤');
+  rerenderBudgetTrendHost();
+  toast('✅ 已更新每日預算分攤');
 }
 
 function resetFreightBudgetWeights() {
   freightBudgetWeights = { ...FREIGHT_BUDGET_WEIGHT_DEFAULTS };
   freightBudgetHolidays = [];
-  renderFreightPage();
+  rerenderBudgetTrendHost();
   toast('↺ 已還原預算分攤預設值');
+}
+
+// 預算分攤控制台可能在 freight 頁或 costtrend 頁，重繪當前所在頁
+function rerenderBudgetTrendHost() {
+  if (typeof currentPageId !== 'undefined' && currentPageId === 'costtrend') {
+    if (typeof renderCostTrendPage === 'function') renderCostTrendPage();
+  } else {
+    renderFreightPage();
+  }
 }
 
 function renderFreightReferenceDashboard() {
@@ -1868,6 +1877,100 @@ function renderM025(labor, picks, code = 'M025') {
       </div>
     </div>
   </div>`;
+}
+
+// 每日費用趨勢（獨立卡，效率分析頁用；計算自給自足，重用 freight budget 權重）
+function renderCostTrendCard() {
+  const overview = getFreightAnalysisData();
+  const budgetTotal = overview.totalBudget;
+  const selectedDetails = getFreightDetailsFiltered() || [];
+  const nonMainlineDetails = selectedDetails.filter(row => row.sourceType === 'nonmainline');
+  const mainlineDetails = selectedDetails.filter(row => !nonMainlineDetails.includes(row));
+
+  const matrixDates = [];
+  const matrixStart = new Date(`${DATA.dateFrom}T00:00:00`);
+  const matrixEnd = new Date(`${DATA.dateTo}T00:00:00`);
+  for (let date = new Date(matrixStart); date <= matrixEnd; date.setDate(date.getDate() + 1)) {
+    matrixDates.push(`${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`);
+  }
+
+  const apportionedDailyBudget = apportionFreightBudget(budgetTotal, matrixDates.map(freightBudgetDayWeight));
+  const totalBudgetValues = matrixDates.map((_, i) => apportionedDailyBudget[i]);
+  const mainlineActualValues = matrixDates.map(date => mainlineDetails
+    .filter(row => row.fullDate === date).reduce((sum, row) => sum + Number(row.actual || 0), 0));
+  const nonMainlineActualValues = matrixDates.map(date => nonMainlineDetails
+    .filter(row => row.fullDate === date).reduce((sum, row) => sum + Number(row.actual || 0), 0));
+
+  const trendMax = Math.max(1, ...totalBudgetValues, ...mainlineActualValues.map((m, i) => m + nonMainlineActualValues[i]));
+  const trendW = 1240, trendH = 250, trendPadL = 58, trendPadR = 14, trendPadT = 12, trendPadB = 28;
+  const trendPlotH = trendH - trendPadT - trendPadB;
+  const trendBarW = (trendW - trendPadL - trendPadR) / Math.max(1, matrixDates.length);
+  const trendY = value => trendPadT + trendPlotH - value / trendMax * trendPlotH;
+  const trendGrid = Array.from({ length:5 }, (_, index) => {
+    const value = trendMax / 4 * index;
+    const y = trendY(value);
+    return `<line x1="${trendPadL}" y1="${y}" x2="${trendW - trendPadR}" y2="${y}" stroke="var(--app-border)" stroke-width="0.5"></line>
+      <text x="${trendPadL - 7}" y="${y + 4}" text-anchor="end" class="freight-ref-axis">${Math.round(value / 10000)}萬</text>`;
+  }).join('');
+  const trendBars = matrixDates.map((date, index) => {
+    const x = trendPadL + index * trendBarW + 2;
+    const width = Math.max(2, trendBarW - 4);
+    const main = mainlineActualValues[index];
+    const nonmain = nonMainlineActualValues[index];
+    const total = main + nonmain;
+    const label = Number(date.slice(8, 10));
+    return `<rect x="${x}" y="${trendY(main)}" width="${width}" height="${trendH - trendPadB - trendY(main)}" fill="var(--freight-kpi-blue)">
+        <title>${date}｜主線 $${Math.round(main).toLocaleString()}｜非主線 $${Math.round(nonmain).toLocaleString()}｜預算 $${Math.round(totalBudgetValues[index]).toLocaleString()}</title>
+      </rect>
+      <rect x="${x}" y="${trendY(total)}" width="${width}" height="${trendY(main) - trendY(total)}" fill="var(--freight-kpi-blue)" opacity="0.4"></rect>
+      ${label % 2 ? `<text x="${x + width / 2}" y="${trendH - 9}" text-anchor="middle" class="freight-ref-axis">${label}</text>` : ''}`;
+  }).join('');
+  const budgetTrendPath = totalBudgetValues.map((value, index) => {
+    const x = trendPadL + index * trendBarW + trendBarW / 2;
+    return `${index ? 'L' : 'M'}${x},${trendY(value)}`;
+  }).join(' ');
+  const weightLabels = [
+    ['mon', '週一'], ['tue', '週二'], ['wed', '週三'], ['thu', '週四'],
+    ['fri', '週五'], ['sat', '週六'], ['sun', '週日／假日'],
+  ];
+  const weightInputs = weightLabels.map(([key, label]) => `
+    <label class="freight-budget-weight">
+      <span>${label}</span>
+      <input type="number" min="0" step="0.1" id="freight-weight-${key}" value="${freightBudgetWeights[key]}">
+    </label>`).join('');
+
+  return `
+  <section class="freight-budget-trend-card" style="background:var(--app-surface);border:1px solid var(--app-border);border-radius:var(--app-radius);padding:18px">
+    <div class="freight-ref-card-title">每日費用趨勢</div>
+    <div class="freight-trend-legend">
+      <span><i class="mainline"></i>主線</span>
+      <span><i class="nonmainline"></i>非主線</span>
+      <span><i class="budget"></i>每日預算分攤</span>
+    </div>
+    <svg class="freight-budget-trend-chart" viewBox="0 0 ${trendW} ${trendH}">
+      ${trendGrid}
+      ${trendBars}
+      <path d="${budgetTrendPath}" fill="none" stroke="var(--app-warning)" stroke-width="2" stroke-dasharray="6 4"></path>
+    </svg>
+    <button type="button" class="freight-budget-panel-toggle" onclick="toggleFreightBudgetPanel()">
+      <span><strong>⚙️ 預算分攤控制台</strong>　物流量集中在非國定假日的週二～四，權重可調</span>
+      <span id="freight-budget-panel-arrow">▼ 展開</span>
+    </button>
+    <div class="freight-budget-panel-body" id="freight-budget-panel-body" hidden>
+      <p>每日預算 ＝ 月預算 × 當日權重 ÷ 全月權重總和。國定假日採週日權重；僅影響本頁預算分攤顯示，不修改資料庫預算。</p>
+      <div class="freight-budget-weights">${weightInputs}</div>
+      <div class="freight-budget-actions">
+        <label>
+          <span>國定假日（YYYY-MM-DD，逗號或換行分隔）</span>
+          <textarea id="freight-budget-holidays">${freightBudgetHolidays.join('\n')}</textarea>
+        </label>
+        <div>
+          <button class="btn btn-primary" onclick="applyFreightBudgetWeights()">套用</button>
+          <button class="btn btn-ghost" onclick="resetFreightBudgetWeights()">還原預設</button>
+        </div>
+      </div>
+    </div>
+  </section>`;
 }
 
 // 倉別 × 業務類別 揀次矩陣
