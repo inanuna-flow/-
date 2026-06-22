@@ -2632,6 +2632,10 @@ td.mono { font-family: var(--f-mono); }
   overflow: hidden;
   max-height: 340px;
 }
+/* wh 浮動標題被 overflow:hidden 裁切而不顯示，故不需為它預留 30px 上方間距 */
+#main .w.labor-analysis-card:has(> .wh) {
+  margin-top: 0;
+}
 
 /* 班別成本：compact KPI rows */
 .labor-shift-list {
