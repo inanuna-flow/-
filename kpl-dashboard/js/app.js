@@ -3692,13 +3692,13 @@ function renderLaborPage() {
       <div class="labor-shift-row">
         <div class="labor-shift-row-head">
           <span class="labor-shift-name"><span class="labor-shift-dot" style="background:${meta.color}"></span>${meta.label}</span>
+          <div class="labor-shift-bar"><span style="width:${share.toFixed(1)}%;background:${meta.color}"></span></div>
           <span class="labor-shift-share">${share.toFixed(1)}%</span>
         </div>
-        <div class="labor-shift-bar"><span style="width:${share.toFixed(1)}%;background:${meta.color}"></span></div>
         <div class="labor-shift-metrics">
-          <div class="labor-shift-metric"><span class="lsm-lbl">工時</span><span class="lsm-val mono">${wanNum(it.hrs)}</span></div>
-          <div class="labor-shift-metric"><span class="lsm-lbl">費用</span><span class="lsm-val mono">${wanMoney(it.cost)}</span></div>
-          <div class="labor-shift-metric"><span class="lsm-lbl">時薪</span><span class="lsm-val mono">${wanMoney(rate)}</span></div>
+          <div class="labor-shift-metric"><span class="lsm-lbl">工時</span><span class="lsm-val">${wanNum(it.hrs)}</span></div>
+          <div class="labor-shift-metric"><span class="lsm-lbl">費用</span><span class="lsm-val">${wanMoney(it.cost)}</span></div>
+          <div class="labor-shift-metric"><span class="lsm-lbl">時薪</span><span class="lsm-val">${wanMoney(rate)}</span></div>
         </div>
       </div>`;
   }).join('');

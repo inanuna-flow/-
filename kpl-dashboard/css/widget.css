@@ -2503,29 +2503,30 @@ td.mono { font-family: var(--f-mono); }
 }
 
 .labor-pie-wrap {
-  padding: 18px;
+  padding: 16px 18px;
   flex: 1;
   display: flex;
   align-items: center;
+  min-height: 0;
 }
 .labor-pie-layout {
   display: flex;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: 18px 28px;
+  gap: 20px;
   width: 100%;
 }
 .labor-pie-chart {
   flex: 0 0 auto;
-  width: 240px;
-  max-width: 240px;
+  width: 200px;
+  max-width: 200px;
   aspect-ratio: 1;
   display: block;
 }
 .labor-pie-center-num {
   font-family: var(--f-mono);
-  font-size: 26px;
+  font-size: 22px;
   font-weight: 700;
   fill: var(--app-text);
 }
@@ -2565,10 +2566,10 @@ td.mono { font-family: var(--f-mono); }
 }
 /* 餅圖右側：作業區圖例排行 */
 .labor-legend {
-  flex: 1 1 260px;
+  flex: 1 1 240px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: 0;
   min-width: 0;
 }
 .labor-legend-title {
@@ -2576,15 +2577,15 @@ td.mono { font-family: var(--f-mono); }
   font-weight: 800;
   color: var(--ry-muted);
   letter-spacing: .08em;
-  margin-bottom: 6px;
+  margin-bottom: 4px;
 }
 .labor-legend-item {
   display: grid;
-  grid-template-columns: 12px minmax(0, 1fr) auto auto;
+  grid-template-columns: 10px minmax(0, 1fr) auto auto;
   gap: 10px;
   align-items: center;
   min-width: 0;
-  padding: 6px 0;
+  height: 30px;
   border-bottom: 1px solid var(--app-border);
 }
 .labor-legend-item:last-child { border-bottom: none; }
@@ -2618,32 +2619,39 @@ td.mono { font-family: var(--f-mono); }
   text-align: right;
 }
 
-/* 左右兩張分析卡：等高、同寬、同 padding/radius，flex 縱向佈局 */
+/* 左右兩張分析卡：等高、同寬、同 padding/radius，限高壓縮 */
 .labor-analysis-card {
   display: flex;
   flex-direction: column;
   padding: 0;
   overflow: hidden;
+  max-height: 340px;
 }
 
-/* 班別成本 KPI list */
+/* 班別成本：compact KPI rows */
 .labor-shift-list {
   flex: 1;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 16px;
-  padding: 18px;
+  gap: 10px;
+  padding: 14px 18px;
 }
 .labor-shift-row {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: 7px;
+  min-height: 72px;
+  justify-content: center;
+  padding: 10px 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 8px;
+  background: var(--app-surface-muted);
 }
 .labor-shift-row-head {
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  gap: 12px;
 }
 .labor-shift-name {
   display: flex;
@@ -2652,10 +2660,11 @@ td.mono { font-family: var(--f-mono); }
   font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--app-text);
+  white-space: nowrap;
 }
 .labor-shift-dot {
-  width: 10px;
-  height: 10px;
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
 }
 .labor-shift-share {
@@ -2663,9 +2672,11 @@ td.mono { font-family: var(--f-mono); }
   font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--ry-muted);
+  margin-left: auto;
 }
 .labor-shift-bar {
-  height: 6px;
+  flex: 1;
+  height: 5px;
   border-radius: 3px;
   background: var(--app-border);
   overflow: hidden;
@@ -2683,14 +2694,15 @@ td.mono { font-family: var(--f-mono); }
 }
 .labor-shift-metric {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: baseline;
+  gap: 5px;
 }
 .lsm-lbl {
   font-size: var(--fs-xs);
   color: var(--ry-muted);
 }
 .lsm-val {
+  font-family: var(--f-mono);
   font-size: var(--fs-sm);
   font-weight: 700;
   color: var(--app-text);
