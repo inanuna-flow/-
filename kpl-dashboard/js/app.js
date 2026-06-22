@@ -3629,7 +3629,7 @@ function renderLaborPage() {
   ${renderM020(prodT, 'L009', 's6')}
   <div class="w s12 table-card labor-dept-card">
     <div class="gold-band">L007 · 🏢 課別工時彙總</div>
-    <div class="wh"><div class="wl"><div class="wdot"></div>各作業課別工時與費用</div><span class="wmeta">點課別列展開作業區明細</span></div>
+    <div class="wh"><div class="wl"><div class="wdot"></div>作業區效率</div><span class="wmeta">點課別列展開作業區明細</span></div>
     <div class="ops-table-frame labor-dept-edge">
       <div class="scroll-x">
         <table class="tbl labor-dept-table ops-compact-table">
