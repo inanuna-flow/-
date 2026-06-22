@@ -2352,9 +2352,10 @@ function downloadImportTemplate(type) {
 
 function downloadPageReport(page) {
   const wb = XLSX.utils.book_new();
-  const addSheet = (name, rows) => {
+  const addSheet = (name, rows, merges) => {
     const ws = XLSX.utils.aoa_to_sheet(rows);
     ws['!cols'] = rows[0].map(h => ({ wch: Math.max(12, String(h).length * 2 + 2) }));
+    if (merges) ws['!merges'] = merges;
     XLSX.utils.book_append_sheet(wb, ws, name);
   };
 
@@ -2409,34 +2410,95 @@ function downloadPageReport(page) {
     ]);
 
   } else if (page === 'dispatch') {
-    const rows = getDispatchDailyFiltered();
+    const dailyRows = getDispatchDailyFiltered();
+    const pctStr = v => v ? `${v.toFixed(1)}%` : '-';
 
-    // 分頁 1：區間動支彙總
-    const pct = v => v ? `${v.toFixed(1)}%` : '-';
-    const whSums = [0, 1, 2].map(i => sumWarehouse(rows, i));
-    const allSum = sumAll(rows);
-    addSheet('區間動支彙總', [
-      ['倉別', '人力費用', '人力預算', '人力動支率', '運務費用', '運務預算', '運務動支率', '合計費用', '合計預算', '動支率'],
-      ...whSums.map(w => [
-        w.name, w.labor, w.laborBudget, pct(w.laborPct),
-        w.freight, w.freightBudget, pct(w.freightPct),
-        w.total, w.budget, pct(w.pct),
-      ]),
-      [
-        '全區合計', allSum.labor, allSum.laborBudget, pct(allSum.laborPct),
-        allSum.freight, allSum.freightBudget, pct(allSum.freightPct),
-        allSum.total, allSum.budget, pct(allSum.pct),
-      ],
-    ]);
+    // ── 分頁1：區間動支彙總（樞紐：領域×項目 vs 倉別）──
+    const whSums = [0, 1, 2].map(i => sumWarehouse(dailyRows, i));
+    const allSum = sumAll(dailyRows);
+    const whs = [...whSums, allSum];
+    const sumSheet1 = [
+      ['領域', '項目', '大溪倉', '大肚倉', '岡山倉', '全區'],
+      // 人力
+      ['人力', '預算', ...whs.map(w => w.laborBudget)],
+      ['',     '實際', ...whs.map(w => w.labor)],
+      ['',     '動支', ...whs.map(w => pctStr(w.laborPct))],
+      // 運務
+      ['運務', '預算', ...whs.map(w => w.freightBudget)],
+      ['',     '實際', ...whs.map(w => w.freight)],
+      ['',     '動支', ...whs.map(w => pctStr(w.freightPct))],
+      // 合計
+      ['合計', '預算', ...whs.map(w => w.budget)],
+      ['',     '實際', ...whs.map(w => w.total)],
+      ['',     '動支', ...whs.map(w => pctStr(w.pct))],
+    ];
+    // 合併「領域」欄（col 0）：人力 r1-r3、運務 r4-r6、合計 r7-r9
+    const merges1 = [
+      { s: { r: 1, c: 0 }, e: { r: 3, c: 0 } },
+      { s: { r: 4, c: 0 }, e: { r: 6, c: 0 } },
+      { s: { r: 7, c: 0 }, e: { r: 9, c: 0 } },
+    ];
+    addSheet('區間動支彙總', sumSheet1, merges1);
 
-    // 分頁 2：每日動支明細
-    addSheet('每日動支明細', [
-      ['日期', '大溪_人力', '大溪_運務', '大肚_人力', '大肚_運務', '岡山_人力', '岡山_運務', '日合計'],
-      ...rows.map(r => {
-        const total = r[1] + r[2] + r[3] + r[4] + r[5] + r[6];
-        return [r[7], r[1], r[2], r[3], r[4], r[5], r[6], total];
-      }),
-    ]);
+    // ── 分頁2：每日動支明細（樞紐：領域×倉別×項目 vs 日期）──
+    const WH_MAP = [
+      { name: '大溪倉', lc: 1, fc: 2 },
+      { name: '大肚倉', lc: 3, fc: 4 },
+      { name: '岡山倉', lc: 5, fc: 6 },
+    ];
+    const ALL_WHS = ['全區', ...WH_MAP.map(w => w.name)];
+    const dateStrs = dailyRows.map(r => r[7]).filter(Boolean).sort();
+    const toLabel = d => { const [y, m, day] = d.split('-'); return `${y}/${+m}/${+day}`; };
+    const dayMap = {};
+    dailyRows.forEach(r => { if (r[7]) dayMap[r[7]] = r; });
+
+    const getDayBudget = (whName, d, type) => {
+      const laborBudget = () => whName === '全區'
+        ? WH_MAP.reduce((s, w) => s + (dailyDispatchBudget(w.name, d).labor || 0), 0)
+        : (dailyDispatchBudget(whName, d).labor || 0);
+      const freightBudget = () => whName === '全區'
+        ? WH_MAP.reduce((s, w) => s + (dailyDispatchBudget(w.name, d).freight || 0), 0)
+        : (dailyDispatchBudget(whName, d).freight || 0);
+      return type === 'labor' ? laborBudget() : type === 'freight' ? freightBudget() : laborBudget() + freightBudget();
+    };
+    const getDayActual = (whName, d, type) => {
+      const row = dayMap[d];
+      if (!row) return 0;
+      const wh = WH_MAP.find(w => w.name === whName);
+      if (whName === '全區') {
+        return type === 'labor' ? row[1]+row[3]+row[5]
+             : type === 'freight' ? row[2]+row[4]+row[6]
+             : row[1]+row[2]+row[3]+row[4]+row[5]+row[6];
+      }
+      return type === 'labor' ? (row[wh.lc]||0) : type === 'freight' ? (row[wh.fc]||0) : (row[wh.lc]||0)+(row[wh.fc]||0);
+    };
+
+    const DOMAINS = [
+      { label: '人力', type: 'labor' },
+      { label: '運務', type: 'freight' },
+      { label: '合計', type: 'total' },
+    ];
+    const detailRows = [['領域', '倉別', '項目', ...dateStrs.map(toLabel)]];
+    const merges2 = [];
+
+    DOMAINS.forEach(({ label, type }) => {
+      const domainStart = detailRows.length;
+      ALL_WHS.forEach((whName) => {
+        const whStart = detailRows.length;
+        const budgets = dateStrs.map(d => getDayBudget(whName, d, type));
+        const actuals = dateStrs.map(d => getDayActual(whName, d, type));
+        const pcts    = budgets.map((b, i) => b ? pctStr(actuals[i] / b * 100) : '-');
+        detailRows.push(['', whName, '預算', ...budgets]);
+        detailRows.push(['', '',     '實際', ...actuals]);
+        detailRows.push(['', '',     '動支', ...pcts]);
+        // 合併「倉別」欄（col 1）每 3 行
+        merges2.push({ s: { r: whStart, c: 1 }, e: { r: whStart + 2, c: 1 } });
+      });
+      // 合併「領域」欄（col 0）跨 ALL_WHS.length × 3 行
+      merges2.push({ s: { r: domainStart, c: 0 }, e: { r: detailRows.length - 1, c: 0 } });
+      detailRows[domainStart][0] = label;
+    });
+    addSheet('每日動支明細', detailRows, merges2);
 
   } else if (page === 'picks') {
     const wh = document.getElementById('picks-wh')?.value || '';
