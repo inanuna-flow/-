@@ -59,11 +59,6 @@ const PAGES = [
     items: [
       { id:'freight',      icon:'🚚', label:'運費損益分析', status:'ready' },
       { id:'labor',        icon:'⏱', label:'人力工時結構', status:'ready' },
-    ]
-  },
-  {
-    group: '⚡ 效率分析',
-    items: [
       { id:'costtrend',    icon:'📈', label:'每日費用趨勢', status:'ready' },
     ]
   },
@@ -102,7 +97,6 @@ const PAGES = [
 const SIDEBAR_GROUP_META = [
   { label: '儀表板總覽', icon: '📊' },
   { label: '成本分析',   icon: '💼' },
-  { label: '效率分析',   icon: '⚡' },
   { label: '預算規劃',   icon: '📈' },
   { label: '資料管理',   icon: '📁' },
   { label: '後台管理',   icon: '🔐' },
