@@ -2734,7 +2734,7 @@ td.mono { font-family: var(--f-mono); }
   margin-top: 4px;
 }
 .tbl.labor-dept-table {
-  min-width: 760px;
+  min-width: 880px;
   border-collapse: separate;
   border-spacing: 0;
 }
