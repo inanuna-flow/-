@@ -3905,14 +3905,15 @@ function renderLaborPage() {
           <tbody>${deptRows || `<tr><td colspan="${laborDeptView === 'area' ? 7 : 5}" class="labor-dept-empty">無資料</td></tr>`}</tbody>
         </table>
       </div>
-      <div class="table-note labor-formula-note">
-        ${laborDeptView === 'area' ? `
+      <details class="table-note labor-formula-note">
+        <summary>說明</summary>
+        <div>${laborDeptView === 'area' ? `
         📌 依作業區（跨課別合計）：人次 / 工時 / 總揀次 / 每小時揀次(PPH) / 單次揀貨成本 / 時薪<br>
         📌 每小時揀次 = 總揀次 ÷ 總工時 · 單次揀貨成本 = 費用 ÷ 總揀次 · 時薪 = 費用 ÷ 工時<br>
         📌 揀次「—」表示該作業區無對應揀次資料` : `
         📌 依課別：人次（不重複員編）/ 工時 / 費用 / 時薪（費用 ÷ 工時）<br>
-        📌 揀次相關指標請切換「依作業區」檢視（揀次資料無課別維度）`}
-      </div>
+        📌 揀次相關指標請切換「依作業區」檢視（揀次資料無課別維度）`}</div>
+      </details>
     </div>
   </div>`;
 

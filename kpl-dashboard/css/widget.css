@@ -3301,7 +3301,8 @@ td.mono { font-family: var(--f-mono); }
   padding: var(--t002-note-py) var(--t002-title-px);
   line-height: 1.4;
 }
-.t002-note summary {
+/* 折疊說明：所有 details.table-note 通用（預設收合，點 summary 展開）*/
+details.table-note > summary {
   display: flex;
   align-items: center;
   gap: 7px;
@@ -3313,10 +3314,10 @@ td.mono { font-family: var(--f-mono); }
   list-style: none;
   user-select: none;
 }
-.t002-note summary::-webkit-details-marker {
+details.table-note > summary::-webkit-details-marker {
   display: none;
 }
-.t002-note summary::before {
+details.table-note > summary::before {
   content: "+";
   width: 14px;
   height: 14px;
@@ -3329,12 +3330,16 @@ td.mono { font-family: var(--f-mono); }
   font-size: 11px;
   line-height: 1;
 }
-.t002-note[open] summary::before {
+details.table-note[open] > summary::before {
   content: "−";
 }
 .t002-note-content {
   display: grid;
   gap: 3px;
+  margin-top: 7px;
+}
+/* 折疊說明展開後的內文間距（單層 details 用）*/
+details.table-note > :not(summary) {
   margin-top: 7px;
 }
 

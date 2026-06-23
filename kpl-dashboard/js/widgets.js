@@ -194,9 +194,10 @@ function renderM015(selectedYear) {
         </tr></thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="table-note">
-        📌 動支率 = 合計實際 ÷ 月預算（需載入年度預算）· 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
-      </div>
+      <details class="table-note">
+        <summary>說明</summary>
+        <div>📌 動支率 = 合計實際 ÷ 月預算（需載入年度預算）· 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險</div>
+      </details>
     </div>
   </div>`;
 }
@@ -584,7 +585,7 @@ function renderFreightDecisionTable() {
         </thead>
         <tbody>${rows}</tbody>
       </table>
-      <div class="table-note">運費預算由資料庫年度預算載入；若預算為空，頁面只呈現實際運費與占比。</div>
+      <details class="table-note"><summary>說明</summary><div>運費預算由資料庫年度預算載入；若預算為空，頁面只呈現實際運費與占比。</div></details>
     </div>
   </div>`;
 }
@@ -1450,10 +1451,11 @@ function renderF010() {
           <tbody>${rows}${summary}</tbody>
         </table>
       </div>
-      <div class="table-note">
-        📌 單日預算 = 月預算 ÷ ${totalDays} 天 · 動支率 = 實際 / 單日預算<br>
-        📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險
-      </div>
+      <details class="table-note">
+        <summary>說明</summary>
+        <div>📌 單日預算 = 月預算 ÷ ${totalDays} 天 · 動支率 = 實際 / 單日預算<br>
+        📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險</div>
+      </details>
     </div>
   </div>`;
 }
@@ -1901,11 +1903,12 @@ function renderM025(labor, picks, code = 'M025') {
         </tr></thead>
         <tbody>${trs}</tbody>
       </table>
-      <div class="table-note">
-        📌 PPH = 揀次 ÷ 工時 · 元/揀次 = 人力費用 ÷ 揀次 · 加班% = 加班工時 ÷ 總工時<br>
+      <details class="table-note">
+        <summary>說明</summary>
+        <div>📌 PPH = 揀次 ÷ 工時 · 元/揀次 = 人力費用 ÷ 揀次 · 加班% = 加班工時 ÷ 總工時<br>
         📌 加班工時 = 總工時 − 正常工時（需 Excel 含「正常時數」欄位）<br>
-        📌 揀次資料「工時區域」欄位需與人力資料「作業區域」欄位名稱對應
-      </div>
+        📌 揀次資料「工時區域」欄位需與人力資料「作業區域」欄位名稱對應</div>
+      </details>
     </div>
   </div>`;
 }
@@ -2092,9 +2095,10 @@ function renderLaborBizMatrix(picks, code = 'L011') {
           <tbody>${bodyRows}${totalRow}</tbody>
         </table>
       </div>
-      <div class="table-note">
-        📌 依揀次資料「倉別 × 業務類別」交叉彙總，數值為揀次數量
-      </div>
+      <details class="table-note">
+        <summary>說明</summary>
+        <div>📌 依揀次資料「倉別 × 業務類別」交叉彙總，數值為揀次數量</div>
+      </details>
     </div>
   </div>`;
 }
@@ -2314,10 +2318,11 @@ function renderAnnualTable(label, dotCls, budget, actual, WHS, totalBudget, tota
           </tr>
         </tbody>
       </table>
-      <div class="table-note">
-        📌 達成率 = 實際 ÷ 預算 · 顏色：🟢 &lt; 75% · 🟡 75–90% · 🔴 &gt; 90%<br>
-        📌 人力費用來源：工時 Excel · 運務費用來源：運務 Excel · 預算來源：年度預算V2
-      </div>
+      <details class="table-note">
+        <summary>說明</summary>
+        <div>📌 達成率 = 實際 ÷ 預算 · 顏色：🟢 &lt; 75% · 🟡 75–90% · 🔴 &gt; 90%<br>
+        📌 人力費用來源：工時 Excel · 運務費用來源：運務 Excel · 預算來源：年度預算V2</div>
+      </details>
     </div>
   </div>`;
 }
@@ -2552,7 +2557,7 @@ function renderM011(laborByWh, freightByWh, budget) {
           <tbody>${dataRows.join('')}${totalRow}</tbody>
         </table>
       </div>
-      ${hasBudget ? `<div class="table-note">📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險 · 預算來源：年度預算 ${monthLabel} 月</div>` : ''}
+      ${hasBudget ? `<details class="table-note"><summary>說明</summary><div>📌 三色門檻：&lt; 75% 🟢 安全 · 75–90% 🟡 注意 · &gt; 90% 🔴 危險 · 預算來源：年度預算 ${monthLabel} 月</div></details>` : ''}
     </div>
   </div>`;
 }
@@ -2674,7 +2679,7 @@ function renderMEfficiency(labor, picks) {
         <tbody>${rows}${totRow}</tbody>
       </table>
     </div>
-    <div class="table-note">📌 PPH = 揀次 ÷ 工時 · 元/揀次 = 人力費用 ÷ 揀次 · 加班% = 加班工時 ÷ 總工時</div>
+    <details class="table-note"><summary>說明</summary><div>📌 PPH = 揀次 ÷ 工時 · 元/揀次 = 人力費用 ÷ 揀次 · 加班% = 加班工時 ÷ 總工時</div></details>
   </div>`;
 }
 
