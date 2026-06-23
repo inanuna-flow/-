@@ -5,10 +5,17 @@
 // ── 超級管理員設定 ──
 const ADMIN_USER_ID = 'inari';
 let currentUserId = '';
+let currentUserLevel = 'C'; // A=讀全部 / B=不能讀後台管理 / C=不能讀後台管理與資料管理
 let pagePermissions = {}; // 從伺服器載入
 
+// 取得目前帳號級別（A/B/C）
+function getUserLevel() {
+  return currentUserLevel || sessionStorage.getItem('kpl_level') || 'C';
+}
+
+// A 級 = 系統管理員，可讀全部（含後台管理）
 function isAdmin() {
-  return (currentUserId || sessionStorage.getItem('kpl_user') || '').toLowerCase() === ADMIN_USER_ID;
+  return getUserLevel() === 'A';
 }
 
 function handleAuthExpired(res) {
@@ -28,7 +35,9 @@ async function loadSession() {
   }
   const data = await res.json();
   currentUserId = String(data.userId || '');
+  currentUserLevel = data.level || (data.isAdmin ? 'A' : 'C');
   sessionStorage.setItem('kpl_user', currentUserId);
+  sessionStorage.setItem('kpl_level', currentUserLevel);
   sessionStorage.setItem('kpl_auth', '1');
   return true;
 }
@@ -41,8 +50,26 @@ async function loadPagePermissions() {
   } catch { /* 若載入失敗，管理員帳號仍可看全部 */ }
 }
 
+// 頁面需要的最低級別：後台管理頁=A、資料管理頁=B、其餘=C（人人可讀）
+function pageMinLevel(pageId) {
+  const group = (PAGES.find(g => g.items.some(i => i.id === pageId)) || {}).group || '';
+  if (group.includes('後台管理')) return 'A';
+  if (group.includes('資料管理')) return 'B';
+  return 'C';
+}
+
+// 級別大小：A > B > C
+function levelMeets(userLevel, minLevel) {
+  const rank = { A: 3, B: 2, C: 1 };
+  return (rank[userLevel] || 1) >= (rank[minLevel] || 1);
+}
+
 function isPageVisible(pageId) {
-  if (isAdmin()) return true; // 管理員永遠看得到所有頁面
+  const level = getUserLevel();
+  // 先檢查級別門檻（A 級全通過）
+  if (!levelMeets(level, pageMinLevel(pageId))) return false;
+  if (level === 'A') return true; // A 級看得到所有頁面
+  // B/C 級在通過門檻後，再受管理員的頁面隱藏設定限制
   return pagePermissions[pageId] !== false;
 }
 
@@ -412,8 +439,8 @@ function loadPage(pageId) {
     return;
   }
 
-  // 非管理員：檢查頁面是否有權限
-  if (!isAdmin() && pagePermissions[pageId] === false) {
+  // 級別＋管理員隱藏設定：不可見的頁面一律轉回每日動支監控
+  if (!isPageVisible(pageId)) {
     navigate(null, 'daily');
     return;
   }
@@ -611,11 +638,23 @@ function renderAccountManagementPage(pageId) {
       <div class="grid">
         <div class="w s12">
           <div class="wh">
+            <div class="wl"><div class="wdot"></div>帳號級別說明</div>
+            <span class="wmeta">A / B / C 三級</span>
+          </div>
+          <div style="padding:14px 18px;font-size:13px;color:var(--app-text);line-height:1.9">
+            🅰️ <b>A 級</b>：讀全部（含後台管理、資料管理）<br>
+            🅱️ <b>B 級</b>：不能讀「後台管理」，其餘（含資料管理）可讀<br>
+            🅲 <b>C 級</b>：一般身分，不能讀「後台管理」與「資料管理」<br>
+            <span style="color:var(--app-muted)">📌 級別在帳號設定（LOCAL_ACCOUNTS 環境變數）以「帳號:密碼:級別」設定，例如 <code>AD123:AD123:A</code>。公司 EIP 登入的員工預設為 C 級。</span>
+          </div>
+        </div>
+        <div class="w s12">
+          <div class="wh">
             <div class="wl"><div class="wdot"></div>一般帳號可見頁面</div>
-            <span class="wmeta">管理員設定</span>
+            <span class="wmeta">B / C 級適用</span>
           </div>
           <div style="padding:12px 18px 4px;font-size:13px;color:var(--app-muted)">
-            控制一般帳號可以看到哪些頁面。管理員帳號（inari）永遠可以看到全部頁面。
+            在級別允許的範圍內，進一步控制 B / C 級帳號可看到哪些頁面。A 級永遠看得到全部。
           </div>
           <div class="admin-permission-table-frame">
             <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">

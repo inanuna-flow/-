@@ -11,7 +11,18 @@ const EIP_CHECK_USER_URL = 'https://eip.fme.com.tw/FMEIP/AasApi/CheckUserId';
 const PERMISSIONS_FILE = path.join(ROOT, 'page_permissions.json');
 const ADMIN_USER_ID = (process.env.ADMIN_USER_ID || 'inari').toLowerCase();
 
-// 本地帳號：格式 "帳號:密碼:角色,帳號2:密碼2:角色2"，角色填 admin 或 user
+// 本地帳號：格式 "帳號:密碼:級別,帳號2:密碼2:級別2"
+//   級別 A = 讀全部（含後台管理、資料管理）
+//   級別 B = 不能讀後台管理（其餘可讀，含資料管理）
+//   級別 C = 不能讀後台管理與資料管理（一般身分）
+//   相容舊值：admin→A、user→C；未填或不符→C
+function normalizeAccountLevel(role) {
+  const r = String(role || '').trim().toUpperCase();
+  if (r === 'A' || r === 'ADMIN') return 'A';
+  if (r === 'B') return 'B';
+  if (r === 'C' || r === 'USER') return 'C';
+  return 'C';
+}
 const LOCAL_ACCOUNTS = (() => {
   const raw = process.env.LOCAL_ACCOUNTS || '';
   const map = new Map();
@@ -20,7 +31,8 @@ const LOCAL_ACCOUNTS = (() => {
     if (!u || !p) continue;
     const salt = 'kpl-local-' + u.toLowerCase();
     const hash = crypto.pbkdf2Sync(p, salt, 10000, 32, 'sha256').toString('hex');
-    map.set(u.toLowerCase(), { hash, isAdmin: role === 'admin' });
+    const level = normalizeAccountLevel(role);
+    map.set(u.toLowerCase(), { hash, level, isAdmin: level === 'A' });
   }
   return map;
 })();
@@ -266,6 +278,31 @@ function requireSession(req, res) {
   return session;
 }
 
+// 取得 session 的級別（A/B/C）：本地帳號用設定值；inari→A；其餘→C
+function sessionLevel(session) {
+  if (!session) return 'C';
+  const localAcc = LOCAL_ACCOUNTS.get(session.userId);
+  if (localAcc) return localAcc.level;
+  return session.userId === ADMIN_USER_ID ? 'A' : 'C';
+}
+function sessionIsAdmin(session) {
+  return sessionLevel(session) === 'A';
+}
+// 某帳號(userId)是否為 A 級：本地帳號看設定，inari→A，其餘→否
+function userIdIsAdmin(userId) {
+  const localAcc = LOCAL_ACCOUNTS.get(String(userId || '').toLowerCase());
+  if (localAcc) return localAcc.level === 'A';
+  return String(userId || '').toLowerCase() === ADMIN_USER_ID;
+}
+// 驗證本地帳號密碼；回傳 true/false；若非本地帳號回傳 null（代表需走 EIP）
+function verifyLocalPassword(userId, password) {
+  const localAcc = LOCAL_ACCOUNTS.get(String(userId || '').toLowerCase());
+  if (!localAcc) return null;
+  const salt = 'kpl-local-' + String(userId).toLowerCase();
+  const inputHash = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256').toString('hex');
+  return inputHash === localAcc.hash;
+}
+
 function handleSession(req, res) {
   if (req.method !== 'GET') {
     sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' });
@@ -274,10 +311,13 @@ function handleSession(req, res) {
   const session = requireSession(req, res);
   if (!session) return;
   const localAcc = LOCAL_ACCOUNTS.get(session.userId);
+  // 級別：本地帳號用設定值；非本地帳號 = 系統管理員(inari) → A，其餘(EIP 一般員工) → C
+  const level = localAcc ? localAcc.level : (session.userId === ADMIN_USER_ID ? 'A' : 'C');
   sendJson(res, 200, {
     ok: true,
     userId: session.userId,
-    isAdmin: localAcc ? localAcc.isAdmin : session.userId === ADMIN_USER_ID,
+    level,
+    isAdmin: level === 'A',
   });
 }
 
@@ -750,7 +790,7 @@ async function handleSavePermissions(req, res) {
     sendJson(res, 400, { ok: false, MSG: '999 請提供帳號與密碼' });
     return;
   }
-  if (userId !== ADMIN_USER_ID) {
+  if (!userIdIsAdmin(userId)) {
     sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' });
     return;
   }
@@ -759,30 +799,38 @@ async function handleSavePermissions(req, res) {
     return;
   }
 
-  // 重新驗證身份
-  try {
-    const upstream = await fetch(EIP_CHECK_USER_URL, {
-      method: 'POST',
-      headers: {
-        'Accept': 'application/json, text/plain, */*',
-        'Content-Type': 'application/json',
-        'Origin': 'https://eip.fme.com.tw',
-        'Referer': 'https://eip.fme.com.tw/FMEIP/',
-        'User-Agent': 'Mozilla/5.0 KPL-Dashboard-Auth-Proxy',
-      },
-      body: JSON.stringify({ USER_ID: body.USER_ID, PSW: password }),
-    });
-    const text = await upstream.text();
-    let data;
-    try { data = JSON.parse(text); } catch { data = {}; }
-    if (!String(data.MSG || '').startsWith('000')) {
+  // 重新驗證身份：本地帳號用本地密碼，其餘走 EIP
+  const localCheck = verifyLocalPassword(userId, password);
+  if (localCheck !== null) {
+    if (!localCheck) {
       sendJson(res, 401, { ok: false, MSG: '401 密碼驗證失敗，權限未儲存' });
       return;
     }
-  } catch (err) {
-    console.error('[permissions] EIP 連線錯誤:', err.message);
-    sendJson(res, 502, { ok: false, MSG: '999 無法連線至 EIP，請稍後再試' });
-    return;
+  } else {
+    try {
+      const upstream = await fetch(EIP_CHECK_USER_URL, {
+        method: 'POST',
+        headers: {
+          'Accept': 'application/json, text/plain, */*',
+          'Content-Type': 'application/json',
+          'Origin': 'https://eip.fme.com.tw',
+          'Referer': 'https://eip.fme.com.tw/FMEIP/',
+          'User-Agent': 'Mozilla/5.0 KPL-Dashboard-Auth-Proxy',
+        },
+        body: JSON.stringify({ USER_ID: body.USER_ID, PSW: password }),
+      });
+      const text = await upstream.text();
+      let data;
+      try { data = JSON.parse(text); } catch { data = {}; }
+      if (!String(data.MSG || '').startsWith('000')) {
+        sendJson(res, 401, { ok: false, MSG: '401 密碼驗證失敗，權限未儲存' });
+        return;
+      }
+    } catch (err) {
+      console.error('[permissions] EIP 連線錯誤:', err.message);
+      sendJson(res, 502, { ok: false, MSG: '999 無法連線至 EIP，請稍後再試' });
+      return;
+    }
   }
 
   const sanitized = {};
@@ -1968,7 +2016,7 @@ function handleFreightGone(req, res) {
 async function handleAdminIpRules(req, res, pathname) {
   const session = getSession(req);
   if (!session) { sendJson(res, 401, { ok: false, MSG: '401 請先登入' }); return; }
-  if (session.userId !== ADMIN_USER_ID) { sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' }); return; }
+  if (!sessionIsAdmin(session)) { sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' }); return; }
 
   const pool = getDbPool();
   if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 資料庫未設定' }); return; }
@@ -2081,7 +2129,7 @@ async function handleAdminIpRules(req, res, pathname) {
 async function handleAdminMyIp(req, res) {
   const session = getSession(req);
   if (!session) { sendJson(res, 401, { ok: false, MSG: '401 請先登入' }); return; }
-  if (session.userId !== ADMIN_USER_ID) { sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' }); return; }
+  if (!sessionIsAdmin(session)) { sendJson(res, 403, { ok: false, MSG: '403 僅限管理員操作' }); return; }
   sendJson(res, 200, { ok: true, ip: getClientIp(req) });
 }
 
