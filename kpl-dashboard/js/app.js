@@ -686,6 +686,48 @@ function renderAccountManagementPage(pageId) {
             <div id="admin-msg" style="margin-top:10px;font-size:13px;display:none"></div>
           </div>
         </div>
+
+        <div class="w s12">
+          <div class="wh">
+            <div class="wl"><div class="wdot"></div>帳號管理（A / B / C）</div>
+            <span class="wmeta">新增 / 改級別 / 停用</span>
+          </div>
+          <div style="padding:12px 18px 4px;font-size:13px;color:var(--app-muted)">
+            線上建立帳號並設定權限級別。帳號資料存於 Cloud SQL。環境變數設定的帳號（如 AD123）不會出現在此清單，仍可正常登入。
+          </div>
+          <div style="padding:8px 18px 16px">
+            <div style="display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;margin-bottom:14px">
+              <div style="flex:1;min-width:120px">
+                <label style="display:block;font-size:11px;font-weight:700;color:var(--app-muted);margin-bottom:4px">帳號</label>
+                <input type="text" id="new-acc-uid" placeholder="帳號" autocomplete="off"
+                  style="width:100%;padding:9px 12px;border:1.5px solid var(--app-border);border-radius:4px;font-size:13px;background:var(--app-surface);color:var(--app-text)">
+              </div>
+              <div style="flex:1;min-width:120px">
+                <label style="display:block;font-size:11px;font-weight:700;color:var(--app-muted);margin-bottom:4px">密碼</label>
+                <input type="text" id="new-acc-psw" placeholder="密碼" autocomplete="off"
+                  style="width:100%;padding:9px 12px;border:1.5px solid var(--app-border);border-radius:4px;font-size:13px;background:var(--app-surface);color:var(--app-text)">
+              </div>
+              <div style="min-width:90px">
+                <label style="display:block;font-size:11px;font-weight:700;color:var(--app-muted);margin-bottom:4px">級別</label>
+                <select id="new-acc-level"
+                  style="width:100%;padding:9px 12px;border:1.5px solid var(--app-border);border-radius:4px;font-size:13px;background:var(--app-surface);color:var(--app-text)">
+                  <option value="C">C 級</option>
+                  <option value="B">B 級</option>
+                  <option value="A">A 級</option>
+                </select>
+              </div>
+              <button onclick="addDbAccount()"
+                style="padding:9px 22px;background:#1e5ca8;color:#fff;border:none;border-radius:4px;font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap">＋ 新增帳號</button>
+            </div>
+            <div id="accounts-msg" style="margin-bottom:10px;font-size:13px;display:none"></div>
+            <div class="admin-permission-table-frame">
+              <table class="ops-compact-table admin-permission-table" style="width:100%;border-collapse:collapse">
+                <thead><tr><th>帳號</th><th>級別</th><th>狀態</th><th>建立者</th><th>操作</th></tr></thead>
+                <tbody id="accounts-tbody"><tr><td colspan="5" style="text-align:center;color:var(--app-muted);padding:16px">載入中…</td></tr></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
       </div>
 
       <style>
@@ -701,6 +743,7 @@ function renderAccountManagementPage(pageId) {
       .admin-toggle input:checked + .admin-toggle-slider { background:#1e5ca8; }
       .admin-toggle input:checked + .admin-toggle-slider:before { transform:translateX(20px); }
       </style>`;
+    loadDbAccounts();
     return;
   }
 
@@ -934,6 +977,119 @@ async function toggleIpRule(id, isActive) {
 
 function showIpRulesMsg(text, type) {
   const el = document.getElementById('ip-rules-msg');
+  if (!el) return;
+  el.style.display = 'block';
+  el.style.color = type === 'error' ? 'var(--app-danger)' : 'var(--app-success)';
+  el.textContent = text;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+// ── 帳號管理（A/B/C，存 Cloud SQL）──
+const ACC_LEVEL_LABEL = { A: 'A 級 · 讀全部', B: 'B 級 · 不含後台', C: 'C 級 · 一般' };
+
+async function loadDbAccounts() {
+  const tbody = document.getElementById('accounts-tbody');
+  if (!tbody) return;
+  try {
+    const res = await fetch('/api/admin/accounts');
+    if (handleAuthExpired(res)) return;
+    const data = await res.json();
+    if (!res.ok || !data.ok) {
+      tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--app-muted);padding:16px">${data.MSG || '無法載入帳號'}</td></tr>`;
+      return;
+    }
+    renderDbAccountsTable(data.accounts || []);
+  } catch (err) {
+    tbody.innerHTML = `<tr><td colspan="5" style="text-align:center;color:var(--app-muted);padding:16px">載入失敗：${err.message}</td></tr>`;
+  }
+}
+
+function renderDbAccountsTable(accounts) {
+  const tbody = document.getElementById('accounts-tbody');
+  if (!tbody) return;
+  if (!accounts.length) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:var(--app-muted);padding:16px">尚無帳號，請於上方新增</td></tr>';
+    return;
+  }
+  tbody.innerHTML = accounts.map(a => {
+    const levelSel = `<select onchange="updateDbAccountLevel(${a.id}, this.value)" style="padding:4px 8px;border:1px solid var(--app-border);border-radius:4px;background:var(--app-surface);color:var(--app-text);font-size:12px">
+      ${['A', 'B', 'C'].map(l => `<option value="${l}" ${a.level === l ? 'selected' : ''}>${ACC_LEVEL_LABEL[l]}</option>`).join('')}
+    </select>`;
+    const status = a.is_active
+      ? '<span style="color:var(--app-success);font-weight:700">啟用</span>'
+      : '<span style="color:var(--app-muted)">停用</span>';
+    const action = a.is_active
+      ? `<button onclick="toggleDbAccount(${a.id}, false)" style="padding:4px 12px;background:transparent;border:1px solid var(--app-danger);color:var(--app-danger);border-radius:4px;font-size:12px;cursor:pointer">停用</button>`
+      : `<button onclick="toggleDbAccount(${a.id}, true)" style="padding:4px 12px;background:transparent;border:1px solid var(--app-success);color:var(--app-success);border-radius:4px;font-size:12px;cursor:pointer">啟用</button>`;
+    return `<tr>
+      <td style="font-weight:700">${a.user_id}</td>
+      <td>${levelSel}</td>
+      <td>${status}</td>
+      <td class="mono" style="color:var(--app-muted);font-size:12px">${a.created_by || '—'}</td>
+      <td>${action}</td>
+    </tr>`;
+  }).join('');
+}
+
+async function addDbAccount() {
+  const uid = (document.getElementById('new-acc-uid')?.value || '').trim();
+  const psw = document.getElementById('new-acc-psw')?.value || '';
+  const level = document.getElementById('new-acc-level')?.value || 'C';
+  if (!uid || !psw) { showAccountsMsg('❌ 請輸入帳號與密碼', 'error'); return; }
+  try {
+    const res = await fetch('/api/admin/accounts', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ user_id: uid, password: psw, level }),
+    });
+    if (handleAuthExpired(res)) return;
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showAccountsMsg(`❌ ${data.MSG || '新增失敗'}`, 'error'); return; }
+    document.getElementById('new-acc-uid').value = '';
+    document.getElementById('new-acc-psw').value = '';
+    showAccountsMsg('✅ 帳號已新增', 'ok');
+    await loadDbAccounts();
+  } catch (err) {
+    showAccountsMsg(`❌ 網路錯誤：${err.message}`, 'error');
+  }
+}
+
+async function updateDbAccountLevel(id, level) {
+  try {
+    const res = await fetch(`/api/admin/accounts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ level }),
+    });
+    if (handleAuthExpired(res)) return;
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showAccountsMsg(`❌ ${data.MSG || '更新失敗'}`, 'error'); await loadDbAccounts(); return; }
+    showAccountsMsg('✅ 級別已更新（該帳號下次登入生效）', 'ok');
+  } catch (err) {
+    showAccountsMsg(`❌ 網路錯誤：${err.message}`, 'error');
+  }
+}
+
+async function toggleDbAccount(id, active) {
+  try {
+    const res = await fetch(`/api/admin/accounts/${id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ is_active: active }),
+    });
+    if (handleAuthExpired(res)) return;
+    const data = await res.json();
+    if (!res.ok || !data.ok) { showAccountsMsg(`❌ ${data.MSG || '操作失敗'}`, 'error'); return; }
+    showAccountsMsg(active ? '✅ 帳號已啟用' : '✅ 帳號已停用', 'ok');
+    await loadDbAccounts();
+  } catch (err) {
+    showAccountsMsg(`❌ 網路錯誤：${err.message}`, 'error');
+  }
+}
+
+function showAccountsMsg(text, type) {
+  const el = document.getElementById('accounts-msg');
   if (!el) return;
   el.style.display = 'block';
   el.style.color = type === 'error' ? 'var(--app-danger)' : 'var(--app-success)';

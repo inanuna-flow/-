@@ -182,6 +182,10 @@ function resetRateLimit(ip) {
 // ── IP 黑名單 ──
 let ipBlocklistCache = []; // { id, ipCidr, label }
 
+// ── DB 帳號快取（user_accounts 表，僅 is_active）──
+// key = user_id 小寫，值 { hash, salt, level, isActive }
+const dbAccountsCache = new Map();
+
 function ipToUint32(ip) {
   const parts = ip.split('.');
   if (parts.length !== 4) return null;
@@ -239,6 +243,27 @@ async function reloadIpBlocklistCache() {
   }
 }
 
+// ── DB 帳號快取載入 ──
+async function reloadDbAccountsCache() {
+  const pool = getDbPool();
+  if (!pool) { dbAccountsCache.clear(); return; } // DB 未設定 → 空快取，不報錯
+  try {
+    const { rows } = await pool.query(
+      `SELECT user_id, password_hash, password_salt, level, is_active
+       FROM ${schemaTable('user_accounts')} WHERE is_active = TRUE`
+    );
+    dbAccountsCache.clear();
+    rows.forEach(r => dbAccountsCache.set(String(r.user_id).toLowerCase(), {
+      hash: r.password_hash, salt: r.password_salt, level: r.level, isActive: r.is_active,
+    }));
+    console.log(`[accounts] 已載入 ${dbAccountsCache.size} 個本地帳號`);
+  } catch (err) {
+    dbAccountsCache.clear();
+    console.error('[accounts] 載入失敗（表可能尚未建立）:', err.message);
+    throw err;
+  }
+}
+
 // ── Session 管理 ──
 function createSession(userId) {
   const token = crypto.randomBytes(32).toString('hex');
@@ -278,29 +303,42 @@ function requireSession(req, res) {
   return session;
 }
 
-// 取得 session 的級別（A/B/C）：本地帳號用設定值；inari→A；其餘→C
+// 取得 session 的級別（A/B/C）：環境變數帳號 → DB 帳號 → inari→A → 其餘 C
 function sessionLevel(session) {
   if (!session) return 'C';
   const localAcc = LOCAL_ACCOUNTS.get(session.userId);
   if (localAcc) return localAcc.level;
+  const dbAcc = dbAccountsCache.get(session.userId);
+  if (dbAcc) return dbAcc.level;
   return session.userId === ADMIN_USER_ID ? 'A' : 'C';
 }
 function sessionIsAdmin(session) {
   return sessionLevel(session) === 'A';
 }
-// 某帳號(userId)是否為 A 級：本地帳號看設定，inari→A，其餘→否
+// 某帳號(userId)是否為 A 級：環境變數帳號 → DB 帳號 → inari
 function userIdIsAdmin(userId) {
-  const localAcc = LOCAL_ACCOUNTS.get(String(userId || '').toLowerCase());
+  const uid = String(userId || '').toLowerCase();
+  const localAcc = LOCAL_ACCOUNTS.get(uid);
   if (localAcc) return localAcc.level === 'A';
-  return String(userId || '').toLowerCase() === ADMIN_USER_ID;
+  const dbAcc = dbAccountsCache.get(uid);
+  if (dbAcc) return dbAcc.level === 'A';
+  return uid === ADMIN_USER_ID;
 }
-// 驗證本地帳號密碼；回傳 true/false；若非本地帳號回傳 null（代表需走 EIP）
+// 驗證本地帳號密碼；回傳 true/false；若非本地帳號（環境變數或 DB）回傳 null（代表需走 EIP）
 function verifyLocalPassword(userId, password) {
-  const localAcc = LOCAL_ACCOUNTS.get(String(userId || '').toLowerCase());
-  if (!localAcc) return null;
-  const salt = 'kpl-local-' + String(userId).toLowerCase();
-  const inputHash = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256').toString('hex');
-  return inputHash === localAcc.hash;
+  const uid = String(userId || '').toLowerCase();
+  const localAcc = LOCAL_ACCOUNTS.get(uid);
+  if (localAcc) {
+    const salt = 'kpl-local-' + uid;
+    const inputHash = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256').toString('hex');
+    return inputHash === localAcc.hash;
+  }
+  const dbAcc = dbAccountsCache.get(uid);
+  if (dbAcc) {
+    const inputHash = crypto.pbkdf2Sync(password, dbAcc.salt, 10000, 32, 'sha256').toString('hex');
+    return inputHash === dbAcc.hash;
+  }
+  return null;
 }
 
 function handleSession(req, res) {
@@ -622,6 +660,27 @@ async function handleCheckUser(req, res) {
     const salt = 'kpl-local-' + userId.toLowerCase();
     const inputHash = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256').toString('hex');
     if (inputHash === localAccount.hash) {
+      resetRateLimit(ip);
+      const token = createSession(userId.toLowerCase());
+      res.writeHead(200, {
+        'Content-Type': 'application/json; charset=utf-8',
+        'Cache-Control': 'no-store',
+        'Set-Cookie': sessionCookieHeader(token),
+        ...SECURITY_HEADERS,
+      });
+      res.end(JSON.stringify({ ok: true, MSG: '000 登入成功' }));
+      return;
+    } else {
+      sendJson(res, 200, { ok: false, MSG: '001 帳號或密碼錯誤' });
+      return;
+    }
+  }
+
+  // 再查 DB 帳號（user_accounts 表，僅啟用中），命中則跳過 EIP
+  const dbAccount = dbAccountsCache.get(userId.toLowerCase());
+  if (dbAccount) {
+    const inputHash = crypto.pbkdf2Sync(password, dbAccount.salt, 10000, 32, 'sha256').toString('hex');
+    if (inputHash === dbAccount.hash) {
       resetRateLimit(ip);
       const token = createSession(userId.toLowerCase());
       res.writeHead(200, {
@@ -2125,6 +2184,137 @@ async function handleAdminIpRules(req, res, pathname) {
   sendJson(res, 405, { ok: false, MSG: '405 Method Not Allowed' });
 }
 
+// ── 後台帳號管理 API（user_accounts 表，僅 A 級可操作）──
+async function handleAdminAccounts(req, res, pathname) {
+  const session = getSession(req);
+  if (!session) { sendJson(res, 401, { ok: false, MSG: '401 請先登入' }); return; }
+  if (!sessionIsAdmin(session)) { sendJson(res, 403, { ok: false, MSG: '403 僅限 A 級管理員操作' }); return; }
+
+  const pool = getDbPool();
+  if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 資料庫未設定，無法管理帳號' }); return; }
+
+  // 表不存在（42P01）時統一回友善訊息
+  const tableMissing = err => err && err.code === '42P01';
+  const NO_TABLE_MSG = '503 帳號表尚未建立，請先執行 migration 004（database/migrations/004_user_accounts.sql）';
+
+  // GET — 列出所有帳號（不回傳 hash/salt）
+  if (req.method === 'GET' && pathname === '/api/admin/accounts') {
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, user_id, level, is_active, created_by, created_at
+         FROM ${schemaTable('user_accounts')} ORDER BY created_at DESC`
+      );
+      sendJson(res, 200, { ok: true, accounts: rows });
+    } catch (err) {
+      if (tableMissing(err)) { sendJson(res, 503, { ok: false, MSG: NO_TABLE_MSG }); return; }
+      console.error('[accounts] GET 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 查詢失敗' });
+    }
+    return;
+  }
+
+  // POST — 新增帳號（隨機 salt）
+  if (req.method === 'POST' && pathname === '/api/admin/accounts') {
+    let body;
+    try {
+      const raw = await readRequestBody(req, 1024);
+      body = JSON.parse(raw || '{}');
+    } catch {
+      sendJson(res, 400, { ok: false, MSG: '999 資料格式錯誤' });
+      return;
+    }
+    const uid = String(body.user_id || '').trim().toLowerCase();
+    const password = String(body.password || '');
+    const level = normalizeAccountLevel(body.level);
+    if (!uid || !password) { sendJson(res, 400, { ok: false, MSG: '400 帳號與密碼不可為空' }); return; }
+    if (uid.length > 64 || password.length > 128) { sendJson(res, 400, { ok: false, MSG: '400 帳號或密碼過長' }); return; }
+    const salt = crypto.randomBytes(16).toString('hex');
+    const hash = crypto.pbkdf2Sync(password, salt, 10000, 32, 'sha256').toString('hex');
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO ${schemaTable('user_accounts')} (user_id, password_hash, password_salt, level, created_by)
+         VALUES ($1, $2, $3, $4, $5)
+         RETURNING id, user_id, level, is_active, created_by, created_at`,
+        [uid, hash, salt, level, session.userId]
+      );
+      let cacheStale = false;
+      try { await reloadDbAccountsCache(); } catch { cacheStale = true; }
+      sendJson(res, 201, { ok: true, account: rows[0], cacheStale });
+    } catch (err) {
+      if (err.code === '23505') { sendJson(res, 409, { ok: false, MSG: '409 此帳號已存在' }); return; }
+      if (tableMissing(err)) { sendJson(res, 503, { ok: false, MSG: NO_TABLE_MSG }); return; }
+      console.error('[accounts] POST 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 新增失敗' });
+    }
+    return;
+  }
+
+  // PATCH /api/admin/accounts/:id — 改級別 / 重設密碼 / 停用啟用
+  const idMatch = pathname.match(/^\/api\/admin\/accounts\/(\d+)$/);
+  if (req.method === 'PATCH' && idMatch) {
+    const id = parseInt(idMatch[1], 10);
+    let body;
+    try {
+      const raw = await readRequestBody(req, 1024);
+      body = JSON.parse(raw || '{}');
+    } catch {
+      sendJson(res, 400, { ok: false, MSG: '999 資料格式錯誤' });
+      return;
+    }
+    const sets = [];
+    const params = [];
+    let i = 1;
+    if (body.level !== undefined) { sets.push(`level = $${i++}`); params.push(normalizeAccountLevel(body.level)); }
+    if (body.is_active !== undefined) { sets.push(`is_active = $${i++}`); params.push(body.is_active === true); }
+    if (body.password) {
+      const salt = crypto.randomBytes(16).toString('hex');
+      const hash = crypto.pbkdf2Sync(String(body.password), salt, 10000, 32, 'sha256').toString('hex');
+      sets.push(`password_hash = $${i++}`); params.push(hash);
+      sets.push(`password_salt = $${i++}`); params.push(salt);
+    }
+    if (!sets.length) { sendJson(res, 400, { ok: false, MSG: '400 沒有要更新的欄位' }); return; }
+    sets.push('updated_at = NOW()');
+    params.push(id);
+    try {
+      const { rows, rowCount } = await pool.query(
+        `UPDATE ${schemaTable('user_accounts')} SET ${sets.join(', ')} WHERE id = $${i}
+         RETURNING id, user_id, level, is_active, created_by, created_at`,
+        params
+      );
+      if (rowCount === 0) { sendJson(res, 404, { ok: false, MSG: '404 帳號不存在' }); return; }
+      let cacheStale = false;
+      try { await reloadDbAccountsCache(); } catch { cacheStale = true; }
+      sendJson(res, 200, { ok: true, account: rows[0], cacheStale });
+    } catch (err) {
+      if (tableMissing(err)) { sendJson(res, 503, { ok: false, MSG: NO_TABLE_MSG }); return; }
+      console.error('[accounts] PATCH 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 更新失敗' });
+    }
+    return;
+  }
+
+  // DELETE /api/admin/accounts/:id — 軟刪除（停用）
+  if (req.method === 'DELETE' && idMatch) {
+    const id = parseInt(idMatch[1], 10);
+    try {
+      const { rowCount } = await pool.query(
+        `UPDATE ${schemaTable('user_accounts')} SET is_active = FALSE, updated_at = NOW() WHERE id = $1`, [id]
+      );
+      if (rowCount === 0) { sendJson(res, 404, { ok: false, MSG: '404 帳號不存在' }); return; }
+      let cacheStale = false;
+      try { await reloadDbAccountsCache(); } catch { cacheStale = true; }
+      sendJson(res, 200, { ok: true, cacheStale });
+    } catch (err) {
+      if (tableMissing(err)) { sendJson(res, 503, { ok: false, MSG: NO_TABLE_MSG }); return; }
+      console.error('[accounts] DELETE 失敗:', err.message);
+      sendJson(res, 500, { ok: false, MSG: '999 刪除失敗' });
+    }
+    return;
+  }
+
+  sendJson(res, 405, { ok: false, MSG: '405 Method Not Allowed' });
+}
+
 // 讓管理員在封鎖 IP 前看到自己目前的 IP，避免誤鎖自己
 async function handleAdminMyIp(req, res) {
   const session = getSession(req);
@@ -2175,6 +2365,12 @@ const server = http.createServer((req, res) => {
     return;
   }
 
+  // 後台帳號管理 API（GET / POST / PATCH / DELETE）
+  if (pathname === '/api/admin/accounts' || pathname.startsWith('/api/admin/accounts/')) {
+    handleAdminAccounts(req, res, pathname);
+    return;
+  }
+
   if (pathname === '/api/admin/my-ip') {
     handleAdminMyIp(req, res);
     return;
@@ -2206,4 +2402,5 @@ process.on('uncaughtException', (err) => {
 server.listen(PORT, () => {
   console.log(`KPL dashboard running at http://localhost:${PORT}/`);
   reloadIpBlocklistCache().catch(err => console.error('[ip-blocklist] 啟動載入失敗:', err.message));
+  reloadDbAccountsCache().catch(err => console.error('[accounts] 啟動載入失敗（表可能尚未建立）:', err.message));
 });
