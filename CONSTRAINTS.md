@@ -88,11 +88,12 @@ POST   /api/import/freight-non-mainline              ← 非主線運費（新�
 - `#freight-from`, `#freight-to`
 - `#picks-from`, `#picks-to`, `#picks-wh`, `#picks-op`, `#picks-date-meta`
 - `#labor-from`, `#labor-to`, `#labor-shift`, `#labor-vendor`, `#labor-date-meta`, `#labor-filter-meta`
+- `#attendance-from`, `#attendance-to`, `#attendance-emp-id`, `#attendance-emp-list`, `#attendance-date-meta`, `#attendance-meta`
 - `#productivity-from`, `#productivity-to`, `#productivity-date-meta`
 - `#monthly-from`, `#monthly-to`, `#monthly-date-meta`
 
 ### 各頁網格容器
-- `#daily-grid`, `#dispatch-grid`, `#freight-grid`, `#picks-grid`, `#labor-grid`
+- `#daily-grid`, `#dispatch-grid`, `#freight-grid`, `#picks-grid`, `#labor-grid`, `#attendance-grid`
 - `#productivity-grid`, `#monthly-grid`, `#annual-grid`, `#org-grid`, `#typography-grid`
 
 ### 各頁 meta 文字
@@ -124,8 +125,9 @@ POST   /api/import/freight-non-mainline              ← 非主線運費（新�
 - `applyFilter()` — daily
 - `applyDispatchFilter()` — dispatch
 - `applyFreightFilter()` — freight
-- `applyDashboardDateFilter('picks' | 'labor' | 'productivity' | 'monthly')`
+- `applyDashboardDateFilter('picks' | 'labor' | 'attendance' | 'productivity' | 'monthly')`
 - `renderPicksPage()`, `renderLaborPage()` — 給 select 的 onchange
+- `renderAttendancePage()` — 個人出勤頁員編 input 的 oninput（即時查詢；走既有 `/api/data/labor`，無新端點）
 
 ### 資料匯入頁
 - `onDragOver(event, dropId)`, `onDragLeave(dropId)`, `onDrop(event, type)`

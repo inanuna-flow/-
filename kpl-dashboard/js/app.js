@@ -86,6 +86,7 @@ const PAGES = [
     items: [
       { id:'freight',      icon:'🚚', label:'運費損益分析', status:'ready' },
       { id:'labor',        icon:'⏱', label:'人力工時結構', status:'ready' },
+      { id:'attendance',   icon:'👤', label:'個人出勤查詢', status:'ready' },
       { id:'costtrend',    icon:'📈', label:'每日費用趨勢', status:'ready' },
     ]
   },
@@ -464,6 +465,7 @@ function loadPage(pageId) {
   else if (pageId === 'freight') initFreightPage();
   else if (pageId === 'costtrend') initCostTrendPage();
   else if (pageId === 'labor')   initLaborPage();
+  else if (pageId === 'attendance') initAttendancePage();
   else if (pageId === 'import')  initImportPage();
   else if (pageId === 'org')     initOrgPage();
   else if (pageId === 'typography') initTypographyPage();
@@ -533,6 +535,7 @@ const DASHBOARD_DATE_FILTERS = {
   freight:      { from:'freight-from',      to:'freight-to',      meta:null },
   costtrend:    { from:'costtrend-from',    to:'costtrend-to',    meta:'costtrend-date-meta' },
   labor:        { from:'labor-from',        to:'labor-to',        meta:'labor-date-meta' },
+  attendance:   { from:'attendance-from',   to:'attendance-to',   meta:'attendance-date-meta' },
   monthly:      { from:'monthly-from',      to:'monthly-to',      meta:'monthly-date-meta' },
 };
 
@@ -1333,6 +1336,7 @@ function rerenderDashboardPage(pageId = currentPageId) {
   else if (pageId === 'freight') renderFreightPage();
   else if (pageId === 'costtrend') renderCostTrendPage();
   else if (pageId === 'labor') renderLaborPage();
+  else if (pageId === 'attendance') renderAttendancePage();
   else if (pageId === 'monthly') renderMonthlyPage();
   else if (pageId === 'annual') renderAnnualPage();
   normalizeDateFilterBars();
@@ -3580,6 +3584,126 @@ let laborDeptView = 'dept'; // 'dept' = 依課別 / 'area' = 依作業區
 function initLaborPage() {
   syncLaborDeptOptions();
   renderLaborPage();
+}
+
+// ── 個人出勤查詢 ──
+function syncAttendanceEmpOptions() {
+  const list = document.getElementById('attendance-emp-list');
+  if (!list) return;
+  const rawData = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
+  const ids = [...new Set(rawData.map(r => r.empId).filter(Boolean))]
+    .sort((a, b) => String(a).localeCompare(String(b), 'zh-Hant'));
+  list.innerHTML = ids.map(id => `<option value="${id}">`).join('');
+}
+
+function initAttendancePage() {
+  syncAttendanceEmpOptions();
+  renderAttendancePage();
+}
+
+function renderAttendancePage() {
+  syncDashboardDateInputs('attendance');
+  syncAttendanceEmpOptions();
+  const grid = document.getElementById('attendance-grid');
+  const meta = document.getElementById('attendance-meta');
+  if (!grid) return;
+
+  const emptyCard = (title, msg) => `
+    <div class="w s12" style="grid-column:1/-1">
+      <div class="wh"><div class="wl"><div class="wdot"></div>${title}</div></div>
+      <div style="padding:32px;text-align:center;color:var(--ry-muted);font-size:var(--fs-sm);line-height:1.8">${msg}</div>
+    </div>`;
+
+  const empId = (document.getElementById('attendance-emp-id')?.value || '').trim();
+  const rawData = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
+
+  if (!rawData.length) {
+    if (meta) meta.textContent = '資料：尚未匯入工時';
+    grid.innerHTML = emptyCard('尚未匯入工時資料', '請先到「資料匯入」上傳全區工時 Excel，套用後即可查詢個人出勤。');
+    return;
+  }
+  if (!empId) {
+    if (meta) meta.textContent = '請輸入員工編號';
+    grid.innerHTML = emptyCard('請輸入員工編號', '在上方「員工編號」欄輸入或選擇員編，即可查看該員工在所選日期區間的逐日出勤工時。');
+    return;
+  }
+
+  const data = rawData
+    .filter(r => r.empId === empId)
+    .filter(r => dateInSelectedRange(r.date))
+    .filter(r => r.opArea !== '午休時間' && r.hours > 0)
+    .sort((a, b) => a.date.localeCompare(b.date) || String(a.shift).localeCompare(String(b.shift)));
+
+  if (!data.length) {
+    if (meta) meta.textContent = `員編 ${empId}：此區間查無紀錄`;
+    grid.innerHTML = emptyCard('查無紀錄', `員編「${empId}」在 ${DATA.dateFrom} ~ ${DATA.dateTo} 沒有出勤工時紀錄。請確認員編或調整日期區間。`);
+    return;
+  }
+
+  const totalHrs  = data.reduce((s, r) => s + r.hours, 0);
+  const totalCost = data.reduce((s, r) => s + r.cost, 0);
+  const days = new Set(data.map(r => r.date)).size;
+  const avgHrs = days ? totalHrs / days : 0;
+  const depts = [...new Set(data.map(r => deptDisplayName(r.dept) || r.dept).filter(Boolean))];
+  const wanNum = v => (Number(v) || 0).toLocaleString('zh-TW', { maximumFractionDigits: 1 });
+
+  if (meta) meta.textContent = `員編 ${empId} · ${DATA.dateFrom} ~ ${DATA.dateTo} · ${days} 個出勤日 · ${data.length} 筆明細`;
+
+  const rows = data.map(r => `
+    <tr>
+      <td>${r.date}</td>
+      <td>${r.shift || '—'}</td>
+      <td>${deptDisplayName(r.dept) || r.dept || '—'}</td>
+      <td>${r.opArea || '—'}</td>
+      <td class="numeric">${r.hours.toFixed(1)}</td>
+      <td class="numeric">${fmtMoney(Math.round(r.cost))}</td>
+    </tr>`).join('');
+
+  grid.innerHTML = `
+  <div class="labor-kpi-grid" style="grid-column:1/-1">
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">📅</div>
+      <span class="labor-kpi-label">出勤天數</span>
+      <div class="labor-kpi-main">${days}</div>
+      <div class="labor-kpi-ctx">天</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">⏱️</div>
+      <span class="labor-kpi-label">總工時</span>
+      <div class="labor-kpi-main" style="color:var(--ry-blue)">${wanNum(totalHrs)}</div>
+      <div class="labor-kpi-ctx">小時</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">📈</div>
+      <span class="labor-kpi-label">平均每日工時</span>
+      <div class="labor-kpi-main" style="color:var(--app-success)">${avgHrs.toFixed(1)}</div>
+      <div class="labor-kpi-ctx">小時/天</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">💰</div>
+      <span class="labor-kpi-label">人力成本</span>
+      <div class="labor-kpi-main">${fmtMoney(Math.round(totalCost))}</div>
+      <div class="labor-kpi-ctx">${depts.join('、') || '—'}</div>
+    </div>
+  </div>
+  <div class="w s12" style="grid-column:1/-1">
+    <div class="wh"><div class="wl"><div class="wdot"></div>逐日出勤明細 · 員編 ${empId}</div></div>
+    <div class="table-edge">
+      <table class="tbl">
+        <thead>
+          <tr><th>日期</th><th>班別</th><th>課別</th><th>作業區域</th><th class="numeric">工時</th><th class="numeric">費用</th></tr>
+        </thead>
+        <tbody>${rows}</tbody>
+        <tfoot>
+          <tr>
+            <td colspan="4"><b>合計</b></td>
+            <td class="numeric"><b>${totalHrs.toFixed(1)}</b></td>
+            <td class="numeric"><b>${fmtMoney(Math.round(totalCost))}</b></td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  </div>`;
 }
 
 function syncLaborDeptOptions() {

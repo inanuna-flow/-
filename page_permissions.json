@@ -7,5 +7,6 @@
   "monthly": true,
   "annual": true,
   "import": true,
-  "org": true
+  "org": true,
+  "attendance": true
 }

@@ -89,6 +89,16 @@
   - 班別切換 `renderLaborPage()`
   - 課別切換 `renderLaborPage()`
 
+### 5b. `tpl-attendance` 個人出勤查詢 ⭐ 新增
+- **路由 id**：`attendance`（側邊欄「成本分析」群組）
+- **篩選器**：日期區間 + 員工編號（input + datalist 自動補全）
+- **內容**：摘要卡（出勤天數 / 總工時 / 平均每日工時 / 人力成本）+ 逐日出勤明細表（日期/班別/課別/作業區域/工時/費用）
+- **資料來源**：複用 `LABOR_RAW`（既有 `/api/data/labor`，**無新端點**），前端依員編 client-side 過濾
+- **互動**：
+  - 套用按鈕 `applyDashboardDateFilter('attendance')`
+  - 員編輸入 `oninput="renderAttendancePage()"`（即時查詢）
+- **備註**：雲端只存員編不存姓名；排除「午休時間」與 0 工時列
+
 ### 6. `tpl-productivity` 揀次人效分析
 - **路由 id**：`productivity`
 - **篩選器**：日期區間

@@ -45,7 +45,7 @@ const DB_HOST = process.env.DB_HOST || (DB_INSTANCE_CONNECTION_NAME ? `/cloudsql
 // K_SERVICE 是 Cloud Run 自動設定的環境變數，用來判斷是否在正式環境
 const IS_PROD = Boolean(process.env.K_SERVICE || process.env.NODE_ENV === 'production');
 
-const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','picks','labor','productivity','monthly','annual','import','org','typography']);
+const VALID_PAGE_IDS = new Set(['daily','dispatch','freight','picks','labor','productivity','monthly','annual','import','org','typography','attendance']);
 const BUDGET_TYPES = new Set(['labor', 'freight']);
 
 // ── Session 設定 ──

@@ -545,6 +545,28 @@
 <div class="grid" id="labor-grid"></div>
 </script>
 
+<script id="tpl-attendance" type="text/html">
+<div class="page-head">
+  <div class="page-eyebrow">ATTENDANCE · 個人出勤查詢</div>
+  <h1 class="page-h">個人出勤查詢</h1>
+  <div class="page-p" id="attendance-meta">輸入員工編號查詢逐日出勤工時</div>
+</div>
+<div class="filter-bar date-range-filter">
+  <span class="filter-label">日期區間</span>
+  <input type="date" class="filter-input" id="attendance-from">
+  <span class="range-arrow">→</span>
+  <input type="date" class="filter-input" id="attendance-to">
+  <div class="filter-divider"></div>
+  <span class="filter-label">員工編號</span>
+  <input type="text" class="filter-input" id="attendance-emp-id" list="attendance-emp-list" placeholder="輸入或選擇員編" autocomplete="off" oninput="renderAttendancePage()">
+  <datalist id="attendance-emp-list"></datalist>
+  <div class="filter-divider"></div>
+  <button class="btn btn-primary" onclick="applyDashboardDateFilter('attendance')">套用</button>
+  <span class="filter-meta" id="attendance-date-meta"></span>
+</div>
+<div class="grid" id="attendance-grid"></div>
+</script>
+
 <!-- JS 載入順序：picks/labor data → data → utils → widgets → app -->
 <script src="js/picks_data.js?v=20260504-3"></script>
 <script src="js/labor_data.js?v=20260504-3"></script>
@@ -564,6 +586,7 @@ const PAGE_TEMPLATES = {
   import:         document.getElementById('tpl-import').innerHTML,
   org:            document.getElementById('tpl-org').innerHTML,
   typography:     document.getElementById('tpl-typography').innerHTML,
+  attendance:     document.getElementById('tpl-attendance').innerHTML,
 };
 </script>
 <script src="js/app.js?v=20260623-2"></script>
