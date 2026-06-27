@@ -3627,22 +3627,40 @@ function downloadAttendance() {
   if (deptF)  data = data.filter(r => r.dept === deptF);
   if (shiftF) data = data.filter(r => r.shift === shiftF);
   if (empId)  data = data.filter(r => r.empId === empId);
-  data.sort((a, b) =>
-    a.date.localeCompare(b.date) ||
-    String(a.empId).localeCompare(String(b.empId)) ||
-    String(a.shift).localeCompare(String(b.shift)));
 
   if (!data.length) { toast('❌ 目前篩選條件沒有可下載的資料'); return; }
 
+  // 同一天同人（同倉/廠商/班別/課別）合併，時數加總成一條
+  const map = new Map();
+  data.forEach(r => {
+    const key = [r.date, r.wh, r.vendor, r.shift, r.empId, r.dept].join('');
+    const cur = map.get(key);
+    if (cur) {
+      cur.hours += Number(r.hours) || 0;
+    } else {
+      map.set(key, {
+        date: r.date, wh: r.wh || '', vendor: r.vendor || '',
+        shift: r.shift || '', empId: r.empId || '', dept: r.dept || '',
+        hours: Number(r.hours) || 0,
+      });
+    }
+  });
+  const merged = [...map.values()]
+    .map(r => ({ ...r, hours: Math.round(r.hours * 100) / 100 }))
+    .sort((a, b) =>
+      a.date.localeCompare(b.date) ||
+      String(a.empId).localeCompare(String(b.empId)) ||
+      String(a.shift).localeCompare(String(b.shift)));
+
   const header = ['日期', '倉別', '廠商', '班別', '員編', '作業課別', '作業時數'];
-  const aoa = [header, ...data.map(r => [
+  const aoa = [header, ...merged.map(r => [
     r.date,
-    r.wh || '',
-    r.vendor || '',
-    r.shift || '',
-    r.empId || '',
+    r.wh,
+    r.vendor,
+    r.shift,
+    r.empId,
     deptDisplayName(r.dept) || r.dept || '',
-    Number(r.hours) || 0,
+    r.hours,
   ])];
 
   const ws = XLSX.utils.aoa_to_sheet(aoa);
@@ -3652,7 +3670,7 @@ function downloadAttendance() {
   const tag = `${DATA.dateFrom}_${DATA.dateTo}`.replace(/-/g, '');
   const scope = empId ? `_${empId}` : '';
   XLSX.writeFile(wb, `出勤明細_${tag}${scope}.xlsx`);
-  toast(`⬇️ 已下載 ${data.length} 筆出勤明細`);
+  toast(`⬇️ 已下載 ${merged.length} 筆出勤明細（同日已合併）`);
 }
 
 function renderAttendancePage() {
