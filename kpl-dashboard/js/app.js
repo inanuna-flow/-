@@ -529,6 +529,15 @@ async function initImportPage() {
   updateStatus();
 }
 
+// 不計入「作業時數」的作業區域（午休、私用…）。用「包含」比對，
+// 可容忍「午休時間／午休」「私用／私用時間」等寫法差異。
+// 要新增排除項（例：請假、外出）就加進這個陣列，全站工時口徑一致。
+const EXCLUDED_OP_KEYWORDS = ['午休', '私用'];
+function isExcludedOpArea(opArea) {
+  const s = String(opArea || '');
+  return EXCLUDED_OP_KEYWORDS.some(k => s.includes(k));
+}
+
 const DASHBOARD_DATE_FILTERS = {
   daily:        { from:'filter-from',        to:'filter-to',        meta:'filter-meta' },
   dispatch:     { from:'dispatch-from',     to:'dispatch-to',     meta:null },
@@ -2627,7 +2636,7 @@ function downloadPageReport(page) {
     const shiftFilter = document.getElementById('labor-shift')?.value || '';
     const deptFilter  = document.getElementById('labor-vendor')?.value || '';
     let data = (LABOR_RAW || []).filter(r =>
-      dateInSelectedRange(r.date) && r.opArea !== '午休時間' && r.hours > 0
+      dateInSelectedRange(r.date) && !isExcludedOpArea(r.opArea) && r.hours > 0
     );
     if (shiftFilter) data = data.filter(r => r.shift === shiftFilter);
     if (deptFilter)  data = data.filter(r => r.dept === deptFilter);
@@ -3623,7 +3632,7 @@ function downloadAttendance() {
 
   let data = rawData
     .filter(r => dateInSelectedRange(r.date))
-    .filter(r => r.opArea !== '午休時間' && r.hours > 0);
+    .filter(r => !isExcludedOpArea(r.opArea) && r.hours > 0);
   if (deptF)  data = data.filter(r => r.dept === deptF);
   if (shiftF) data = data.filter(r => r.shift === shiftF);
   if (empId)  data = data.filter(r => r.empId === empId);
@@ -3701,7 +3710,7 @@ function renderAttendancePage() {
   // 基底：日期 + 課別 + 班別（不含員編），供 datalist 與「全部員工」模式
   let base = rawData
     .filter(r => dateInSelectedRange(r.date))
-    .filter(r => r.opArea !== '午休時間' && r.hours > 0);
+    .filter(r => !isExcludedOpArea(r.opArea) && r.hours > 0);
   if (deptF)  base = base.filter(r => r.dept === deptF);
   if (shiftF) base = base.filter(r => r.shift === shiftF);
   syncAttendanceEmpOptions(base);
@@ -3910,7 +3919,7 @@ function renderLaborPage() {
   }
 
   let data = rawData.filter(r => dateInSelectedRange(r.date));
-  data = data.filter(r => r.opArea !== '午休時間' && r.hours > 0);
+  data = data.filter(r => !isExcludedOpArea(r.opArea) && r.hours > 0);
   if (shiftFilter)  data = data.filter(r => r.shift  === shiftFilter);
   if (deptFilter) data = data.filter(r => r.dept === deptFilter);
 
@@ -4437,7 +4446,7 @@ function renderMonthlyPage() {
   syncDashboardDateInputs('monthly');
 
   const labor = (typeof LABOR_RAW !== 'undefined' ? LABOR_RAW : [])
-    .filter(r => dateInSelectedRange(r.date) && r.hours > 0 && r.opArea !== '午休時間');
+    .filter(r => dateInSelectedRange(r.date) && r.hours > 0 && !isExcludedOpArea(r.opArea));
   const picks = (typeof PICKS_RAW !== 'undefined' ? PICKS_RAW : [])
     .filter(r => dateInSelectedRange(r.date));
 
