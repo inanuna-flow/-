@@ -549,7 +549,7 @@
 <div class="page-head">
   <div class="page-eyebrow">ATTENDANCE · 個人出勤查詢</div>
   <h1 class="page-h">個人出勤查詢</h1>
-  <div class="page-p" id="attendance-meta">輸入員工編號查詢逐日出勤工時</div>
+  <div class="page-p" id="attendance-meta">選擇課別／班別瀏覽，或輸入員編查單一員工</div>
 </div>
 <div class="filter-bar date-range-filter">
   <span class="filter-label">日期區間</span>
@@ -557,12 +557,26 @@
   <span class="range-arrow">→</span>
   <input type="date" class="filter-input" id="attendance-to">
   <div class="filter-divider"></div>
-  <span class="filter-label">員工編號</span>
-  <input type="text" class="filter-input" id="attendance-emp-id" list="attendance-emp-list" placeholder="輸入或選擇員編" autocomplete="off" oninput="renderAttendancePage()">
-  <datalist id="attendance-emp-list"></datalist>
-  <div class="filter-divider"></div>
   <button class="btn btn-primary" onclick="applyDashboardDateFilter('attendance')">套用</button>
   <span class="filter-meta" id="attendance-date-meta"></span>
+</div>
+<div class="filter-bar">
+  <span class="filter-label">課別</span>
+  <select class="filter-input" id="attendance-dept" onchange="renderAttendancePage()">
+    <option value="">全部課別</option>
+  </select>
+  <div class="filter-divider"></div>
+  <span class="filter-label">班別</span>
+  <select class="filter-input" id="attendance-shift" onchange="renderAttendancePage()">
+    <option value="">全部班別</option>
+    <option value="日">日班</option>
+    <option value="中">中班</option>
+    <option value="夜">夜班</option>
+  </select>
+  <div class="filter-divider"></div>
+  <span class="filter-label">員工編號</span>
+  <input type="text" class="filter-input" id="attendance-emp-id" list="attendance-emp-list" placeholder="選填 · 輸入查單人" autocomplete="off" oninput="renderAttendancePage()">
+  <datalist id="attendance-emp-list"></datalist>
 </div>
 <div class="grid" id="attendance-grid"></div>
 </script>

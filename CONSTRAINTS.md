@@ -88,7 +88,7 @@ POST   /api/import/freight-non-mainline              ← 非主線運費（新�
 - `#freight-from`, `#freight-to`
 - `#picks-from`, `#picks-to`, `#picks-wh`, `#picks-op`, `#picks-date-meta`
 - `#labor-from`, `#labor-to`, `#labor-shift`, `#labor-vendor`, `#labor-date-meta`, `#labor-filter-meta`
-- `#attendance-from`, `#attendance-to`, `#attendance-emp-id`, `#attendance-emp-list`, `#attendance-date-meta`, `#attendance-meta`
+- `#attendance-from`, `#attendance-to`, `#attendance-dept`, `#attendance-shift`, `#attendance-emp-id`, `#attendance-emp-list`, `#attendance-date-meta`, `#attendance-meta`
 - `#productivity-from`, `#productivity-to`, `#productivity-date-meta`
 - `#monthly-from`, `#monthly-to`, `#monthly-date-meta`
 
