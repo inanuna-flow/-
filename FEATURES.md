@@ -99,7 +99,8 @@
 - **互動**：
   - 套用按鈕 `applyDashboardDateFilter('attendance')`
   - 課別/班別下拉 `onchange="renderAttendancePage()"`；員編 `oninput="renderAttendancePage()"`（即時）
-- **備註**：雲端只存員編不存姓名；排除「午休時間」與 0 工時列
+  - 下載明細 `downloadAttendance()` — 匯出當前篩選的逐筆明細 Excel（欄位：日期/倉別/廠商/班別/員編/作業課別/作業時數）
+- **備註**：雲端只存員編不存姓名（姓名與打卡起訖時間未納入下載，資料源/DB 未存）；排除「午休時間」與 0 工時列
 
 ### 6. `tpl-productivity` 揀次人效分析
 - **路由 id**：`productivity`

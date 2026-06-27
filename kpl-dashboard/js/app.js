@@ -3612,6 +3612,49 @@ function initAttendancePage() {
   renderAttendancePage();
 }
 
+// 下載出勤明細（跟著當前 日期/課別/班別/員編 篩選）
+function downloadAttendance() {
+  const rawData = (typeof LABOR_RAW !== 'undefined') ? LABOR_RAW : [];
+  if (!rawData.length) { toast('❌ 尚未匯入工時資料'); return; }
+
+  const deptF  = document.getElementById('attendance-dept')?.value || '';
+  const shiftF = document.getElementById('attendance-shift')?.value || '';
+  const empId  = (document.getElementById('attendance-emp-id')?.value || '').trim();
+
+  let data = rawData
+    .filter(r => dateInSelectedRange(r.date))
+    .filter(r => r.opArea !== '午休時間' && r.hours > 0);
+  if (deptF)  data = data.filter(r => r.dept === deptF);
+  if (shiftF) data = data.filter(r => r.shift === shiftF);
+  if (empId)  data = data.filter(r => r.empId === empId);
+  data.sort((a, b) =>
+    a.date.localeCompare(b.date) ||
+    String(a.empId).localeCompare(String(b.empId)) ||
+    String(a.shift).localeCompare(String(b.shift)));
+
+  if (!data.length) { toast('❌ 目前篩選條件沒有可下載的資料'); return; }
+
+  const header = ['日期', '倉別', '廠商', '班別', '員編', '作業課別', '作業時數'];
+  const aoa = [header, ...data.map(r => [
+    r.date,
+    r.wh || '',
+    r.vendor || '',
+    r.shift || '',
+    r.empId || '',
+    deptDisplayName(r.dept) || r.dept || '',
+    Number(r.hours) || 0,
+  ])];
+
+  const ws = XLSX.utils.aoa_to_sheet(aoa);
+  ws['!cols'] = [{ wch: 12 }, { wch: 10 }, { wch: 10 }, { wch: 8 }, { wch: 12 }, { wch: 16 }, { wch: 10 }];
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, '出勤明細');
+  const tag = `${DATA.dateFrom}_${DATA.dateTo}`.replace(/-/g, '');
+  const scope = empId ? `_${empId}` : '';
+  XLSX.writeFile(wb, `出勤明細_${tag}${scope}.xlsx`);
+  toast(`⬇️ 已下載 ${data.length} 筆出勤明細`);
+}
+
 function renderAttendancePage() {
   syncDashboardDateInputs('attendance');
   syncAttendanceDeptOptions();

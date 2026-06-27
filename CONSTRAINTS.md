@@ -127,7 +127,8 @@ POST   /api/import/freight-non-mainline              ← 非主線運費（新�
 - `applyFreightFilter()` — freight
 - `applyDashboardDateFilter('picks' | 'labor' | 'attendance' | 'productivity' | 'monthly')`
 - `renderPicksPage()`, `renderLaborPage()` — 給 select 的 onchange
-- `renderAttendancePage()` — 個人出勤頁員編 input 的 oninput（即時查詢；走既有 `/api/data/labor`，無新端點）
+- `renderAttendancePage()` — 個人出勤頁課別/班別 onchange、員編 oninput（即時查詢；走既有 `/api/data/labor`，無新端點）
+- `downloadAttendance()` — 個人出勤頁「↓ 下載明細」按鈕（XLSX 匯出當前篩選明細）
 
 ### 資料匯入頁
 - `onDragOver(event, dropId)`, `onDragLeave(dropId)`, `onDrop(event, type)`
