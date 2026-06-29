@@ -3749,7 +3749,7 @@ function renderAttendancePage() {
       </tr>`).join('');
 
     grid.innerHTML = `
-    <div class="labor-kpi-grid" style="grid-column:1/-1">
+    <div class="labor-kpi-grid labor-kpi-grid--4" style="grid-column:1/-1">
       <div class="labor-kpi-card">
         <div class="labor-kpi-icon" aria-hidden="true">📅</div>
         <span class="labor-kpi-label">出勤天數</span>
@@ -3775,7 +3775,7 @@ function renderAttendancePage() {
         <div class="labor-kpi-ctx">${depts.join('、') || '—'}</div>
       </div>
     </div>
-    <div class="w s12" style="grid-column:1/-1">
+    <div class="w s12 table-card" style="grid-column:1/-1">
       <div class="wh"><div class="wl"><div class="wdot"></div>逐日出勤明細 · 員編 ${empId}</div>
         <span class="wmeta"><a href="#" onclick="document.getElementById('attendance-emp-id').value='';renderAttendancePage();return false;">← 回全部員工</a></span>
       </div>
@@ -3793,6 +3793,14 @@ function renderAttendancePage() {
             </tr>
           </tfoot>
         </table>
+        <details class="table-note">
+          <summary>「費用」是怎麼來的？</summary>
+          <div>
+            📌 <b>費用＝直接採用匯入工時檔的「實際費用」欄位</b>，不是用工時換算出來的。<br>
+            📌 金額是現場/HR 算好（含加班、夜班加給等）後填進原始檔，本表只是逐日列出。<br>
+            📌 若想看每小時單價，可參考「人力工時結構」頁的時薪 ── 那是反過來用 費用 ÷ 工時 推得。
+          </div>
+        </details>
       </div>
     </div>`;
     return;
@@ -3833,7 +3841,7 @@ function renderAttendancePage() {
     </tr>`).join('');
 
   grid.innerHTML = `
-  <div class="labor-kpi-grid" style="grid-column:1/-1">
+  <div class="labor-kpi-grid labor-kpi-grid--4" style="grid-column:1/-1">
     <div class="labor-kpi-card">
       <div class="labor-kpi-icon" aria-hidden="true">👥</div>
       <span class="labor-kpi-label">員工數</span>
@@ -3859,7 +3867,7 @@ function renderAttendancePage() {
       <div class="labor-kpi-ctx">元</div>
     </div>
   </div>
-  <div class="w s12" style="grid-column:1/-1">
+  <div class="w s12 table-card" style="grid-column:1/-1">
     <div class="wh"><div class="wl"><div class="wdot"></div>員工出勤彙總（${deptLabel}／${shiftLabel}）</div>
       <span class="wmeta">點任一列查看逐日明細</span>
     </div>
@@ -3878,6 +3886,14 @@ function renderAttendancePage() {
           </tr>
         </tfoot>
       </table>
+      <details class="table-note">
+        <summary>「人力成本」是怎麼來的？</summary>
+        <div>
+          📌 <b>人力成本＝直接採用匯入工時檔的「實際費用」欄位</b>，不是用工時換算出來的。<br>
+          📌 金額是現場/HR 算好（含加班、夜班加給等）後填進原始檔，本表只是加總。<br>
+          📌 若想看每小時單價，可參考「人力工時結構」頁的時薪 ── 那是反過來用 費用 ÷ 工時 推得。
+        </div>
+      </details>
     </div>
   </div>`;
 }
