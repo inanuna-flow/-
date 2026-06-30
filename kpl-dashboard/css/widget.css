@@ -1494,6 +1494,10 @@ td.mono { font-family: var(--f-mono); }
 .labor-kpi-grid--4 {
   grid-template-columns: repeat(4, minmax(0, 1fr));
 }
+/* 出勤頁全部員工模式：5 張卡（多一張平均值）平分撐滿 */
+.labor-kpi-grid--5 {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
 .labor-kpi-card {
   padding: 13px 13px 11px;
   border: 1px solid var(--app-border);
@@ -1560,10 +1564,12 @@ td.mono { font-family: var(--f-mono); }
 @media (max-width: 1200px) {
   .labor-kpi-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .labor-kpi-grid--4 { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+  .labor-kpi-grid--5 { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 }
 @media (max-width: 900px) {
   .labor-kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .labor-kpi-grid--4 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .labor-kpi-grid--5 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 }
 /* ── end 人力 KPI ── */
 .freight-ref-mini-line {

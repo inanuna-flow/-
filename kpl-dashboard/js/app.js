@@ -3841,7 +3841,7 @@ function renderAttendancePage() {
     </tr>`).join('');
 
   grid.innerHTML = `
-  <div class="labor-kpi-grid labor-kpi-grid--4" style="grid-column:1/-1">
+  <div class="labor-kpi-grid labor-kpi-grid--5" style="grid-column:1/-1">
     <div class="labor-kpi-card">
       <div class="labor-kpi-icon" aria-hidden="true">👥</div>
       <span class="labor-kpi-label">員工數</span>
@@ -3865,6 +3865,12 @@ function renderAttendancePage() {
       <span class="labor-kpi-label">總人力成本</span>
       <div class="labor-kpi-main">${fmtMoney(Math.round(totalCost))}</div>
       <div class="labor-kpi-ctx">元</div>
+    </div>
+    <div class="labor-kpi-card">
+      <div class="labor-kpi-icon" aria-hidden="true">📊</div>
+      <span class="labor-kpi-label">平均每人工時</span>
+      <div class="labor-kpi-main" style="color:var(--app-success)">${wanNum(emps.length ? totalHrs / emps.length : 0)}</div>
+      <div class="labor-kpi-ctx">小時 ｜ 平均出勤 ${emps.length ? (personDays / emps.length).toFixed(1) : '0'} 天</div>
     </div>
   </div>
   <div class="w s12 table-card" style="grid-column:1/-1">
