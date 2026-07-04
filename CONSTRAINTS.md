@@ -190,6 +190,8 @@ POST   /api/import/freight-non-mainline              ← 非主線運費（新�
 - ✅ 保留 Rate Limit（15 分鐘 10 次登入）
 - ✅ 保留 Session 重新驗證機制
 - ✅ 保留 CSP / X-Frame-Options 等 security headers
+- ✅ 資料匯入 / 變更端點（`/api/import/*`）後端須經 `requireDataManager`（B 級以上），C 級一般使用者禁止（前端隱藏頁面不足以把關）
+- ✅ 後台管理端點（帳號 / IP / 權限儲存）須經 `sessionIsAdmin` + 密碼二次驗證；資料讀取（圖表）端點維持 `requireSession`（人人可讀）
 - ❌ 不要在前端寫入任何密碼 / API Key
 - ❌ 不要把資料寫到 localStorage / sessionStorage（除了臨時 UI 狀態）
 

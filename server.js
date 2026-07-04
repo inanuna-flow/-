@@ -315,6 +315,18 @@ function sessionLevel(session) {
 function sessionIsAdmin(session) {
   return sessionLevel(session) === 'A';
 }
+// 資料匯入/變更端點：需 B 級以上（A 或 B）；C 級一般使用者禁止（比照前端資料管理頁 = B 級）
+// 未登入回 401、級別不足回 403，皆回傳 null
+function requireDataManager(req, res) {
+  const session = requireSession(req, res);
+  if (!session) return null;
+  const level = sessionLevel(session);
+  if (level !== 'A' && level !== 'B') {
+    sendJson(res, 403, { ok: false, MSG: '403 僅限資料管理權限（B 級以上）' });
+    return null;
+  }
+  return session;
+}
 // 某帳號(userId)是否為 A 級：環境變數帳號 → DB 帳號 → inari
 function userIdIsAdmin(userId) {
   const uid = String(userId || '').toLowerCase();
@@ -524,7 +536,7 @@ async function handlePicksImport(req, res) {
     return;
   }
 
-  if (!requireSession(req, res)) return;
+  if (!requireDataManager(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -913,7 +925,7 @@ async function handleBudgetImport(req, res) {
     return;
   }
 
-  if (!requireSession(req, res)) return;
+  if (!requireDataManager(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -1056,7 +1068,7 @@ async function handleLaborImport(req, res) {
     return;
   }
 
-  if (!requireSession(req, res)) return;
+  if (!requireDataManager(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) {
@@ -1721,7 +1733,7 @@ function freightNonMainlineRowsFromPayload(payload) {
 
 async function handleFreightMainlineImport(req, res) {
   if (req.method !== 'POST') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
-  if (!requireSession(req, res)) return;
+  if (!requireDataManager(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database is not configured.' }); return; }
@@ -1839,7 +1851,7 @@ async function handleFreightMainlineImport(req, res) {
 
 async function handleFreightNonMainlineImport(req, res) {
   if (req.method !== 'POST') { sendJson(res, 405, { ok: false, MSG: '999 Method Not Allowed' }); return; }
-  if (!requireSession(req, res)) return;
+  if (!requireDataManager(req, res)) return;
 
   const pool = getDbPool();
   if (!pool) { sendJson(res, 503, { ok: false, MSG: '503 Database is not configured.' }); return; }
