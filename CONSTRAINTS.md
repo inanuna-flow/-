@@ -129,6 +129,7 @@ POST   /api/import/freight-non-mainline              ← 非主線運費（新�
 - `renderPicksPage()`, `renderLaborPage()` — 給 select 的 onchange
 - `renderAttendancePage()` — 個人出勤頁課別/班別 onchange、員編 oninput（即時查詢；走既有 `/api/data/labor`，無新端點）
 - `downloadAttendance()` — 個人出勤頁「↓ 下載明細」按鈕（XLSX 匯出當前篩選明細）
+- `attendanceSetPage(n)` — 個人出勤「全部員工」彙總表前端分頁（每頁 50 筆；篩選變動回第 1 頁）
 
 ### 資料匯入頁
 - `onDragOver(event, dropId)`, `onDragLeave(dropId)`, `onDrop(event, type)`

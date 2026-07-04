@@ -3616,6 +3616,10 @@ function syncAttendanceEmpOptions(pool) {
   list.innerHTML = ids.map(id => `<option value="${id}">`).join('');
 }
 
+// 個人出勤「全部員工」彙總表的前端分頁狀態
+const ATTENDANCE_PAGE_SIZE = 50;
+let attendancePage = 1;
+
 function initAttendancePage() {
   syncAttendanceDeptOptions();
   renderAttendancePage();
@@ -3682,7 +3686,9 @@ function downloadAttendance() {
   toast(`⬇️ 已下載 ${merged.length} 筆出勤明細（同日已合併）`);
 }
 
-function renderAttendancePage() {
+function renderAttendancePage(opts) {
+  // 篩選/切頁模式改變時回第 1 頁；只有分頁按鈕會帶 keepPage 保留當前頁
+  if (!opts || !opts.keepPage) attendancePage = 1;
   syncDashboardDateInputs('attendance');
   syncAttendanceDeptOptions();
   const grid = document.getElementById('attendance-grid');
@@ -3831,7 +3837,14 @@ function renderAttendancePage() {
 
   if (meta) meta.textContent = `${deptLabel} · ${shiftLabel} · ${DATA.dateFrom} ~ ${DATA.dateTo} · ${emps.length} 位員工 · ${personDays} 人日`;
 
-  const rows = emps.map(e => `
+  // 前端分頁：只渲染當前頁的員工列
+  const totalPages = Math.max(1, Math.ceil(emps.length / ATTENDANCE_PAGE_SIZE));
+  if (attendancePage > totalPages) attendancePage = totalPages;
+  if (attendancePage < 1) attendancePage = 1;
+  const pageStart = (attendancePage - 1) * ATTENDANCE_PAGE_SIZE;
+  const pageEmps = emps.slice(pageStart, pageStart + ATTENDANCE_PAGE_SIZE);
+
+  const rows = pageEmps.map(e => `
     <tr style="cursor:pointer" onclick="document.getElementById('attendance-emp-id').value='${e.empId}';renderAttendancePage()" title="點擊查看逐日明細">
       <td><b>${e.empId}</b></td>
       <td>${e.deptList || '—'}</td>
@@ -3839,6 +3852,8 @@ function renderAttendancePage() {
       <td class="numeric">${wanNum(e.hrs)}</td>
       <td class="numeric">${fmtMoney(Math.round(e.cost))}</td>
     </tr>`).join('');
+
+  const pagerHtml = attendancePagerHtml(attendancePage, totalPages, emps.length, pageStart, pageEmps.length);
 
   grid.innerHTML = `
   <div class="labor-kpi-grid labor-kpi-grid--5" style="grid-column:1/-1">
@@ -3892,6 +3907,7 @@ function renderAttendancePage() {
           </tr>
         </tfoot>
       </table>
+      ${pagerHtml}
       <details class="table-note">
         <summary>「人力成本」是怎麼來的？</summary>
         <div>
@@ -3902,6 +3918,42 @@ function renderAttendancePage() {
       </details>
     </div>
   </div>`;
+}
+
+// 個人出勤彙總表分頁列（窗格式頁碼 + 上一頁/下一頁）
+function attendancePagerHtml(current, totalPages, totalRows, pageStart, pageCount) {
+  if (totalPages <= 1) return '';
+  const numBtn = (n) => n === current
+    ? `<span class="att-page-btn is-current" aria-current="page">${n}</span>`
+    : `<button type="button" class="att-page-btn" onclick="attendanceSetPage(${n})">${n}</button>`;
+  const navBtn = (label, target, disabled) => disabled
+    ? `<span class="att-page-btn is-disabled">${label}</span>`
+    : `<button type="button" class="att-page-btn" onclick="attendanceSetPage(${target})">${label}</button>`;
+
+  const win = 2;
+  const lo = Math.max(1, current - win);
+  const hi = Math.min(totalPages, current + win);
+  const nums = [];
+  if (lo > 1) { nums.push(numBtn(1)); if (lo > 2) nums.push('<span class="att-page-gap">…</span>'); }
+  for (let i = lo; i <= hi; i++) nums.push(numBtn(i));
+  if (hi < totalPages) { if (hi < totalPages - 1) nums.push('<span class="att-page-gap">…</span>'); nums.push(numBtn(totalPages)); }
+
+  return `
+    <div class="att-pager">
+      <span class="att-pager-info">第 ${pageStart + 1}–${pageStart + pageCount} 筆 ／ 共 ${totalRows} 位員工（第 ${current}/${totalPages} 頁）</span>
+      <span class="att-pager-ctrl">
+        ${navBtn('‹ 上一頁', current - 1, current <= 1)}
+        ${nums.join('')}
+        ${navBtn('下一頁 ›', current + 1, current >= totalPages)}
+      </span>
+    </div>`;
+}
+
+function attendanceSetPage(n) {
+  attendancePage = Number(n) || 1;
+  renderAttendancePage({ keepPage: true });
+  const grid = document.getElementById('attendance-grid');
+  if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
 }
 
 function syncLaborDeptOptions() {
