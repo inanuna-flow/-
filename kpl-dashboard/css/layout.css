@@ -1363,10 +1363,14 @@ html[data-theme="day"] .sb-item.active::before {
     table-layout: auto !important;
   }
   #main :is(.tbl, table) :is(th, td) {
-    border: 1px solid #cfcfcf !important;
+    border: none !important;
+    border-bottom: 1px solid #dcdcdc !important;
     position: static !important;
     box-shadow: none !important;
     left: auto !important;
+  }
+  #main :is(.tbl, table) thead th {
+    border-bottom: 1.5px solid #999 !important;
   }
   /* 凍結表頭/欄在列印時改一般定位，避免重疊與錯位 */
   #main :is(.t003-thead, .t003-head-sticky, .t003-domain-cell, .t003-wh-cell,
@@ -1395,4 +1399,31 @@ html[data-theme="day"] .sb-item.active::before {
   }
   /* 卡片底色一律白（保險：即使某主題殘留底色也洗白，列印乾淨） */
   #main .w { background: #fff !important; background-image: none !important; }
+
+  /* A. 拿掉所有卡片「相框」外框，走扁平報表風格 */
+  #main :is(.w, .metric-card, .labor-kpi-card, .freight-kpi-card, .freight-ref-kpi,
+            .freight-ref-card, .freight-ref-matrix-card, .freight-budget-trend-card,
+            .freight-exception-panel, .annual-segment) {
+    border: none !important;
+    border-radius: 0 !important;
+    box-shadow: none !important;
+    background: #fff !important;
+  }
+  /* 班別列不再是方塊，用底部細線分隔三班 */
+  #main .labor-shift-row {
+    border: none !important;
+    border-radius: 0 !important;
+    background: transparent !important;
+    border-bottom: 1px solid #e2e2e2 !important;
+  }
+
+  /* C. 卡片標題（原本浮動於卡片上緣外）改回一般流動，併入卡片頂端，
+     使「標題+內容」成為同一整體，配合 break-inside:avoid 不再被分頁拆開 */
+  #main .wh {
+    position: static !important;
+    top: auto !important;
+    margin: 0 0 6px !important;
+    break-after: avoid !important;
+  }
+  #main .w:has(> .wh) { margin-top: 0 !important; }
 }
