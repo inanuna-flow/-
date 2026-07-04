@@ -1347,7 +1347,7 @@ html[data-theme="day"] .sb-item.active::before {
     overflow: visible !important;
   }
 
-  /* 卡片盡量不跨頁截斷、去除陰影 */
+  /* 卡片盡量不跨頁截斷、去除陰影（保留螢幕原本的多欄排版，不強制單欄） */
   .w,
   .labor-kpi-card,
   .freight-kpi-card {
@@ -1355,6 +1355,31 @@ html[data-theme="day"] .sb-item.active::before {
     box-shadow: none !important;
   }
 
-  /* 主要 widget 單欄堆疊，避免 A4 版面過擠或超出邊界 */
-  #main .grid > .w { grid-column: 1 / -1 !important; }
+  /* 表格：一律改成單線收合框線，消除 sticky 凍結欄造成的錯位與殘缺框線 */
+  #main :is(.tbl, table) {
+    border-collapse: collapse !important;
+    border-spacing: 0 !important;
+    width: 100% !important;
+    table-layout: auto !important;
+  }
+  #main :is(.tbl, table) :is(th, td) {
+    border: 1px solid #cfcfcf !important;
+    position: static !important;
+    box-shadow: none !important;
+    left: auto !important;
+  }
+  /* 凍結表頭/欄在列印時改一般定位，避免重疊與錯位 */
+  #main :is(.t003-thead, .t003-head-sticky, .t003-domain-cell, .t003-wh-cell,
+            .t003-item-cell, .sticky-thead) {
+    position: static !important;
+  }
+  /* 寬矩陣表（每日動支明細）縮字級與欄寬，讓更多日期欄塞進版面 */
+  #main .tbl.t003-table { font-size: 9px !important; }
+  #main .tbl.t003-table :is(th, td) { padding: 2px 3px !important; }
+  #main .tbl.t003-table :is(.t003-date-head, .t003-domain-cell, .t003-wh-cell,
+            .t003-item-cell, .t003-head-domain, .t003-head-wh, .t003-head-item) {
+    width: auto !important;
+    min-width: 0 !important;
+    max-width: none !important;
+  }
 }
