@@ -4779,3 +4779,24 @@ html[data-theme="night"] #main :is(
   .att-pager { justify-content: center; }
   .att-pager-info { width: 100%; text-align: center; }
 }
+
+/* ══ 個人出勤彙總表 · 可排序表頭 ══ */
+.att-sort-th {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+  transition: background .12s;
+}
+.att-sort-th:hover {
+  background: color-mix(in srgb, var(--ry-blue) 10%, var(--app-surface));
+}
+.att-sort-th.is-sorted {
+  color: var(--ry-blue);
+}
+.att-sort-ind {
+  display: inline-block;
+  width: 1em;
+  margin-left: 2px;
+  font-size: 10px;
+  color: var(--ry-blue);
+}

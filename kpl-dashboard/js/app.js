@@ -3616,9 +3616,11 @@ function syncAttendanceEmpOptions(pool) {
   list.innerHTML = ids.map(id => `<option value="${id}">`).join('');
 }
 
-// 個人出勤「全部員工」彙總表的前端分頁狀態
+// 個人出勤「全部員工」彙總表的前端分頁 + 排序狀態
 const ATTENDANCE_PAGE_SIZE = 50;
 let attendancePage = 1;
+// key ∈ empId/deptList/dayCount/hrs/cost；dir ∈ asc/desc（預設按總工時降冪）
+let attendanceSort = { key: 'hrs', dir: 'desc' };
 
 function initAttendancePage() {
   syncAttendanceDeptOptions();
@@ -3829,7 +3831,7 @@ function renderAttendancePage(opts) {
   });
   const emps = Object.values(byEmp)
     .map(e => ({ ...e, dayCount: e.days.size, deptList: [...e.depts].filter(Boolean).join('、') }))
-    .sort((a, b) => b.hrs - a.hrs);
+    .sort(attendanceCompare);
 
   const totalHrs  = base.reduce((s, r) => s + r.hours, 0);
   const totalCost = base.reduce((s, r) => s + r.cost, 0);
@@ -3895,7 +3897,7 @@ function renderAttendancePage(opts) {
     <div class="table-edge">
       <table class="tbl">
         <thead>
-          <tr><th>員編</th><th>課別</th><th class="numeric">出勤天數</th><th class="numeric">總工時</th><th class="numeric">人力成本</th></tr>
+          <tr>${attSortTh('empId', '員編')}${attSortTh('deptList', '課別')}${attSortTh('dayCount', '出勤天數', true)}${attSortTh('hrs', '總工時', true)}${attSortTh('cost', '人力成本', true)}</tr>
         </thead>
         <tbody>${rows}</tbody>
         <tfoot>
@@ -3954,6 +3956,36 @@ function attendanceSetPage(n) {
   renderAttendancePage({ keepPage: true });
   const grid = document.getElementById('attendance-grid');
   if (grid) grid.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+// 彙總表排序比較器（文字欄用 locale + numeric，數字欄用數值）
+function attendanceCompare(a, b) {
+  const { key, dir } = attendanceSort;
+  const isText = key === 'empId' || key === 'deptList';
+  let cmp = isText
+    ? String(a[key] || '').localeCompare(String(b[key] || ''), 'zh-Hant', { numeric: true })
+    : (Number(a[key]) || 0) - (Number(b[key]) || 0);
+  if (cmp === 0 && key !== 'empId') cmp = String(a.empId || '').localeCompare(String(b.empId || ''), 'zh-Hant', { numeric: true });
+  return dir === 'asc' ? cmp : -cmp;
+}
+
+// 產生可點擊排序的表頭；顯示 ▲/▼ 於當前排序欄
+function attSortTh(key, label, numeric) {
+  const active = attendanceSort.key === key;
+  const arrow = active ? (attendanceSort.dir === 'asc' ? '▲' : '▼') : '';
+  return `<th class="att-sort-th${numeric ? ' numeric' : ''}${active ? ' is-sorted' : ''}" onclick="attendanceSortBy('${key}')" title="點擊排序">${label}<span class="att-sort-ind">${arrow}</span></th>`;
+}
+
+// 點表頭：同欄切換升/降冪；換欄則文字欄預設升冪、數字欄預設降冪。排序後回第 1 頁
+function attendanceSortBy(key) {
+  if (attendanceSort.key === key) {
+    attendanceSort.dir = attendanceSort.dir === 'asc' ? 'desc' : 'asc';
+  } else {
+    attendanceSort.key = key;
+    attendanceSort.dir = (key === 'empId' || key === 'deptList') ? 'asc' : 'desc';
+  }
+  attendancePage = 1;
+  renderAttendancePage({ keepPage: true });
 }
 
 function syncLaborDeptOptions() {
