@@ -3,6 +3,7 @@
 *.xls
 *.docx
 *.doc
+!security-report-*.docx
 初始資料/
 read_budget.ps1
 node_modules/
@@ -18,3 +19,12 @@ node_modules/
 *.pem
 credentials.json
 secrets.json
+
+# 通用建置 / 系統暫存
+.DS_Store
+*.log
+dist/
+build/
+.venv/
+__pycache__/
+*.pyc
