@@ -1382,4 +1382,17 @@ html[data-theme="day"] .sb-item.active::before {
     min-width: 0 !important;
     max-width: none !important;
   }
+
+  /* 分析卡（圓餅/班別）螢幕上有 340px 高度上限，列印時解除，避免內容被裁掉 */
+  #main :is(.labor-analysis-card, .labor-struct-card, .labor-shift-card) {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* 所有捲動容器一律展開，消除列印殘留捲軸並讓內容完整呈現 */
+  #main [class*="scroll"] {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+  /* 卡片底色一律白（保險：即使某主題殘留底色也洗白，列印乾淨） */
+  #main .w { background: #fff !important; background-image: none !important; }
 }
