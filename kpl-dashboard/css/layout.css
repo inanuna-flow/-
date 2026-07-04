@@ -1330,6 +1330,7 @@ html[data-theme="day"] .sb-item.active::before {
     max-height: none !important;
     padding: 0 !important;
     width: auto !important;
+    border: none !important;
     border-radius: 0 !important;
     overflow: visible !important;
     box-shadow: none !important;
