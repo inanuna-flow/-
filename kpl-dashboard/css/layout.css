@@ -1296,3 +1296,65 @@ html[data-theme="day"] .sb-item.active::before {
     transform: translateX(0);
   }
 }
+
+/* ══ 列印 / 另存 PDF（Ctrl+P）══
+   隱藏互動框架，只留報表內容；展開捲動容器讓表格/圖表完整印出而非被裁切。 */
+@media print {
+  @page { size: A4; margin: 12mm; }
+
+  * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  body { background: #fff !important; }
+
+  /* 隱藏框架與互動控制項 */
+  .topbar,
+  .sidebar,
+  .sidebar-hover-zone,
+  .sidebar-resize-handle,
+  #sidebar-overlay,
+  .sidebar-overlay,
+  .filter-bar,
+  .att-pager,
+  #toast,
+  #boot-loader,
+  .theme-switcher,
+  .topbar-hamburger { display: none !important; }
+
+  /* 主內容佔滿整頁 */
+  .shell { padding: 0 !important; }
+  .main {
+    margin-left: 0 !important;
+    max-height: none !important;
+    padding: 0 !important;
+    width: auto !important;
+    border-radius: 0 !important;
+    overflow: visible !important;
+    box-shadow: none !important;
+  }
+
+  /* 展開捲動容器，讓完整表格/圖表列印，不被視窗高度裁切 */
+  .table-edge,
+  .scroll-x,
+  .preview-table-wrap,
+  .t003-shell,
+  .t003-scroll,
+  .annual-table-scroll,
+  .f010-scroll {
+    max-height: none !important;
+    overflow: visible !important;
+  }
+
+  /* 卡片盡量不跨頁截斷、去除陰影 */
+  .w,
+  .labor-kpi-card,
+  .freight-kpi-card {
+    break-inside: avoid;
+    box-shadow: none !important;
+  }
+
+  /* 主要 widget 單欄堆疊，避免 A4 版面過擠或超出邊界 */
+  #main .grid > .w { grid-column: 1 / -1 !important; }
+}

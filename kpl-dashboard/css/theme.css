@@ -166,3 +166,43 @@ html[data-theme="night"] {
   --ry-white: var(--app-surface);
   --ry-paper: var(--app-surface-soft);
 }
+
+/* 列印 / 另存 PDF：不論當前主題（含黑夜模式）一律強制淺色，白底深字、省墨好讀。
+   --ry-* 皆由 --app-* 衍生，故只需覆蓋 --app-* 即會連動。 */
+@media print {
+  html,
+  html[data-theme="original"],
+  html[data-theme="day"],
+  html[data-theme="night"] {
+    color-scheme: light;
+    --app-bg: #ffffff;
+    --app-surface: #ffffff;
+    --app-surface-soft: #ffffff;
+    --app-surface-muted: #f0f0f0;
+    --app-border: #c8c8c8;
+    --app-border-strong: #999999;
+    --app-text: #17171a;
+    --app-muted: #555555;
+    --app-muted-strong: #222222;
+    --app-primary: #1d3550;
+    --app-primary-strong: #12263f;
+    --app-primary-soft: #e8eef5;
+    --app-accent: #a86a1e;
+    --app-danger: #b32020;
+    --app-danger-soft: #fdeaea;
+    --app-warning: #b3611a;
+    --app-warning-soft: #fdf3e8;
+    --app-success: #1a7a3a;
+    --app-success-soft: #eef8f0;
+    --app-shadow: none;
+    --app-shadow-sm: none;
+    --freight-kpi-surface: #ffffff;
+    --freight-kpi-surface-end: #ffffff;
+    --freight-kpi-border: #cccccc;
+    --freight-kpi-label: #1a3560;
+    --freight-kpi-value: #12263f;
+    --freight-kpi-muted: #555555;
+    --freight-kpi-track: #eeeeee;
+    --freight-kpi-icon-ink: #ffffff;
+  }
+}
