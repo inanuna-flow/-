@@ -1300,7 +1300,7 @@ html[data-theme="day"] .sb-item.active::before {
 /* ══ 列印 / 另存 PDF（Ctrl+P）══
    隱藏互動框架，只留報表內容；展開捲動容器讓表格/圖表完整印出而非被裁切。 */
 @media print {
-  @page { size: A4; margin: 12mm; }
+  @page { size: A4 landscape; margin: 10mm; }
 
   * {
     -webkit-print-color-adjust: exact !important;
@@ -1427,4 +1427,64 @@ html[data-theme="day"] .sb-item.active::before {
     break-after: avoid !important;
   }
   #main .w:has(> .wh) { margin-top: 0 !important; }
+
+  /* ═══ 人力工時結構：A4 橫式列印版面（Page1 管理摘要 / Page2 明細）═══ */
+
+  /* 查詢資料期間：螢幕隱藏的 meta（.page-p）在列印時顯示 */
+  #main #labor-meta {
+    display: block !important;
+    color: #555 !important;
+    font-size: 11pt !important;
+    margin-top: 4px !important;
+  }
+
+  /* Labor 主 grid 維持 12 欄，覆蓋窄頁 breakpoint 收成單欄的行為 */
+  #main #labor-grid {
+    grid-template-columns: repeat(12, minmax(0, 1fr)) !important;
+    row-gap: 8mm !important;
+    column-gap: 8mm !important;
+  }
+
+  /* KPI 強制單列 6 欄（覆蓋 @media max-width 的 2/3 欄 breakpoint）*/
+  #main #labor-grid .labor-kpi-grid {
+    grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+    break-inside: avoid !important;
+  }
+  #main #labor-grid .labor-kpi-card { padding: 6px 9px !important; break-inside: avoid !important; }
+
+  /* 分析區雙欄：[各作業區工時 ~1.2fr] [班別成本 ~1fr] */
+  #main #labor-grid .labor-struct-card { grid-column: span 7 !important; break-inside: avoid !important; }
+  #main #labor-grid .labor-shift-card  { grid-column: span 5 !important; break-inside: avoid !important; }
+
+  /* Page1 結束 → 作業區效率明細強制換到第二頁、佔滿整列 */
+  #main #labor-grid .labor-dept-card {
+    grid-column: 1 / -1 !important;
+    break-before: page !important;
+  }
+
+  /* Page2：隱藏檢視下拉與說明摺疊等操作 UI */
+  #main .labor-dept-card .freight-ref-matrix-view,
+  #main .labor-dept-card .labor-formula-note { display: none !important; }
+
+  /* Page2 表格：全寬、固定版面、不捲動、欄位不超界 */
+  #main .labor-dept-card .scroll-x,
+  #main .labor-dept-card .ops-table-frame { overflow: visible !important; }
+  #main .labor-dept-table {
+    width: 100% !important;
+    min-width: 0 !important;
+    table-layout: fixed !important;
+    border-collapse: collapse !important;
+    font-size: 9pt !important;
+  }
+  #main .labor-dept-table :is(th, td) { padding: 6px 8px !important; word-break: break-word !important; }
+  /* 依課別 5 欄建議欄寬（課別/人次/工時/費用/人員時薪）*/
+  #main .labor-dept-table :is(th, td):nth-child(1) { width: 30% !important; text-align: left !important; }
+  #main .labor-dept-table :is(th, td):nth-child(2) { width: 12% !important; }
+  #main .labor-dept-table :is(th, td):nth-child(3) { width: 18% !important; }
+  #main .labor-dept-table :is(th, td):nth-child(4) { width: 22% !important; }
+  #main .labor-dept-table :is(th, td):nth-child(5) { width: 18% !important; }
+  /* 跨頁時表頭重複、資料列不被拆成兩頁 */
+  #main .labor-dept-table thead { display: table-header-group !important; }
+  #main .labor-dept-table tr { break-inside: avoid !important; }
 }
